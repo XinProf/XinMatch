@@ -78,6 +78,15 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T6.1 | Peak correlation (greedy + Hungarian) | ✅ |
 | T6.2 | FoM criteria (5 components, weights from FOM_MODEL.md) | ✅ |
+| T6.3 | Weighted sum + sort → CandidateResult list | ✅ |
+| T6.4 | Full-pattern search-match main loop (search_match) | ✅ |
+| T6.5 | Marked-peak search (search_marked_peaks wrapper) | ✅ |
+| T6.7 | CandidateList model (sort/filter/select/unassociated) | ✅ |
+| T6.0 | Hanawalt/Fink coarse pre-filter | ⬜ |
+| T6.6 | PFSM (full-spectrum fitting FoM) | ⬜ |
+| T6.8 | Auto FoM recompute on phase selection | ⬜ |
+| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ⬜ |
+| T6.10 | Weight tuning (grid/Bayesian) | ⬜ |
 
 ## Phase 7 — Restraints application (`core/search/`)
 
@@ -91,13 +100,30 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T8.1 | RIR quantitative (adiabatic + reference-ratio) | ✅ |
 
+## Phase 9 — Indexing (`core/index/`)
+
+| ID | Task | Status |
+|----|------|--------|
+| T9.1 | d-spacing formulas for 7 crystal systems | ✅ |
+| T9.2 | Treor (trial-and-error) — cubic full, others simplified | ✅ |
+| T9.3 | Dicvol (dichotomy) — cubic full, others simplified | ✅ |
+| T9.4 | Solution ranking + dedup + Smith-Snyder/de Wolff FOM | ✅ |
+
 ## Phase 11 — Microstructure (`core/micro/`)
 
 | ID | Task | Status |
 |----|------|--------|
 | T11.1 | Scherrer crystallite size (+ Williamson-Hall) | ✅ |
 
-## Phases 9–16
+## Phase 12 — Report & export (`core/report/`)
 
-See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T9 indexing (Treor/Dicvol),
-T10 Le Bail/Rietveld, T12 micro-strain/DOC, T13 report, T14+ GUI (PySide6).
+| ID | Task | Status |
+|----|------|--------|
+| T12.1 | Report data model (SampleInfo / CandidateEntry / Report) | ✅ |
+| T12.2 | Renderers: HTML / text / markdown / PDF (weasyprint lazy) | ✅ |
+| T12.3 | Figure export: PNG / SVG (matplotlib Agg) | ✅ |
+
+## Phases 10, 13–16
+
+See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T10 Le Bail/Rietveld,
+T13 GUI (PySide6), T14 CLI/batch, T15 packaging, T16 3D structure viz.
