@@ -72,7 +72,32 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T5.6 | User database CRUD | ✅ |
 | T5.7 | Database manager (multi-db) | ✅ |
 
-## Phases 6–16
+## Phase 6 — Search-Match (`core/search/`)
 
-See [ROADMAP_v3.md](../ROADMAP_v3.md). P6 (Search-Match) is the next critical
-path — blocked on T0.8 (FoM P-value reverse-engineering) and real COD data.
+| ID | Task | Status |
+|----|------|--------|
+| T6.1 | Peak correlation (greedy + Hungarian) | ✅ |
+| T6.2 | FoM criteria (5 components, weights from FOM_MODEL.md) | ✅ |
+
+## Phase 7 — Restraints application (`core/search/`)
+
+| ID | Task | Status |
+|----|------|--------|
+| T7 | Apply restraints to DB search + candidate pruning + scoring | ✅ |
+
+## Phase 8 — Quantitative analysis (`core/quant/`)
+
+| ID | Task | Status |
+|----|------|--------|
+| T8.1 | RIR quantitative (adiabatic + reference-ratio) | ✅ |
+
+## Phase 11 — Microstructure (`core/micro/`)
+
+| ID | Task | Status |
+|----|------|--------|
+| T11.1 | Scherrer crystallite size (+ Williamson-Hall) | ✅ |
+
+## Phases 9–16
+
+See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T9 indexing (Treor/Dicvol),
+T10 Le Bail/Rietveld, T12 micro-strain/DOC, T13 report, T14+ GUI (PySide6).
