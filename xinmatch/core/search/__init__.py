@@ -36,6 +36,22 @@ from .fom_criteria import (
     compute_p_values,
     score_candidate,
 )
+from .hanawalt_fink import (
+    build_hanawalt_lookup,
+    fink_index,
+    hanawalt_index,
+    make_hanawalt_key,
+    pre_filter,
+    pre_filter_fink,
+    pre_filter_hanawalt,
+)
+from .pfsm import (
+    compute_reference_pattern,
+    compute_rwp,
+    fit_scale_shift,
+    pfsm_rank,
+    pfsm_score,
+)
 from .restraints_apply import (
     apply_restraints,
     prune_candidates,
@@ -72,4 +88,18 @@ __all__ = [
     "apply_restraints",
     "prune_candidates",
     "score_restraints_match",
+    # Hanawalt / Fink coarse pre-filter (T6.0)
+    "hanawalt_index",
+    "fink_index",
+    "make_hanawalt_key",
+    "build_hanawalt_lookup",
+    "pre_filter_hanawalt",
+    "pre_filter_fink",
+    "pre_filter",
+    # PFSM (T6.6)
+    "compute_reference_pattern",
+    "fit_scale_shift",
+    "compute_rwp",
+    "pfsm_score",
+    "pfsm_rank",
 ]

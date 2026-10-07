@@ -82,8 +82,8 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.4 | Full-pattern search-match main loop (search_match) | ✅ |
 | T6.5 | Marked-peak search (search_marked_peaks wrapper) | ✅ |
 | T6.7 | CandidateList model (sort/filter/select/unassociated) | ✅ |
-| T6.0 | Hanawalt/Fink coarse pre-filter | ⬜ |
-| T6.6 | PFSM (full-spectrum fitting FoM) | ⬜ |
+| T6.0 | Hanawalt/Fink coarse pre-filter | ✅ |
+| T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ⬜ |
 | T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ⬜ |
 | T6.10 | Weight tuning (grid/Bayesian) | ⬜ |
@@ -123,7 +123,28 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T12.2 | Renderers: HTML / text / markdown / PDF (weasyprint lazy) | ✅ |
 | T12.3 | Figure export: PNG / SVG (matplotlib Agg) | ✅ |
 
-## Phases 10, 13–16
+## Phase 10 — Refinement (`core/refine/`)
 
-See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T10 Le Bail/Rietveld,
-T13 GUI (PySide6), T14 CLI/batch, T15 packaging, T16 3D structure viz.
+| ID | Task | Status |
+|----|------|--------|
+| T10.1 | Peak model (pseudo-Voigt + asymmetry + Caglioti U/V/W) | ✅ |
+| T10.2 | Structure factor (scattering factors, DW, LP, multiplicity) | ✅ |
+| T10.3 | Le Bail decomposition | ✅ |
+| T10.4 | Rietveld refinement (scale + cell + peak_width + zero) | ✅ |
+| T10.5 | Residuals | ⬜ |
+| T10.6 | FullProf / GSAS-II adapter | ⬜ |
+| T10.7 | Strategy turn-on | ⬜ |
+
+## Phase 14 — CLI & scripting (`cli/`)
+
+| ID | Task | Status |
+|----|------|--------|
+| T14.1 | CLI pipeline (import → process → search → quantify → report) | ✅ |
+| T14.2 | Python API (`xinmatch/__init__.py`) | ✅ |
+| T14.3 | Batch scripting (JSON/YAML config) | ⬜ |
+| T14.4 | Serial instrument control | ⬜ |
+
+## Phases 13, 15–16
+
+See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T13 GUI (PySide6),
+T15 packaging, T16 3D structure viz.
