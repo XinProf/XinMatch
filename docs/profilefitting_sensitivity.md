@@ -1,0 +1,11 @@
+# Peak Searching Sensitivity Adjustment
+
+## Peak Searching Sensitivity Adjustment
+If you have the impression that peak searching gives too many or too few peaks, you should vary the peak searching sensitivity, or, in other words, the tolerance that is applied in the decision if a "hump" in the raw diffraction data results in a peak being added to the peak list or not.
+The following commands are available to modify the current peak search sensitivity:
+- Increase sensitivity: Select the corresponding command from the submenu "Pattern/Peak Searching" or press the "F2" button. More peaks will be detected (added to the peak list) if available.
+- Reduce sensitivity: Select the corresponding command from the submenu "Pattern/Peak Searching" or press "F3" button. Some peaks will be removed / fewer peaks will be detected.
+- Optimize sensitivity: You can let Match! search for the optimum peak search sensitivity on its own. To do so, select the corresponding command from the submenu "Pattern/Peak Searching" or press the "F4" button. Match! will then try to minimize the Rwp value (measure of the agreement between calculated and experimental diffraction pattern) by varying the peak search sensitivity parameter automatically.Note that this operation may take some time (especially if the "Run profile fitting after peak searching" option is active on the "Raw data" page of the "Options" window) but typically gives pretty accurate results!
+Remarks:
+- The peaks in the diffraction pattern as well as the peak list, the calculated profile (including Rwp value), and the FoM values in the candidate list are instantly updated when you modify the peak search sensitivity. As a result, you have an instant visual feedback which allows you to easily adjust the sensitivity according to your requirements.
+- Although the FoM-values of the candidate list entries are instantly updated using the new peak data, it is generally recommended to perform a new search-match in order to check if new entries have entered the candidate list.

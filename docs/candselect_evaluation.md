@@ -1,0 +1,9 @@
+# Evaluation of Candidates
+
+## Evaluation of Candidates
+It is a little bit difficult to describe the actual criteria for the selection of matching entries, since normally some experience on the subject is generally helpful (especially with low-quality data):
+- The first guide are of course the FoM-values of the entries. The ones with the highest values should be the most promising candidates.
+- However, we strongly recommend to also mark an entry in the candidate list and visually inspect the diffraction data in addition to the FoM: Quite frequently, a certain entry receives a low figure-of-merit just because some of its peaks have not been detected in the diffraction pattern (which can e.g. be caused by low-quality data revealing broad peaks and a lot of "noise"). A detailed analysis using both diffraction pattern and peak list is generally advisable in these cases in order to inspect the correlation quality as well as detect uncorrelated peaks. If a bad or even no correlation has been established for a certain peak, you can then use the "zoom" or "zoom/track" functionality of the pattern graphics in order to investigate the situation around the corresponding peaks. For instance, a peak might not have been correlated simply because the automatic peak detector was not sensitive enough and missed a peak. In this case, you can manually add the peak at the corresponding position in order to solve the problem.
+- Besides this, it is worth while considering if any additional information might be available about the sample (like chemical composition, density, color etc.). Using such additional knowledge generally reduces the number of entries in the candidate list significantly, thus making the decision about matching entries a lot easier.
+See also:
+- Automatic selection of matching entries

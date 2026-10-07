@@ -1,0 +1,12 @@
+# Refinement Calculations
+
+## Refinement Calculations
+Refinement calculations are frequently used to get or confirm detailed information about a micro-crystalline sample, based on powder diffraction data. Typically, these calculations work as follows:
+First of all, a so-called "model" is set up. This "model" can be imagined as a large formula using which the intensity at every single data point of a powder diffraction pattern can be calculated. For this, the formula contains information like the crystal structure data of all identified phases as well as terms that describe all kinds of effects one could imagine to be present in the material, e.g. stacking faults or micro-strain (causing peak broadening), preferred-orientation (causing peak intensity deviations) etc.
+Afterwards, the numerical parameters in this model (formula) are varied, typically using a so-called "least-squares refinement". The aim is to determine the set of parameter values that gives the best possible agreement between the experimental diffraction profile and the profile calculated from this model (measured as "R-factor" or "chi2-value"). Finally, the obtained parameter values are critically analyzed, and conclusions about the "physical reality" in the sample are drawn.
+In combination with FullProf, Match! offers the following refinement calculations:
+- Rietveld refinement
+- Pattern decomposition (Le Bail method)
+While Rietveld refinement requires the presence of atomic coordinates in all data sets, this does not apply to pattern decomposition (for which Match! uses the well-known "Le Bail method").
+It is possible to perform mixed refinement calculations though, where some phases (where atomic coordinates are available) are refined using Rietveld and others (without atomic coordinates) by pattern decomposition. Hence, it is perfectly possible to perform refinements even if one or the other "matching entry" does not contain atomic coordinates.
+Please note: If such a mixed calculation is performed, the entries where pattern decomposition is applied are not included in the quantitative analysis (their amounts will be displayed as zero (0.0)). In these cases it is possible to perform a full quantitative analysis if the amounts of these phases are known from other sources: You can enter the known amount(s) manually in the match list, by double-clicking the corresponding "missing" amount value "0.0" in the match list, entering the "true" amount, and finally pressing <Return>. Match! will re-scale the amounts of the remaining phases accordingly.

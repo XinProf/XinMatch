@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xinmatch"
+version = "0.1.0"
+description = "XinMatch — Open-source powder XRD phase analysis platform (clean-room reimplementation of Match!-style workflows)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "XinMatch Contributors" }]
+keywords = ["XRD", "powder diffraction", "phase analysis", "Rietveld", "search-match"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "gemmi>=0.6",          # CIF / crystallography (MIT)
+    "lmfit>=1.2",          # least-squares with parameter constraints
+    "pyyaml>=6.0",         # config / batch scripts
+]
+
+[project.optional-dependencies]
+gui = [
+    "PySide6>=6.5",        # Qt6 GUI (LGPL)
+    "pyqtgraph>=0.13",     # high-performance pattern plotting
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "hypothesis>=6.80",
+    "ruff>=0.1",
+    "mypy>=1.6",
+]
+
+[project.scripts]
+xinmatch = "xinmatch.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["xinmatch*"]
+
+# ---- Tool config ----
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-q --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

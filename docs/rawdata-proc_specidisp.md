@@ -1,0 +1,22 @@
+# Specimen Displacement Error Correction
+
+## Specimen Displacement Error Correction
+One of the most common errors in diffraction patterns is the so-called "specimen displacement error", especially if they are measured in reflection using a powder diffractometer with divergent-beam geometry. You can check and (if necessary) correct for this error using the "Correct specimen displacement" command in the "Pattern" menu.
+In a first step, Match! tries to find pairs of peaks based on the fact that e.g. d(100) = 2.0 * d(200). If the quotient d(peak 1) / d(peak 2) is close to 2.0, Match! will calculate the corresponding parameter T = -s/R (s = effective specimen displacement, R = radius) and add it to a histogram. When all pairs have been checked, the histogram will be displayed in order to let the user select the value of T used in the correction. Match! will propose a value for the correction based on the analysis of the histogram, indicated by a red vertical line.
+The heigher a bar in the histogram, the more peak pairs have been found for the corresponding correction value. Hence, the user should generally select the correction according to the heighest bar as close to 0.0 as possible. A value is either selected by double-clicking at the corresponding position in the histogram or by entering the value manually in the input field. Finally, please press "OK" to perform the actual correction on the 2θ-values.
+Depending on the geometry used in the diffraction experiment, Match! either uses the formula for Bragg-Brentano geometry (Δ2θ = -2.0 * T * cos(θ)) or the one for asymmetry geometry (Δ2θ = (T / sin(Ω)) * sin(2θ)).
+All data views (diffraction pattern, candidate list, peak list etc.) will instantly reflect the change of the peak positions. If the peak list contains entries, their FoM-values will also be updated immediately.
+As an alternative to the automatic correction, you can also correct the specimen displacement directly in the pattern graphics using the mouse: In order to do so, please make sure that the mouse cursor is located within the pattern graphics, then press <Ctrl+Alt+Shift>. The mouse cursor will change to . While keeping the Ctrl, Alt and Shift buttons pressed, turn the mouse wheel to modify the specimen displacement parameter. The effect will take place in the pattern graphics straight away.
+|
+Note:
+- If you perform Rietveld refinement calculations using FullProf, please note that the specimen displacement correction is implemented in opposite directions in Match! and FullProf. In other words, the absolute values of the correction using Match! and FullProf will be similar, but the sign will be different (opposite).
+The background is that Match! tries to remove potential errors (like specimen displacement) from the experimental data before performing the real analysis, just like stripping of the alpha2 radiation part, background subtraction and raw data smoothing. In FullProf (or rather Rietveld refinement in general), the concept is rather to leave the experimental diffraction data in their original state and try to include corrections for potential errors (like the specimen displacement) in the model formula.
+For more details, you should compare the formulas given above with pp. 56-57 in the FullProf manual.
+- The geometry used in the diffraction experiment can be defined on the Raw data tab of the "Options" dialog, along with the Ω-value for the asymmetric geometry (curved position sensitive detector with flat plate sample).
+- Although the FoM-values of the candidate list entries are instantly updated using the new correction value, it is generally recommended to perform a new search-match in order to check if new entries have entered the candidate list.
+- You should try several correction values and compare the results. With Match!, this is rather simple due to its unlimited Undo/Redo facility.
+- For the automatic raw data processing, you can decide if (and which) 2theta error correction (zero point or specimen displacement) you would like to perform in the corresponding Options dialog.
+- During automatic raw data processing, the histogram window is not displayed. The correction is detected automatically from an internal histogram of the potential specimen displacement corrections of all applicable pairs of peaks without any user interaction.
+See also:
+- Correct zero point error
+- Using an internal standard for 2theta error correction

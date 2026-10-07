@@ -1,0 +1,19 @@
+# Zero Point Correction
+
+## Zero Point Correction
+Diffraction patterns may contain a zero point shift, e.g. due to a misaligned detector. You can check and (if necessary) correct for this error using the "Correct zero point" command in the "Pattern" menu, or by pressing the corresponding button  in the main toolbar.
+Match! tries to determine the required correction automatically. For this it analyzes the d-value quotients of all pairs of peaks. The selection of pairs is based on the fact that e.g. d(100) = 2.0 * d(200). If the quotient d(peak 1) / d(peak 2) is close to 2.0, Match! will add the corresponding 2theta-correction to a histogram. When all pairs have been checked, the histogram will be displayed in order to let the user select the actual 2theta correction value. Match! will propose a value for the correction based on the analysis of the histogram, indicated by a red line.
+The higher a bar in the histogram, the more peak pairs have been found for the corresponding 2theta correction value. Hence, the user should generally select the 2theta correction according to the highest bar as close to 0.0 as possible. A value is either selected by double-clicking at the corresponding position in the histogram or by entering the value manually in the input field. Finally, please press "OK" to perform the actual correction. All data views (diffraction pattern, candidate list, peak list etc.) will instantly reflect the change of the peak positions. If the candidate list contains entries, their FoM-values will also be updated immediately.
+As an alternative to the automatic correction, you can also modify the zero point directly in the pattern graphics using the mouse: In order to do so, please make sure that the mouse cursor is located within the pattern graphics, then press <Ctrl+Alt>. The mouse cursor will change to . While keeping the Ctrl and Alt button pressed, turn the mouse wheel to shift the positions of exp. peaks and raw data along the 2theta-axis. The effect will be visible in the pattern graphics straight away.
+|
+Note:
+- If you perform Rietveld refinement calculations using FullProf, please note that the zero point correction is implemented in opposite directions in Match! and FullProf. In other words, the absolute values of the correction using Match! and FullProf will be similar, but the sign will be different (opposite).
+The background is that Match! tries to remove potential errors (like the zero point) from the experimental data before performing the real analysis, just like stripping of the alpha2 radiation part, background subtraction and raw data smoothing. In FullProf (or rather Rietveld refinement in general), the concept is rather to leave the experimental diffraction data in their original state and try to include corrections for potential errors (like the zero point) in the model formula.
+- Although the FoM-values of the candidate list entries are instantly updated using the new correction value, it is generally recommended to perform a new search-match in order to check if new entries have entered the candidate list.
+- You should try several correction values and compare the results. With Match!, this is rather simple due to its unlimited Undo/Redo facility.
+- For the automatic raw data processing, you can decide if (and which) 2theta error correction (zero point or specimen displacement) you would like to perform in the corresponding Options dialog.
+- During automatic raw data processing, the histogram window is not displayed. The shift is detected automatically from an internal histogram of the potential zero point shifts of all applicable pairs of peaks without any user interaction.
+See also:
+- Automatic zero point adaptation during search-match
+- Correct specimen-displacement error
+- Using an internal standard for 2theta error correction

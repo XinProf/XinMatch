@@ -1,0 +1,9 @@
+# Application of Restraints
+
+## Application of Restraints
+### Directly view specific phases/entries
+If you already know that a certain phase is present in your sample, you can search for it and display it directly. Otherwise, you can run a search-match calculation so that Match! can analyze your diffraction pattern to identify phases. You can also define certain selection criteria for this if you have additional information about the sample.
+### Restriction of search-match to specific compounds
+Normally, the search-match calculation is carried out for all entries in the reference pattern database. However, if any additional information about the sample is available (like elements that can be excluded or may be present, the chemical composition, density etc.), it is strongly recommended to use this information by restricting the search-match procedure to entries fulfilling these criteria. The main advantage of this limitation (further called "restraining") is the reduction of the number of candidate entries in the candidate list which makes the final selection of the matching entries by the user a lot easier.
+The additional information you have about your sample (e.g. elements) is entered on the restraints tab on the upper right-hand side of the screen. Each time you update your restraints (e.g. by selecting an element that must be present), Match! will update your candidate list accordingly right away, so that you can instantly watch the effect of your additional information (the so-called "perpetual restraining").
+Note: It is of course perfectly possible to use Match!'s restraining facilities without any diffraction data, i.e. to use Match! as a comfortable retrieval software for the reference pattern database.

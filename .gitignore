@@ -1,0 +1,66 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+*.whl
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+.venv-*/
+
+# ---- Testing & coverage ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ---- Type checkers & linters ----
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# ---- IDE / Editor ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.trae/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Project-specific ----
+# Large reference databases (COD SQLite, ICDD PDF) — distributed separately
+*.db3
+*.sqlite
+*.sqlite3
+# Match! proprietary database files (not redistributed)
+*.mti
+*.mqs
+*.mqn
+*.mtb
+*.mtn
+*.mtu
+# Large XRD data files / fixtures (keep only small synthetic ones in repo)
+tests/fixtures/patterns/**/*.raw
+tests/fixtures/patterns/**/*.rd
+tests/fixtures/patterns/**/*.udi
+tests/fixtures/patterns/**/*.brml
+tests/fixtures/patterns/**/*.ras
+tests/fixtures/cod/**
+
+# ---- Build artifacts ----
+*.spec

@@ -1,0 +1,6 @@
+# Alpha2 Stripping
+
+## Alpha2 Stripping
+The X-ray radiation used for the measurement of the powder diffraction pattern generally contains contributions from both alpha-1 and alpha-2 transitions (at least if no corresponding monochromator system is applied in the diffraction experiment). In order to be able to determine the peak positions and intensities, the contribution from the alpha-2 transitions has to be eliminated.
+Match! uses the algorithm of J. Ladell, A. Zagofsky and S. Pearlman (described in J. Appl. Cryst. 8, 499 (1975)) to perform this task. Unfortunately, this algorithm has a drawback in that it can produce unreasonable results in the high-angle area due to a piling up of  overcompensation. Match! displays an error message if overcompensation is detected. In this case, the alpha-2 stripping cannot be performed.
+In order to strip the alpha-2 contribution of the radiation, either select the "Strip K-alpha2" command from the "Pattern" menu or press the corresponding button  in the main toolbar at the top.
