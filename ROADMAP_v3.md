@@ -285,20 +285,29 @@ extmatch/
 
 ## Phase 10 · 精修（`core/refine/`）
 
-> 参考：`Rietveld*.md`、`LeBail.md`、`refinements_FullProf.md`
+> ⚠️ **关键架构决策（2026-10-08）：XinMatch 不自研精修算法。**
+>
+> 对标 Match! 集成 FullProf 的模式，XinMatch 选择集成 **GSAS-II**（Python 编写，可通过 `GSASIIscriptable` API 嵌入式集成，无需外部进程）。
+> 工作流：XinMatch 完成物相鉴定 → 把**已选相的 CIF + 原始谱图 + 精修参数**传给 GSAS-II → GSAS-II 执行 Le Bail / Rietveld 精修 → XinMatch 解析 GSAS-II 输出（Rwp、精修后 CIF、prf 残差谱）回填数据模型。
+>
+> 因此 T10.1–T10.5、T10.7 的自研实现仅作 **参考/交叉验证**（用于校验 GSAS-II 输出是否合理），**不进生产路径**。生产精修唯一集成点是 **T10.6b（GSAS-II 适配层）**，配合 T10.8（项目构造器）和 T10.9（结果解析）形成完整闭环。
+>
+> 参考软件（已安装于本机）：GSAS-II = `C:\gsas2main\GSAS-II`（`GSASII\GSASIIscriptable.py`）、MAUD = `C:\MAUD3`/`C:\MAUD2`（GUI 参考）、FullProf = `C:\FullProf_Suite`（已装但不选用）、Match! = `C:\Program Files\Match4`（工作流参考）。
 
-| ID | 任务 | 输出 | 验收标准 | 优先级 |
-|---|---|---|---|---|
-| **T10.1** | 峰形模型：pseudo-Voigt + 不对称 + Caglioti 宽度模型（U,V,W）+ 轴向发散 | `peak_model.py` | 与文献公式一致 | 🔴 高 |
-| **T10.2** | 结构因子计算：原子散射因子（国际表近似）、温度因子、多重性、Lorentz-Polarization。**用 `pymatgen` / `diffpy.structure` 作交叉验证基线**（仅验证，不作运行时依赖） | `structure_factor.py` | 自算结果与 pymatgen 偏差 <0.5%；与已知计算谱对比 R <1% | 🔴 高 |
-| **T10.3** | **Le Bail 分解**：迭代分配重叠峰强度 | `le_bail.py` | 收敛；Rwp <10% | 🟡 中 |
-| **T10.4** | **Rietveld 精修**：最小二乘 + 参数约束（缩放、晶胞、峰宽、零点、原子坐标/占位/Uiso） | `rietveld.py` | 标准样品 Rwp <8%，Rp <6%，χ² 合理 | 🟡 中 |
-| **T10.5** | 残差计算与残差峰分析（Peak Residuals） | `residuals.py` | 残差谱正确 | 🟢 低 |
-| **T10.6** | **FullProf 适配层**（对标 refinements_FullProf）：生成 .pcr、调用、解析 .out/.prf | `fullprof_adapter.py` | 能驱动已安装的 FullProf 完成一轮精修 | 🔴 高 |
-| **T10.6b** | ⭐ **GSAS-II 适配层**（优先级**高于** FullProf）：GSAS-II 是 Python 编写，可嵌入式集成而非进程调用，且开源可研读作为算法参考 | `gsas2_adapter.py` | 能完成一轮精修；结果与 FullProf 交叉一致 | 🔴 高 |
-| **T10.7** | 策略化精修（参数逐步开启，对标 Parameter Turn-On） | `turn_on.py` | 参数顺序可配；收敛率提升有记录 | 🟡 中 |
+| ID | 任务 | 输出 | 验收标准 | 优先级 | 路径 |
+|---|---|---|---|---|---|
+| T10.1 | 峰形模型：pseudo-Voigt + 不对称 + Caglioti U/V/W + 轴向发散 | `peak_model.py` | 与文献公式一致 | 🟡 中 | 📚 reference only |
+| T10.2 | 结构因子：原子散射因子、温度因子、多重性、Lorentz-Polarization | `structure_factor.py` | 与 pymatgen 偏差 <0.5% | 🟡 中 | 📚 reference only |
+| T10.3 | Le Bail 分解（迭代分配重叠峰强度） | `le_bail.py` | 收敛；Rwp <10% | 🟢 低 | 📚 reference only |
+| T10.4 | Rietveld 精修（最小二乘 + 参数约束） | `rietveld.py` | 标准样品 Rwp <8% | 🟢 低 | 📚 reference only |
+| T10.5 | 残差 R 因子（Rp/Rwp/R_exp/χ²/GoF）+ 残差峰分析 | `residuals.py` | 残差谱正确 | 🟢 低 | 📚 reference only |
+| T10.6 | FullProf 适配层 | — | — | ❌ 不做 | Match! 用 FullProf，XinMatch 选 GSAS-II |
+| **T10.6b** | ⭐ **GSAS-II 适配层（生产精修唯一入口）**：`RietveldAdapter` Protocol + `LocalRietveldAdapter` fallback（无 GSAS-II 时）+ `GSAS2RietveldAdapter`（lazy import `GSASIIscriptable`）+ `.gss` ESD 格式解析 | `gsas2_adapter.py` | 能驱动 GSAS-II 完成一轮精修；GSAS-II 不可用时 graceful fallback | 🔴 最高 | 🏭 production |
+| T10.7 | 策略化精修（参数逐步开启） | `turn_on.py` | 参数顺序可配 | 🟢 低 | 📚 reference only |
+| **T10.8** | ⭐ **GSAS-II 项目构造器**：把 XinMatch 的 `Entry`/`Phase`（含 CIF）+ `Pattern` + 精修参数 → GSAS-II 可执行项目（.gpx / 脚本） | `gsas2_project.py` | 用 IUCr CPD-1c 的 Al2O3/ZnO/CaF2 三 CIF + 原始谱能构造出可在 GSAS-II 中直接运行的项目 | 🔴 最高 | 🏭 production |
+| **T10.9** | ⭐ **GSAS-II 结果解析**：从 GSAS-II 输出（Rwp/Rp/χ² + 精修后 CIF + prf 残差谱）回填到 XinMatch 数据模型（`Phase` / `Pattern` / `ResidualReport`） | `gsas2_parse.py` | 解析后 Rwp 与 GSAS-II 报告一致；残差谱可在 XinMatch 中重绘 | 🔴 最高 | 🏭 production |
 
-**Phase 10 验收**：标准样品 Rietveld 精修 Rwp < 8%
+**Phase 10 验收**：用 IUCr CPD 样品（已知 wt%）跑完整 "物相鉴定 → GSAS-II 项目构造 → 精修 → 结果解析" 闭环，Rwp < 8% 且定量误差 < 3 wt%
 
 ---
 
@@ -345,10 +354,13 @@ extmatch/
 | **T13.5** | 各功能对话框：导入选项、实验详情、选项设置（15 类）、颜色线型设置 | `ui/dialogs/` | 每类设置可持久化到配置文件 | 🟡 中 |
 | **T13.6** | 快捷键映射（对标 `function_keys.md`：Ctrl+M、Ctrl+Shift+M、Ctrl+Shift+K…） | `ui/shortcuts.py` | 全部列出并生效 | 🟡 中 |
 | **T13.7** | 样式主题：浅色/深色，图标资源**自绘或用开源图标**（不复制 Match! 图标） | `ui/theme.py` | 两种主题无控件不可读 | 🟢 低 |
+| **T13.8** | ⭐ **精修向导 GUI（MAUD 风格，委托 GSAS-II）**：分步引导——选已鉴定相 → 选背景处理 → 勾选精修参数组（Scale/Cell/Profile/Atoms）→ 运行 → 查看 R 因子 + 残差谱 + 精修后晶胞参数。**不重写算法**，所有计算调用 T10.6b/T10.8/T10.9（GSAS-II）；界面交互参考 MAUD（`C:\MAUD3`）的向导式设计，比 GSAS-II 原生 GUI 直观 | `ui/refinement_wizard.py` | 能驱动 GSAS-II 完成一轮精修并显示结果；无 GSAS-II 时友好提示 | 🔴 最高 |
 
 > ⚠️ **图标与视觉资源必须原创或使用开源图标（如 KDE Breeze / Lucide）**，不得复制 Match! 的 `Match4_Win.ico` 或帮助文档内嵌截图。
+>
+> ⚠️ **精修 GUI 原则**：XinMatch 只做**交互体验**（参数选择、进度展示、结果可视化），**不做任何精修计算**——所有 Le Bail/Rietveld/残差计算全部委托 GSAS-II。这与 Match! 集成 FullProf 的模式一致。
 
-**Phase 13 验收**：人工按 Match! 手册操作 ExtMatch 完成一次完整物相分析 → 结果一致
+**Phase 13 验收**：人工按 Match! 手册操作 ExtMatch 完成一次完整物相分析（含 GSAS-II 精修）→ 结果一致
 
 ---
 
@@ -413,11 +425,12 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 - **组 B**：T3 + T4（预处理 + 寻峰）—— 信号处理方向
 - **组 C**：T5（数据库）—— 可先于 T6 完成，schema 设计独立
 - **组 D**：T9（指标化）—— 算法独立，晶体学方向
-- **组 E**：T10.1/T10.2（峰形模型 + 结构因子）—— 精修基础，可与 T6 并行
+- **组 E**：T10.6b + T10.8 + T10.9（GSAS-II 集成三件套）—— 精修生产路径，可与 T6 并行；T10.1–T10.5/T10.7 自研仅参考，非必须
 
 **必须串行**：
 - T6（Search-Match）依赖 T4 的峰 + T5 的库
-- T8 的 Rietveld 定量依赖 T10
+- T8 的 Rietveld 定量依赖 T10.6b + T10.8 + T10.9（GSAS-II 闭环）
+- T13.8（精修向导 GUI）依赖 T10.6b/T10.8/T10.9
 - T13（GUI）依赖所有 core 模块
 
 ---
@@ -434,7 +447,8 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 | P5 | LaB6 检索 | 正确 entry 进 Top-100 |
 | P6 | `pytest tests/search/test_baseline.py` | **Top-10 命中率 ≥ 基线 80%** |
 | P7-P11 | 各自数值回归测试 | 见各任务验收标准 |
-| P13 | 人工按 Match! 手册操作 ExtMatch 完成一次完整物相分析 | 结果一致 |
+| P10 | 用 IUCr CPD 样品跑 "物相鉴定 → GSAS-II 项目构造 → 精修 → 结果解析" 闭环 | Rwp < 8%，定量误差 < 3 wt% |
+| P13 | 人工按 Match! 手册操作 ExtMatch 完成一次完整物相分析（含 GSAS-II 精修向导） | 结果一致 |
 | P16 | 加载一个复杂结构（如沸石），检查对称展开与晶面显示 | 与 Diamond/VESTA 显示一致 |
 
 ---
@@ -450,6 +464,8 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 | 50 万条目全检索性能 | 慢 | 高 | 倒排索引剪枝 + Numba + 预过滤（强峰必中） |
 | 引入 GPL 依赖导致协议冲突 | 法律风险 | 低 | T15.4 严格审查；优先 MIT/BSD/LGPL |
 | 误复制 Match! 视觉资源 | 版权风险 | 低 | 图标/文档一律原创 |
+| GSAS-II 版本/API 不稳定 | 精修集成断裂 | 中 | T10.6b 适配层做 Protocol 抽象，GSAS-II 版本升级只改适配层；保留 LocalRietveldAdapter fallback |
+| 无 GSAS-II 环境时无法精修 | 生产功能不可用 | 中 | 打包时可选捆绑 GSAS-II（其许可允许）；或引导用户安装并检测 |
 
 ---
 
@@ -460,7 +476,8 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 | **数据工程师** | P2（I/O）、P5（数据库）、T5.9 | Python、二进制格式解析、SQLite 索引设计 | 高，可 2 个 agent |
 | **算法工程师（预处理）** | P3、P4 | SciPy.signal、最小二乘、峰形函数 | 中 |
 | **算法工程师（检索）** | P6、P7 | 检索算法、Numba 向量化、最优化 | 中（依赖 P4+P5） |
-| **算法工程师（精修）** | P9、P10、P11 | 晶体学、Rietveld/Le Bail、lmfit | 高（与检索组并行） |
+| **算法工程师（精修集成）** | P10.6b/T10.8/T10.9（GSAS-II 集成） | Python API 集成、GSAS-II 脚本、晶体学数据模型 | 高（与检索组并行，不重写算法） |
+| **算法工程师（精修参考实现）** | P10.1–T10.5/T10.7（自研，仅交叉验证） | 晶体学、Rietveld/Le Bail、lmfit | 低（非生产路径，可暂缓） |
 | **算法工程师（定量）** | P8 | RIR、内标法、统计 | 低（依赖 P10） |
 | **前端工程师** | P13、P16 | PySide6、pyqtgraph、Three.js | 中 |
 | **集成工程师** | P12、P14、P15 | 报告生成、CLI、打包 | 低（收尾） |
