@@ -85,7 +85,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.0 | Hanawalt/Fink coarse pre-filter | ✅ |
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ✅ |
-| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ (11/13 samples pass; 2 fail on COD missing LiFePO4/NCM811) |
+| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ (11/13 known-phase hit rate; **golden baseline vs Match! CSV (13 samples): Top-5 overlap 83.1% ≥ 60% PASS, Top-1 agreement 46.2% < 80% FAIL** — recall strong, FoM ranking needs tuning) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 
 ## Phase 7 — Restraints application (`core/search/`)

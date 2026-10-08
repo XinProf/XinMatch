@@ -1,15 +1,16 @@
 """L3 acceptance runner: Top-10 hit rate on the test_xrd 13-sample set (T6.9).
 
 Runs the XinMatch peak-based search-match pipeline on the 13-sample
-``test_xrd`` proxy baseline and reports the Top-10 hit rate against the
-known ground-truth phases.
+``test_xrd`` set and reports two families of metrics:
 
-Because we do not yet have a Match!-exported baseline for these 13
-samples, the acceptance criterion is a *proxy*: for each sample, every
-ground-truth phase must appear in the XinMatch Top-10 candidate list.
-This mirrors the L3 acceptance spec of ROADMAP_v3.md (Top-10 hit rate
-≥ 80 % of baseline), with "已知物相命中率" replacing the Match!
-baseline.
+1. **Known-phase hit rate** (the classic proxy): for each sample, every
+   ground-truth phase must appear in the XinMatch Top-10 candidate list.
+2. **Golden-baseline agreement** (L3 upgrade, ``--baseline-dir``): when
+   Match! candidate-list CSVs are available (e.g. the 13 exports under
+   ``D:\\Project\\XRD\\test_xrd\\match-candidate list-jingzhun\\``), each
+   sample's Top-1 candidate is checked for agreement with Match!'s Top-1
+   (threshold ≥ 80 %) and its Top-5 overlap is measured (threshold ≥ 60 %)
+   — see ``tools/match_baseline.py``.
 
 Reference database
 ------------------
@@ -20,7 +21,9 @@ a handful of decoy entries.  The hit-rate report flags any phase whose
 reference entry is absent from this curated DB as ``"DB 缺失"``
 (database missing) — this is **not** an algorithm failure.  When a
 real COD SQLite database becomes available, point ``--cod-db`` at it
-and the same runner will use the real entries.
+and the same runner will use the real entries.  The golden-baseline
+metrics use composition-normalised formula matching, so they work with
+both the curated DB and a real COD build.
 
 Reproducibility
 ---------------
@@ -35,10 +38,13 @@ Usage
 
     python -m tools.run_acceptance                      # default test_xrd path
     python -m tools.run_acceptance --sample-dir D:\\Project\\XRD\\test_xrd\\txt
+    python -m tools.run_acceptance --baseline-dir "D:\\Project\\XRD\\test_xrd\\match-candidate list-jingzhun"
     python -m tools.run_acceptance --top-n 10 --json report.json
 
 Exit code is 0 when the hit-rate threshold (default 9/13 = 69 %)
-is met, 1 otherwise — suitable for CI gating.
+is met, 1 otherwise — suitable for CI gating.  With ``--baseline-dir``,
+the golden-baseline thresholds are reported separately and do not gate
+the exit code (they are informational until a real COD DB is wired in).
 """
 
 from __future__ import annotations
@@ -55,6 +61,12 @@ from typing import Any
 
 import numpy as np
 
+from tools.match_baseline import (
+    MatchBaseline,
+    load_match_baseline_dir,
+    top1_agreement,
+    top5_overlap,
+)
 from xinmatch.core.db import build_element_index, create_tables, insert_entries
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import CellParams, Entry, Peak
@@ -68,6 +80,7 @@ __all__ = [
     "CURATED_ENTRIES",
     "DB_MISSING_PHASES",
     "SampleResult",
+    "BaselineComparison",
     "AcceptanceReport",
     "run_acceptance",
     "build_curated_db",
@@ -83,6 +96,11 @@ DEFAULT_TOP_N = 10
 
 # Default hit-rate threshold (samples with all phases in Top-10).
 DEFAULT_MIN_HITS = 9
+
+# Golden-baseline thresholds (ROADMAP_v3.md §L3 upgrade, HANDOVER §5.2):
+# Top-1 agreement with Match! ≥ 80 %; Top-5 overlap ≥ 60 %.
+DEFAULT_TOP1_MIN_RATE = 0.80
+DEFAULT_TOP5_MIN_OVERLAP = 0.60
 
 
 # --------------------------------------------------------------------------- #
@@ -376,6 +394,24 @@ class SampleResult:
 
 
 @dataclass
+class BaselineComparison:
+    """Golden-baseline comparison of one sample against the Match! export.
+
+    ``match_top1_ok`` and ``match_top5_overlap`` are ``None`` when no
+    Match! baseline exists for the sample (e.g. ``--baseline-dir`` was
+    not given or the CSV failed to parse).
+    """
+
+    sample_id: str
+    match_top1_ok: bool | None = None
+    match_top5_overlap: float | None = None
+    xinmatch_top1_id: str | None = None
+    xinmatch_top1_formula: str | None = None
+    match_top1_id: str | None = None
+    match_top1_name: str | None = None
+
+
+@dataclass
 class AcceptanceReport:
     """Aggregated acceptance report across all samples."""
 
@@ -387,6 +423,12 @@ class AcceptanceReport:
     passed: bool = False
     failed_samples: list[str] = field(default_factory=list)
     db_missing_samples: list[str] = field(default_factory=list)
+    # Golden-baseline (Match! CSV) metrics — None when no baseline loaded.
+    baseline: list[BaselineComparison] = field(default_factory=list)
+    match_top1_rate: float | None = None
+    match_top5_overlap_mean: float | None = None
+    match_top1_passed: bool | None = None
+    match_top5_passed: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -398,6 +440,11 @@ class AcceptanceReport:
             "passed": self.passed,
             "failed_samples": self.failed_samples,
             "db_missing_samples": self.db_missing_samples,
+            "baseline": [asdict(b) for b in self.baseline],
+            "match_top1_rate": self.match_top1_rate,
+            "match_top5_overlap_mean": self.match_top5_overlap_mean,
+            "match_top1_passed": self.match_top1_passed,
+            "match_top5_passed": self.match_top5_passed,
         }
 
 
@@ -508,6 +555,41 @@ def _match_top_n(
     return hits, missed, db_missing
 
 
+def _baseline_comparison(
+    sample_id: str,
+    xinmatch_results: list,
+    baselines: dict[str, MatchBaseline],
+) -> BaselineComparison:
+    """Compare one sample's XinMatch candidates against the Match! baseline.
+
+    Returns a :class:`BaselineComparison` whose metrics are ``None`` when
+    no baseline exists for the sample.
+    """
+    baseline = baselines.get(sample_id)
+    if baseline is None:
+        return BaselineComparison(sample_id=sample_id)
+
+    xin_cands: list[tuple[str, str | None]] = [
+        (r.entry.entry_id, r.entry.formula) for r in xinmatch_results
+    ]
+    xin_top1 = xinmatch_results[0] if xinmatch_results else None
+
+    bc = BaselineComparison(
+        sample_id=sample_id,
+        match_top1_ok=top1_agreement(
+            baseline.top1,
+            xin_top1.entry.entry_id if xin_top1 else None,
+            xin_top1.entry.formula if xin_top1 else None,
+        ),
+        match_top5_overlap=top5_overlap(baseline.top_n(5), xin_cands),
+        xinmatch_top1_id=xin_top1.entry.entry_id if xin_top1 else None,
+        xinmatch_top1_formula=xin_top1.entry.formula if xin_top1 else None,
+        match_top1_id=baseline.top1.entry_id if baseline.top1 else None,
+        match_top1_name=baseline.top1.name if baseline.top1 else None,
+    )
+    return bc
+
+
 def _synthetic_peaks_for_sample(
     sample_id: str,
     ground_truth: list[str],
@@ -575,6 +657,9 @@ def run_acceptance(
     top_n: int = DEFAULT_TOP_N,
     min_hits: int = DEFAULT_MIN_HITS,
     synthetic: bool = False,
+    baseline_dir: Path | None = None,
+    top1_min_rate: float = DEFAULT_TOP1_MIN_RATE,
+    top5_min_overlap: float = DEFAULT_TOP5_MIN_OVERLAP,
 ) -> AcceptanceReport:
     """Run the L3 acceptance on the 13-sample test_xrd set.
 
@@ -595,14 +680,35 @@ def run_acceptance(
         When ``True``, skip reading real .txt files and build synthetic
         peaks from the curated DB (fast / CI-friendly).  Real-file mode
         is the default when *sample_dir* is available.
+    baseline_dir:
+        Optional directory of Match! candidate-list CSVs
+        (``match-candidate list-jingzhun``).  When given, each sample is
+        additionally compared against the Match! golden baseline:
+        Top-1 agreement and Top-5 overlap.
+    top1_min_rate:
+        Minimum fraction of samples (with a baseline) whose Top-1
+        candidate agrees with Match! for the golden-baseline check to
+        pass (default 0.80).
+    top5_min_overlap:
+        Minimum mean Top-5 overlap against Match! (default 0.60).
 
     Returns
     -------
     AcceptanceReport
-        Structured report with per-sample results + hit-rate summary.
+        Structured report with per-sample results + hit-rate summary +
+        golden-baseline metrics (when *baseline_dir* is given).
     """
     conn = build_curated_db()
     report = AcceptanceReport(threshold_pct=min_hits / len(GROUND_TRUTH) * 100.0)
+
+    baselines: dict[str, MatchBaseline] = {}
+    if baseline_dir is not None:
+        baselines = load_match_baseline_dir(baseline_dir)
+        if not baselines:
+            logger.warning(
+                "baseline_dir %s: no Match! CSVs loaded — golden-baseline "
+                "metrics will be empty", baseline_dir,
+            )
 
     try:
         for sample_id, ground_truth in GROUND_TRUTH.items():
@@ -625,6 +731,9 @@ def run_acceptance(
                             n_exp_peaks=0,
                         )
                         report.samples.append(result)
+                        report.baseline.append(
+                            _baseline_comparison(sample_id, [], baselines)
+                        )
                         continue
                 else:
                     sample_path = (sample_dir or Path(
@@ -681,6 +790,9 @@ def run_acceptance(
                     n_exp_peaks=len(exp_peaks),
                 )
                 report.samples.append(result)
+                report.baseline.append(
+                    _baseline_comparison(sample_id, results, baselines)
+                )
             except Exception as exc:  # noqa: BLE001 — report all failures.
                 logger.exception("sample %s failed", sample_id)
                 report.samples.append(SampleResult(
@@ -690,6 +802,9 @@ def run_acceptance(
                     top10_entry_ids=[],
                     error=str(exc),
                 ))
+                report.baseline.append(
+                    _baseline_comparison(sample_id, [], baselines)
+                )
     finally:
         conn.close()
 
@@ -710,6 +825,21 @@ def run_acceptance(
         if s.db_missing_phases and not s.hit_phases and not s.missed_phases
     ]
     report.passed = report.n_hits >= min_hits
+
+    # Golden-baseline aggregation (only over samples with a baseline).
+    scored = [b for b in report.baseline
+              if b.match_top1_ok is not None and b.match_top5_overlap is not None]
+    if scored:
+        report.match_top1_rate = (
+            sum(1 for b in scored if b.match_top1_ok) / len(scored)
+        )
+        report.match_top5_overlap_mean = (
+            sum(b.match_top5_overlap for b in scored) / len(scored)
+        )
+        report.match_top1_passed = report.match_top1_rate >= top1_min_rate
+        report.match_top5_passed = (
+            report.match_top5_overlap_mean >= top5_min_overlap
+        )
     return report
 
 
@@ -726,6 +856,19 @@ def _format_report(report: AcceptanceReport) -> str:
     lines.append(
         f"Result: {'PASS' if report.passed else 'FAIL'}"
     )
+    if report.match_top1_rate is not None:
+        lines.append("")
+        lines.append("Golden baseline vs Match! (L3 upgrade):")
+        lines.append(
+            f"  Top-1 agreement: {report.match_top1_rate:.1%} "
+            f"({'PASS' if report.match_top1_passed else 'FAIL'}, "
+            f"threshold 80%)"
+        )
+        lines.append(
+            f"  Top-5 overlap:   {report.match_top5_overlap_mean:.1%} "
+            f"({'PASS' if report.match_top5_passed else 'FAIL'}, "
+            f"threshold 60%)"
+        )
     lines.append("")
     lines.append("Per-sample breakdown:")
     for s in report.samples:
@@ -739,6 +882,20 @@ def _format_report(report: AcceptanceReport) -> str:
         )
         if s.error:
             lines.append(f"        error: {s.error}")
+    if report.baseline:
+        lines.append("")
+        lines.append("Golden-baseline per-sample:")
+        for b in report.baseline:
+            if b.match_top1_ok is None:
+                lines.append(f"  [--] {b.sample_id}: no Match! baseline")
+                continue
+            ok = "✓" if b.match_top1_ok else "✗"
+            lines.append(
+                f"  [{ok}] {b.sample_id}: top1={b.match_top1_id}"
+                f"{'(' + (b.match_top1_name or '') + ')' if b.match_top1_name else ''}"
+                f" → xinmatch={b.xinmatch_top1_id} "
+                f"top5_overlap={b.match_top5_overlap:.0%}"
+            )
     if report.db_missing_samples:
         lines.append("")
         lines.append(
@@ -765,6 +922,12 @@ def main(argv: list[str] | None = None) -> int:
              ".txt file dependency; CI-friendly).",
     )
     parser.add_argument(
+        "--baseline-dir", type=Path, default=None,
+        help="Directory of Match! candidate-list CSVs "
+             "(e.g. 'D:\\Project\\XRD\\test_xrd\\match-candidate list-jingzhun') "
+             "to enable the golden-baseline Top-1 / Top-5 comparison.",
+    )
+    parser.add_argument(
         "--json", type=Path, default=None,
         help="Write the structured report as JSON to this path.",
     )
@@ -775,6 +938,7 @@ def main(argv: list[str] | None = None) -> int:
         top_n=args.top_n,
         min_hits=args.min_hits,
         synthetic=args.synthetic,
+        baseline_dir=args.baseline_dir,
     )
 
     print(_format_report(report))

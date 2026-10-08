@@ -1,0 +1,713 @@
+{
+  "samples": [
+    {
+      "sample_id": "1-1",
+      "ground_truth": [
+        "LiFePO4"
+      ],
+      "top10_mineral_names": [
+        "Gehlenite",
+        "Calcite",
+        "Gibbsite",
+        "Dolomite",
+        "Gypsum",
+        "Corundum",
+        "Goethite",
+        "Rutile",
+        "Quartz",
+        "Hematite"
+      ],
+      "top10_entry_ids": [
+        "Gehlenite",
+        "CaCO3",
+        "Gibbsite",
+        "Dolomite",
+        "Gypsum",
+        "Al2O3",
+        "Goethite",
+        "TiO2-rutile",
+        "Quartz",
+        "Hematite"
+      ],
+      "hit_phases": [],
+      "missed_phases": [],
+      "db_missing_phases": [
+        "LiFePO4"
+      ],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 118,
+      "error": null
+    },
+    {
+      "sample_id": "1-2",
+      "ground_truth": [
+        "NCM811"
+      ],
+      "top10_mineral_names": [
+        "Quartz",
+        "Clinochlore",
+        "Graphite",
+        "Goethite",
+        "Corundum",
+        "Kaolinite",
+        "Boehmite",
+        "Gibbsite",
+        "Sylvite",
+        "Albite"
+      ],
+      "top10_entry_ids": [
+        "Quartz",
+        "Clinochlore",
+        "Graphite",
+        "Goethite",
+        "Al2O3",
+        "Kaolinite",
+        "Boehmite",
+        "Gibbsite",
+        "Sylvite",
+        "Albite"
+      ],
+      "hit_phases": [],
+      "missed_phases": [],
+      "db_missing_phases": [
+        "NCM811"
+      ],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 158,
+      "error": null
+    },
+    {
+      "sample_id": "2-1",
+      "ground_truth": [
+        "ZnO",
+        "CaCO3"
+      ],
+      "top10_mineral_names": [
+        "Zincite",
+        "Calcite",
+        "Magnetite",
+        "Magnesite",
+        "Cristobalite",
+        "Fluorite",
+        "Pyrite",
+        "Halite",
+        "Fluorapatite",
+        "Gibbsite"
+      ],
+      "top10_entry_ids": [
+        "ZnO",
+        "CaCO3",
+        "Magnetite",
+        "Magnesite",
+        "Cristobalite",
+        "CaF2",
+        "Pyrite",
+        "Halite",
+        "Fluorapatite",
+        "Gibbsite"
+      ],
+      "hit_phases": [
+        "ZnO",
+        "CaCO3"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 82,
+      "error": null
+    },
+    {
+      "sample_id": "2-2",
+      "ground_truth": [
+        "TiO2-anatase",
+        "TiO2-rutile"
+      ],
+      "top10_mineral_names": [
+        "Anatase",
+        "Rutile",
+        "Orthoclase",
+        "Dolomite",
+        "Cristobalite",
+        "Magnesite",
+        "Hematite",
+        "Gehlenite",
+        "Brucite",
+        "Ankerite"
+      ],
+      "top10_entry_ids": [
+        "TiO2-anatase",
+        "TiO2-rutile",
+        "Feldspar",
+        "Dolomite",
+        "Cristobalite",
+        "Magnesite",
+        "Hematite",
+        "Gehlenite",
+        "Brucite",
+        "Ankerite"
+      ],
+      "hit_phases": [
+        "TiO2-anatase",
+        "TiO2-rutile"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 156,
+      "error": null
+    },
+    {
+      "sample_id": "3-1",
+      "ground_truth": [
+        "ZnO",
+        "Al2O3",
+        "CaF2"
+      ],
+      "top10_mineral_names": [
+        "Zincite",
+        "Cristobalite",
+        "Fluorapatite",
+        "Halite",
+        "Corundum",
+        "Albite",
+        "Fluorite",
+        "Rutile",
+        "Calcite",
+        "Dolomite"
+      ],
+      "top10_entry_ids": [
+        "ZnO",
+        "Cristobalite",
+        "Fluorapatite",
+        "Halite",
+        "Al2O3",
+        "Albite",
+        "CaF2",
+        "TiO2-rutile",
+        "CaCO3",
+        "Dolomite"
+      ],
+      "hit_phases": [
+        "ZnO",
+        "Al2O3",
+        "CaF2"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 248,
+      "error": null
+    },
+    {
+      "sample_id": "3-2",
+      "ground_truth": [
+        "ZnO",
+        "Al2O3",
+        "CaF2",
+        "amorphous-glass"
+      ],
+      "top10_mineral_names": [
+        "Zincite",
+        "Albite",
+        "Corundum",
+        "Halite",
+        "Calcite",
+        "Fluorite",
+        "Fluorapatite",
+        "Magnesite",
+        "Sylvite",
+        "Boehmite"
+      ],
+      "top10_entry_ids": [
+        "ZnO",
+        "Albite",
+        "Al2O3",
+        "Halite",
+        "CaCO3",
+        "CaF2",
+        "Fluorapatite",
+        "Magnesite",
+        "Sylvite",
+        "Boehmite"
+      ],
+      "hit_phases": [
+        "ZnO",
+        "Al2O3",
+        "CaF2"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [
+        "amorphous-glass"
+      ],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 262,
+      "error": null
+    },
+    {
+      "sample_id": "4-1",
+      "ground_truth": [
+        "ZnO",
+        "Al2O3",
+        "CaF2",
+        "Brucite"
+      ],
+      "top10_mineral_names": [
+        "Rutile",
+        "Brucite",
+        "Zincite",
+        "Cristobalite",
+        "Corundum",
+        "Graphite",
+        "Fluorite",
+        "Calcite",
+        "Fluorapatite",
+        "Quartz"
+      ],
+      "top10_entry_ids": [
+        "TiO2-rutile",
+        "Brucite",
+        "ZnO",
+        "Cristobalite",
+        "Al2O3",
+        "Graphite",
+        "CaF2",
+        "CaCO3",
+        "Fluorapatite",
+        "Quartz"
+      ],
+      "hit_phases": [
+        "ZnO",
+        "Al2O3",
+        "CaF2",
+        "Brucite"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 224,
+      "error": null
+    },
+    {
+      "sample_id": "5-1",
+      "ground_truth": [
+        "Quartz",
+        "Cristobalite",
+        "CaCO3",
+        "Magnesite",
+        "Dolomite"
+      ],
+      "top10_mineral_names": [
+        "Magnesite",
+        "Quartz",
+        "Dolomite",
+        "Cristobalite",
+        "Calcite",
+        "Siderite",
+        "Graphite",
+        "Ankerite",
+        "Pyrite",
+        "Zincite"
+      ],
+      "top10_entry_ids": [
+        "Magnesite",
+        "Quartz",
+        "Dolomite",
+        "Cristobalite",
+        "CaCO3",
+        "Siderite",
+        "Graphite",
+        "Ankerite",
+        "Pyrite",
+        "ZnO"
+      ],
+      "hit_phases": [
+        "Quartz",
+        "Cristobalite",
+        "CaCO3",
+        "Magnesite",
+        "Dolomite"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 20,
+      "error": null
+    },
+    {
+      "sample_id": "5-2",
+      "ground_truth": [
+        "Quartz",
+        "Cristobalite",
+        "CaCO3",
+        "Hematite",
+        "Muscovite"
+      ],
+      "top10_mineral_names": [
+        "Cristobalite",
+        "Quartz",
+        "Calcite",
+        "Hematite",
+        "Muscovite",
+        "Graphite",
+        "Pyrite",
+        "Biotite",
+        "Zincite",
+        "Magnetite"
+      ],
+      "top10_entry_ids": [
+        "Cristobalite",
+        "Quartz",
+        "CaCO3",
+        "Hematite",
+        "Muscovite",
+        "Graphite",
+        "Pyrite",
+        "Biotite",
+        "ZnO",
+        "Magnetite"
+      ],
+      "hit_phases": [
+        "Quartz",
+        "Cristobalite",
+        "CaCO3",
+        "Hematite",
+        "Muscovite"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 23,
+      "error": null
+    },
+    {
+      "sample_id": "5-2b",
+      "ground_truth": [
+        "Quartz",
+        "Cristobalite",
+        "CaCO3",
+        "Hematite",
+        "Muscovite"
+      ],
+      "top10_mineral_names": [
+        "Cristobalite",
+        "Quartz",
+        "Calcite",
+        "Hematite",
+        "Muscovite",
+        "Graphite",
+        "Pyrite",
+        "Biotite",
+        "Zincite",
+        "Magnetite"
+      ],
+      "top10_entry_ids": [
+        "Cristobalite",
+        "Quartz",
+        "CaCO3",
+        "Hematite",
+        "Muscovite",
+        "Graphite",
+        "Pyrite",
+        "Biotite",
+        "ZnO",
+        "Magnetite"
+      ],
+      "hit_phases": [
+        "Quartz",
+        "Cristobalite",
+        "CaCO3",
+        "Hematite",
+        "Muscovite"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 23,
+      "error": null
+    },
+    {
+      "sample_id": "5-3",
+      "ground_truth": [
+        "Quartz",
+        "Gehlenite",
+        "Fluorapatite",
+        "Goethite",
+        "Kaolinite"
+      ],
+      "top10_mineral_names": [
+        "Fluorapatite",
+        "Gehlenite",
+        "Kaolinite",
+        "Goethite",
+        "Quartz",
+        "Albite",
+        "Zincite",
+        "Gibbsite",
+        "Graphite",
+        "Hornblende"
+      ],
+      "top10_entry_ids": [
+        "Fluorapatite",
+        "Gehlenite",
+        "Kaolinite",
+        "Goethite",
+        "Quartz",
+        "Albite",
+        "ZnO",
+        "Gibbsite",
+        "Graphite",
+        "Hornblende"
+      ],
+      "hit_phases": [
+        "Quartz",
+        "Gehlenite",
+        "Fluorapatite",
+        "Goethite",
+        "Kaolinite"
+      ],
+      "missed_phases": [],
+      "db_missing_phases": [],
+      "all_phases_in_top10": true,
+      "n_exp_peaks": 22,
+      "error": null
+    },
+    {
+      "sample_id": "7-1",
+      "ground_truth": [
+        "Quartz",
+        "Boehmite",
+        "Anatase",
+        "Goethite",
+        "Kaolinite",
+        "Gibbsite",
+        "Hematite"
+      ],
+      "top10_mineral_names": [
+        "Hematite",
+        "Boehmite",
+        "Gibbsite",
+        "Quartz",
+        "Goethite",
+        "Halite",
+        "Pyrite",
+        "Albite",
+        "Kaolinite",
+        "Dolomite"
+      ],
+      "top10_entry_ids": [
+        "Hematite",
+        "Boehmite",
+        "Gibbsite",
+        "Quartz",
+        "Goethite",
+        "Halite",
+        "Pyrite",
+        "Albite",
+        "Kaolinite",
+        "Dolomite"
+      ],
+      "hit_phases": [
+        "Quartz",
+        "Boehmite",
+        "Goethite",
+        "Kaolinite",
+        "Gibbsite",
+        "Hematite"
+      ],
+      "missed_phases": [
+        "Anatase"
+      ],
+      "db_missing_phases": [],
+      "all_phases_in_top10": false,
+      "n_exp_peaks": 246,
+      "error": null
+    },
+    {
+      "sample_id": "7-2",
+      "ground_truth": [
+        "Quartz",
+        "Feldspar",
+        "Albite",
+        "Biotite",
+        "Clinochlore",
+        "Hornblende",
+        "Zircon"
+      ],
+      "top10_mineral_names": [
+        "Quartz",
+        "Graphite",
+        "Biotite",
+        "Muscovite",
+        "Orthoclase",
+        "Gibbsite",
+        "Ankerite",
+        "Calcite",
+        "Rutile",
+        "Hematite"
+      ],
+      "top10_entry_ids": [
+        "Quartz",
+        "Graphite",
+        "Biotite",
+        "Muscovite",
+        "Feldspar",
+        "Gibbsite",
+        "Ankerite",
+        "CaCO3",
+        "TiO2-rutile",
+        "Hematite"
+      ],
+      "hit_phases": [
+        "Quartz",
+        "Feldspar",
+        "Biotite"
+      ],
+      "missed_phases": [
+        "Albite",
+        "Clinochlore",
+        "Hornblende",
+        "Zircon"
+      ],
+      "db_missing_phases": [],
+      "all_phases_in_top10": false,
+      "n_exp_peaks": 236,
+      "error": null
+    }
+  ],
+  "n_samples": 13,
+  "n_hits": 11,
+  "hit_rate_pct": 84.61538461538461,
+  "threshold_pct": 69.23076923076923,
+  "passed": true,
+  "failed_samples": [
+    "7-1",
+    "7-2"
+  ],
+  "db_missing_samples": [
+    "1-1",
+    "1-2"
+  ],
+  "baseline": [
+    {
+      "sample_id": "1-1",
+      "match_top1_ok": false,
+      "match_top5_overlap": 0.0,
+      "xinmatch_top1_id": "Gehlenite",
+      "xinmatch_top1_formula": "Al2 Ca2 O7 Si",
+      "match_top1_id": "96-400-1849",
+      "match_top1_name": ""
+    },
+    {
+      "sample_id": "1-2",
+      "match_top1_ok": false,
+      "match_top5_overlap": 0.0,
+      "xinmatch_top1_id": "Quartz",
+      "xinmatch_top1_formula": "O2 Si",
+      "match_top1_id": "96-152-0788",
+      "match_top1_name": "(Li0.97 Ni0.03) (Li0.04 Ni0.86 Mn0.1) O2"
+    },
+    {
+      "sample_id": "2-1",
+      "match_top1_ok": true,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "ZnO",
+      "xinmatch_top1_formula": "O Zn",
+      "match_top1_id": "96-230-0451",
+      "match_top1_name": "zinc oxide (zincite)"
+    },
+    {
+      "sample_id": "2-2",
+      "match_top1_ok": true,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "TiO2-anatase",
+      "xinmatch_top1_formula": "O2 Ti",
+      "match_top1_id": "96-720-6076",
+      "match_top1_name": "Titanium oxide (Anatase)"
+    },
+    {
+      "sample_id": "3-1",
+      "match_top1_ok": true,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "ZnO",
+      "xinmatch_top1_formula": "O Zn",
+      "match_top1_id": "96-230-0451",
+      "match_top1_name": "zinc oxide (zincite)"
+    },
+    {
+      "sample_id": "3-2",
+      "match_top1_ok": true,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "ZnO",
+      "xinmatch_top1_formula": "O Zn",
+      "match_top1_id": "96-230-0451",
+      "match_top1_name": "zinc oxide (zincite)"
+    },
+    {
+      "sample_id": "4-1",
+      "match_top1_ok": false,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "TiO2-rutile",
+      "xinmatch_top1_formula": "O2 Ti",
+      "match_top1_id": "96-230-0451",
+      "match_top1_name": "zinc oxide (zincite)"
+    },
+    {
+      "sample_id": "5-1",
+      "match_top1_ok": true,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "Magnesite",
+      "xinmatch_top1_formula": "C Mg O3",
+      "match_top1_id": "96-900-0381",
+      "match_top1_name": "Magnesite"
+    },
+    {
+      "sample_id": "5-2",
+      "match_top1_ok": false,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "Cristobalite",
+      "xinmatch_top1_formula": "O2 Si",
+      "match_top1_id": "96-901-5965",
+      "match_top1_name": "Hematite"
+    },
+    {
+      "sample_id": "5-2b",
+      "match_top1_ok": false,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "Cristobalite",
+      "xinmatch_top1_formula": "O2 Si",
+      "match_top1_id": "96-901-5965",
+      "match_top1_name": "Hematite"
+    },
+    {
+      "sample_id": "5-3",
+      "match_top1_ok": false,
+      "match_top5_overlap": 0.8,
+      "xinmatch_top1_id": "Fluorapatite",
+      "xinmatch_top1_formula": "Ca5 F O12 P3",
+      "match_top1_id": "96-900-9231",
+      "match_top1_name": "Kaolinite"
+    },
+    {
+      "sample_id": "7-1",
+      "match_top1_ok": false,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "Hematite",
+      "xinmatch_top1_formula": "Fe2 O3",
+      "match_top1_id": "96-154-4376",
+      "match_top1_name": "Al(OH)3 gibbsite (gibbsite)"
+    },
+    {
+      "sample_id": "7-2",
+      "match_top1_ok": true,
+      "match_top5_overlap": 1.0,
+      "xinmatch_top1_id": "Quartz",
+      "xinmatch_top1_formula": "O2 Si",
+      "match_top1_id": "96-710-3015",
+      "match_top1_name": ""
+    }
+  ],
+  "match_top1_rate": 0.46153846153846156,
+  "match_top5_overlap_mean": 0.8307692307692308,
+  "match_top1_passed": false,
+  "match_top5_passed": true
+}
