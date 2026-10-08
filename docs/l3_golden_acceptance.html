@@ -1,0 +1,77 @@
+<html style="margin:0;padding:0;"><title>XinMatch L3 黄金基线验收结果</title><div id="root" style="width:100%;box-sizing:border-box;font-family:'Segoe UI','Microsoft YaHei',system-ui,sans-serif;background:#f5f6f8;padding:20px;color:#1a2332;">
+<style>
+  *{box-sizing:border-box;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{font-size:21px;margin:0 0 4px;font-weight:700;}
+  .sub{color:#5a6575;font-size:12.5px;margin-bottom:14px;}
+  .cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .card{background:#fff;border:1px solid #e3e7ee;border-radius:10px;padding:12px 16px;flex:1 1 200px;min-width:200px;}
+  .card .k{font-size:11.5px;color:#5a6575;margin-bottom:4px;}
+  .card .v{font-size:22px;font-weight:700;}
+  .card .m{font-size:12px;margin-top:3px;}
+  .pass{color:#1e7a34;} .fail{color:#c62828;}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e3e7ee;border-radius:10px;overflow:hidden;font-size:12.5px;}
+  th{background:#f0f2f5;text-align:left;padding:8px 10px;font-weight:600;color:#3a4350;border-bottom:1px solid #e3e7ee;}
+  td{padding:7px 10px;border-bottom:1px solid #eef0f3;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .sid{font-weight:700;color:#0d6efd;}
+  .tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+  .tag-ok{background:#e6f4ea;color:#1e7a34;}
+  .tag-miss{background:#fdecea;color:#c62828;}
+  .tag-db{background:#eef0f3;color:#6b7686;}
+  .bar{width:110px;height:10px;background:#eef0f3;border-radius:5px;overflow:hidden;display:inline-block;vertical-align:middle;}
+  .bar i{display:block;height:100%;border-radius:5px;}
+  .b100{background:#2e9e4f;} .b80{background:#9acd32;} .b0{background:#d3d8df;}
+  .note{margin-top:14px;background:#fffbea;border:1px solid #f0dfa8;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#6b5a1e;line-height:1.7;}
+  .foot{margin-top:12px;font-size:11.5px;color:#8a93a3;text-align:right;}
+</style>
+<div class="wrap">
+  <h1>XinMatch L3 黄金基线验收（vs Match! 13 样品）</h1>
+  <div class="sub">数据来源：tools/run_acceptance.py --baseline-dir "match-candidate list-jingzhun" · 2026-10-09 · 提交 8df9efc</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="k">已知相命中率（Top-10 代理验收）</div>
+      <div class="v pass">11/13 <span style="font-size:14px;color:#1e7a34;">84.6%</span></div>
+      <div class="m pass">阈值 69.2% · PASS</div>
+    </div>
+    <div class="card">
+      <div class="k">Match! Top-1 一致率（新指标）</div>
+      <div class="v fail">6/13 <span style="font-size:14px;color:#c62828;">46.2%</span></div>
+      <div class="m fail">阈值 80% · FAIL — FoM 排序待优化</div>
+    </div>
+    <div class="card">
+      <div class="k">Match! Top-5 重叠率（新指标）</div>
+      <div class="v pass">83.1%</div>
+      <div class="m pass">阈值 60% · PASS — 候选召回强</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>样品</th><th>Top-1 对比（Match! → XinMatch）</th><th>判定</th><th>Top-5 重叠</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="sid">1-1</td><td>Fe Li O4 P (LiFePO4) → Gehlenite</td><td><span class="tag tag-db">DB 缺失</span></td><td><span class="bar"><i class="b0" style="width:0%"></i></span> 0%</td></tr>
+      <tr><td class="sid">1-2</td><td>NCM811 → Quartz</td><td><span class="tag tag-db">DB 缺失</span></td><td><span class="bar"><i class="b0" style="width:0%"></i></span> 0%</td></tr>
+      <tr><td class="sid">2-1</td><td>zinc oxide (zincite) → ZnO</td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">2-2</td><td>Titanium oxide (Anatase) → TiO2-anatase</td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">3-1</td><td>zinc oxide (zincite) → ZnO</td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">3-2</td><td>zinc oxide (zincite) → ZnO</td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">4-1</td><td>zinc oxide (zincite) → TiO2-rutile</td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">5-1</td><td>Magnesite → Magnesite</td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">5-2</td><td>Hematite → Cristobalite</td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">5-2b</td><td>Hematite → Cristobalite</td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">5-3</td><td>Kaolinite → Fluorapatite</td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b80" style="width:80%"></i></span> 80%</td></tr>
+      <tr><td class="sid">7-1</td><td>Al(OH)3 gibbsite → Hematite</td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+      <tr><td class="sid">7-2</td><td>Quartz 系 → Quartz</td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>结论：</b>候选召回已达标（Top-5 重叠 83.1%，10/13 样品 100% 重叠）——XinMatch 能找到与 Match! 相同的相，但<b>FoM 排序在 Top-1 上与 Match! 存在差距</b>（46.2% < 80%）。
+    剔除 1-1/1-2（COD 缺 LiFePO₄/NCM811）后为 6/11 = 54.5%，仍低于阈值。主要成因：① curated 合成 DB 的 d-I 表是近似值，与 Match! 使用的 COD 完整峰表不同；② Match! 用 SMPF（全谱拟合）模式，XinMatch 用 peak-based FoM；③ FoM 权重是在合成候选上标定的（R²=0.9971），需在真实候选集上重标（T6.10 框架已就绪）。
+  </div>
+  <div class="foot">docs/l3_golden_report.json · tools/match_baseline.py（17 个单元测试全绿）· ruff 全绿</div>
+</div>
+</div>
