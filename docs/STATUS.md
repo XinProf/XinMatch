@@ -149,8 +149,8 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T10.6 | FullProf adapter | ❌ not doing | Match! 用 FullProf，XinMatch 选 GSAS-II |
 | T10.6b | **GSAS-II adapter (production path)** | ✅ | `gsas2_adapter.py`：Protocol + Local fallback + `.gss` 解析 + lazy import |
 | T10.7 | Strategy turn-on (Parameter Turn-On) | ✅ (reference only) | 自研策略化；生产上由 GSAS-II 的 refine controls 承担 |
-| T10.8 | GSAS-II 项目构造器（CIF + Pattern → GSAS-II .gpx 项目） | ⬜ | **新增**：把 XinMatch 的 Entry/Phase/Pattern 转成 GSAS-II 可执行项目 |
-| T10.9 | GSAS-II 结果解析（Rwp / 精修后 CIF / prf 残差谱） | ⬜ | **新增**：从 GSAS-II 输出文件回填到 XinMatch 数据模型 |
+| T10.8 | GSAS-II 项目构造器（CIF + Pattern → GSAS-II .gpx 项目） | ✅ | `gsas2_project.py`：driver+清单自包含，Gsas2NotAvailableError 优雅降级；cpd-1c 三相机实测 Rwp≈59% |
+| T10.9 | GSAS-II 结果解析（Rwp / 精修后 CIF / prf 残差谱） | ✅ | `gsas2_parse.py`：.lst/.prf/精修CIF/.gpx 解析回填 Phase/Pattern/RFactorSection；真实 fixture 验证 |
 
 ## Phase 14 — CLI & scripting (`cli/`)
 
@@ -169,9 +169,9 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 
 | ID | Task | Status |
 |----|------|--------|
-| T13.0 | GUI architecture (PySide6 native + QWebEngineView for 3D/report) | ⬜ |
-| T13.1 | Main window skeleton (menu/toolbar/statusbar/dock panels) | ⬜ |
-| T13.2 | Pattern view (pyqtgraph, multi-pattern, zoom/trace) | ⬜ |
+| T13.0 | GUI architecture (PySide6 native + QWebEngineView for 3D/report) | ✅ |
+| T13.1 | Main window skeleton (menu/toolbar/statusbar/dock panels) | ✅ |
+| T13.2 | Pattern view (pyqtgraph, multi-pattern, zoom/trace) | ✅ |
 | T13.3 | Peak / candidate / match list tables | ⬜ |
 | T13.4 | Periodic table element selector (3-state) | ⬜ |
 | T13.5 | Dialogs (import / experiment / options) | ⬜ |
