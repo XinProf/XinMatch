@@ -1,0 +1,53 @@
+ 
+######################################################################
+data_capture
+
+# phase info for ZnO follows
+_pd_phase_name  ZnO
+_cell_length_a  3.24904
+_cell_length_b  3.24904
+_cell_length_c  5.20528
+_cell_angle_alpha  90.0000
+_cell_angle_beta  90.0000
+_cell_angle_gamma  120.000
+_cell_volume  47.5867
+_symmetry_cell_setting  hexagonal
+_symmetry_space_group_name_H-M  "P 63 m c"
+loop_
+    _space_group_symop_id
+    _space_group_symop_operation_xyz
+     1  x,y,z
+     2  x-y,x,1/2+z
+     3  -y,x-y,z
+     4  -x,-y,1/2+z
+     5  y-x,-x,z
+     6  y,y-x,1/2+z
+     7  y-x,y,z
+     8  -x,y-x,1/2+z
+     9  -y,-x,z
+    10  x-y,-y,1/2+z
+    11  x,x-y,z
+    12  y,x,1/2+z
+
+# ATOMIC COORDINATES AND DISPLACEMENT PARAMETERS
+loop_ 
+   _atom_site_label
+   _atom_site_type_symbol
+   _atom_site_fract_x
+   _atom_site_fract_y
+   _atom_site_fract_z
+   _atom_site_occupancy
+   _atom_site_adp_type
+   _atom_site_U_iso_or_equiv
+   _atom_site_site_symmetry_multiplicity
+zn     Zn   0.33300     0.66700     0.00000     1.0000     Uiso 0.0065     6   
+o      O    0.33300     0.66700     0.38200     1.0000     Uiso 0.0075     6   
+
+loop_  _atom_type_symbol _atom_type_number_in_cell
+  O       6
+  Zn      6
+
+# Note that Z affects _cell_formula_sum and _weight
+_cell_formula_units_Z  6
+_chemical_formula_sum  "O Zn"
+_chemical_formula_weight  81.38
