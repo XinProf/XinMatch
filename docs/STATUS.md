@@ -85,8 +85,8 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.0 | Hanawalt/Fink coarse pre-filter | ✅ |
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ✅ |
-| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ |
-| T6.10 | Weight tuning (grid/Bayesian) | ✅ |
+| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ (11/13 samples pass; 2 fail on COD missing LiFePO4/NCM811) |
+| T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 
 ## Phase 7 — Restraints application (`core/search/`)
 
@@ -99,6 +99,9 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | ID | Task | Status |
 |----|------|--------|
 | T8.1 | RIR quantitative (adiabatic + reference-ratio) | ✅ |
+| T8.2 | Internal standard method | ✅ (IUCr CPD-1c CaF₂ err < 0.12 wt%) |
+| T8.3 | Rietveld quantitative (depends on Phase 10) | ⬜ |
+| T8.4 | DOC amorphous content | ✅ (test_xrd 3-2 glass err 4.81 wt% < 7% threshold) |
 
 ## Phase 9 — Indexing (`core/index/`)
 
@@ -114,6 +117,8 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | ID | Task | Status |
 |----|------|--------|
 | T11.1 | Scherrer crystallite size (+ Williamson-Hall) | ✅ |
+| T11.2 | Microstrain (Williamson-Hall full) | ✅ (synthetic D/ε recovery < 10% err) |
+| T11.3 | DOC (if not in T8.4) | ✅ (covered by T8.4) |
 
 ## Phase 12 — Report & export (`core/report/`)
 
@@ -125,15 +130,27 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 
 ## Phase 10 — Refinement (`core/refine/`)
 
-| ID | Task | Status |
-|----|------|--------|
-| T10.1 | Peak model (pseudo-Voigt + asymmetry + Caglioti U/V/W) | ✅ |
-| T10.2 | Structure factor (scattering factors, DW, LP, multiplicity) | ✅ |
-| T10.3 | Le Bail decomposition | ✅ |
-| T10.4 | Rietveld refinement (scale + cell + peak_width + zero) | ✅ |
-| T10.5 | Residuals | ✅ |
-| T10.6 | FullProf / GSAS-II adapter | ✅ |
-| T10.7 | Strategy turn-on | ✅ |
+> **架构决策（2026-10-08）**：XinMatch **不自研精修算法**（Le Bail / Rietveld / 残差 / 峰形模型 / 结构因子 / 策略化精修）。
+> 生产路径是把物相鉴定结果 + 对应 CIF + 原始谱图交给 **GSAS-II**（通过 `GSASIIscriptable` API）完成精修，
+> XinMatch 只负责：① 构造 GSAS-II 项目 / ② 暴露参数给 GUI / ③ 解析 GSAS-II 输出（Rwp、cif、prf）。
+> GUI 参考 **MAUD** 的向导式交互（比 GSAS-II 原生 GUI 直观）。
+>
+> 因此 T10.1–T10.5、T10.7 的自研实现仅作**参考/交叉验证**用，不进生产路径；
+> **T10.6b（GSAS-II 适配层）是精修唯一的生产集成点**。
+> （Match! 集成 FullProf，XinMatch 选择 GSAS-II，因为它是 Python 编写可嵌入式集成。）
+
+| ID | Task | Status | 说明 |
+|----|------|--------|------|
+| T10.1 | Peak model (pseudo-Voigt + asymmetry + Caglioti U/V/W) | ✅ (reference only) | 自研，仅用于交叉验证，**非生产路径** |
+| T10.2 | Structure factor (scattering factors, DW, LP, multiplicity) | ✅ (reference only) | 同上 |
+| T10.3 | Le Bail decomposition | ✅ (reference only) | 同上 |
+| T10.4 | Rietveld refinement (scale + cell + peak_width + zero) | ✅ (reference only) | 同上 |
+| T10.5 | Residuals (Rp/Rwp/R_exp/χ²/GoF) | ✅ (reference only) | 同上；生产上由 GSAS-II 输出 |
+| T10.6 | FullProf adapter | ❌ not doing | Match! 用 FullProf，XinMatch 选 GSAS-II |
+| T10.6b | **GSAS-II adapter (production path)** | ✅ | `gsas2_adapter.py`：Protocol + Local fallback + `.gss` 解析 + lazy import |
+| T10.7 | Strategy turn-on (Parameter Turn-On) | ✅ (reference only) | 自研策略化；生产上由 GSAS-II 的 refine controls 承担 |
+| T10.8 | GSAS-II 项目构造器（CIF + Pattern → GSAS-II .gpx 项目） | ⬜ | **新增**：把 XinMatch 的 Entry/Phase/Pattern 转成 GSAS-II 可执行项目 |
+| T10.9 | GSAS-II 结果解析（Rwp / 精修后 CIF / prf 残差谱） | ⬜ | **新增**：从 GSAS-II 输出文件回填到 XinMatch 数据模型 |
 
 ## Phase 14 — CLI & scripting (`cli/`)
 
@@ -144,7 +161,25 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T14.3 | Batch scripting (JSON/YAML config) | ⬜ |
 | T14.4 | Serial instrument control | ⬜ |
 
-## Phases 13, 15–16
+## Phase 13 — GUI (`ui/` · PySide6)
 
-See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T13 GUI (PySide6),
+> **精修 GUI 特别说明**：精修面板采用 **MAUD 风格向导式交互**（分步引导：选相 → 选背景 → 选精修参数组 → 运行 → 查看 R 因子与残差），
+> 但所有实际计算委托给 GSAS-II（T10.6b）。XinMatch 不重写精修算法，只重写交互体验。
+> 参考软件：`C:\MAUD3`（MAUD 界面）、`C:\Program Files\Match4`（Match! 工作流）。
+
+| ID | Task | Status |
+|----|------|--------|
+| T13.0 | GUI architecture (PySide6 native + QWebEngineView for 3D/report) | ⬜ |
+| T13.1 | Main window skeleton (menu/toolbar/statusbar/dock panels) | ⬜ |
+| T13.2 | Pattern view (pyqtgraph, multi-pattern, zoom/trace) | ⬜ |
+| T13.3 | Peak / candidate / match list tables | ⬜ |
+| T13.4 | Periodic table element selector (3-state) | ⬜ |
+| T13.5 | Dialogs (import / experiment / options) | ⬜ |
+| T13.6 | Shortcut mapping | ⬜ |
+| T13.7 | Themes | ⬜ |
+| **T13.8** | **Refinement wizard GUI (MAUD-style, delegates to GSAS-II)** | ⬜ | **新增**：精修向导，调用 T10.6b GSAS-II 适配层 |
+
+## Phases 14–16
+
+See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T14 CLI batch/serial,
 T15 packaging, T16 3D structure viz.
