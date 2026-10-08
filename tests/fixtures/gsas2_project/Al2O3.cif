@@ -1,0 +1,36 @@
+data_corundum_Al2O3
+# ---------------------------------------------------------------------------
+# alpha-Al2O3 (corundum), hand-built standard structure for the IUCr CPD-1c
+# benchmark.  Space group R -3 c (No.167), hexagonal setting.
+# Cell a=4.7592 A, c=12.9918 A.  Al on 12c (0,0,0.3521); O on 18e
+# (0.3064,0,1/4).  These are the textbook starting values used for a Rietveld
+# refinement of the CPD-1c round-robin.
+#
+# A matching COD entry was not reliably reachable (COD 9003079 turned out to be
+# goethite FeHO2), so this CIF was written from scratch per the T10.8 fallback
+# recipe.  Symmetry is left to GSAS-II's built-in space-group table (R -3 c),
+# which is how the shipped PbSO4-Wyckoff.cif sample also resolves its ops.
+# ---------------------------------------------------------------------------
+_chemical_name_common       'corundum'
+_chemical_formula_sum       'Al2 O3'
+_cell_length_a              4.7592
+_cell_length_b              4.7592
+_cell_length_c              12.9918
+_cell_angle_alpha           90.0
+_cell_angle_beta            90.0
+_cell_angle_gamma          120.0
+_cell_volume                254.81
+_cell_formula_units_Z       6
+_symmetry_cell_setting      trigonal
+_symmetry_space_group_name_H-M  'R -3 c'
+_space_group_IT_number      167
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_U_iso_or_equiv
+_atom_site_occupancy
+  Al  Al  0.0       0.0       0.3521    0.30   1.0
+  O   O   0.3064    0.0       0.25      0.30   1.0

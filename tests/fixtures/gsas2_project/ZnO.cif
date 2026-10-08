@@ -1,0 +1,105 @@
+##############################################################################
+###               Crystal structure data exported by Match!                ###
+##############################################################################
+###                           Data published by:                           ###
+###                                                                        ###
+###               COD (Crystallography Open Database)
+##############################################################################
+data_2300112
+_citation_journal_full    'Journal of Applied Crystallography'
+_citation_journal_volume  '39(2)'
+_citation_page_first  '169'
+_citation_page_last   '175'
+_citation_year  '2006'
+_citation_title  'High-pressure X-ray investigation of zincite ZnO single crystals usingdiamond anvils with an improved shape'
+loop_
+_publ_author_name
+  'Sowa Heidrun'
+  'Ahsbahs Hans'
+_chemical_formula_sum  'O Zn'
+_chemical_name_common  'zinc_oxide'
+_symmetry_space_group_name_H-M 'P 63 m c'
+_space_group_IT_number 186
+_space_group_crystal_system 'hexagonal'
+loop_
+_symmetry_equiv_pos_as_xyz
+   'x, y, z'
+   'x-y, x, z+1/2'
+   '-y, x-y, z'
+   '-x, -y, z+1/2'
+   '-x+y, -x, z'
+   'y, -x+y, z+1/2'
+   '-x+y, y, z'
+   'x, x-y, z'
+   '-y, -x, z'
+   'y, x, z+1/2'
+   'x-y, -y, z+1/2'
+   '-x, -x+y, z+1/2'
+_cell_length_a        3.24940
+_cell_length_b        3.24940
+_cell_length_c        5.20540
+_cell_angle_alpha    90.0000
+_cell_angle_beta     90.0000
+_cell_angle_gamma   120.0000
+_cell_formula_units_Z 2
+loop_
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_B_iso_or_equiv
+zn      0.333   0.667   0.000    1.00000    0.513
+o      0.333   0.667   0.382    1.00000    0.592
+_cell_measurement_wavelength    1.541874
+_cell_measurement_radiation   'x-rays'
+_cell_measurement_temperature    293
+_exptl_crystal_density_diffrn    5.677
+_exptl_crystal_colour            'colourless'
+loop_
+_pd_peak_d_spacing
+_pd_peak_intensity
+     2.814063        519.13
+     2.602700        396.23
+     2.475483       1000.00
+     1.910745        223.05
+     1.624700        330.94
+     1.550912          0.00
+     1.476943        305.49
+     1.407031         46.70
+     1.378216        263.50
+     1.358286        134.98
+     1.301350         22.70
+     1.237742         43.13
+     1.185957          0.00
+     1.181165         23.93
+     1.092868         96.07
+     1.063616         32.63
+     1.042084        108.54
+     1.015699         61.53
+     0.984575         42.76
+     0.976403         77.45
+     0.955372         13.96
+     0.938021         51.05
+     0.906806        137.68
+     0.882459         81.24
+     0.876560          0.00
+     0.867567         12.40
+     0.836899         84.60
+     0.829061         21.49
+     0.825161          0.00
+     0.823542         34.17
+     0.812350         69.24
+     0.802635          0.00
+     0.780481         66.85
+     0.775456        303.60
+     0.771853        757.81
+##############################################################################
+###                            Comments                                    ###
+##############################################################################
+###   Diffraction pattern calculated by Match!. 
+###   I/Ic calculated by Match!. 
+###   Space group has been derived from given symmetry operations. 
+##############################################################################
+
+
