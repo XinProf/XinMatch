@@ -15,7 +15,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T0.5 | Terminology mapping table | ⬜ |
 | T0.6 | Project skeleton + CI (pytest, ruff, mypy) | 🟡 |
 | T0.7 | Cross-platform conventions | ✅ |
-| T0.8 | Reverse-engineer FoM P-value definitions from baseline CSV | ⬜ |
+| T0.8 | Reverse-engineer FoM P-value definitions from baseline CSV | 🟡 |
 
 ## Phase 1 — Core data models (`core/model/`)
 
@@ -84,9 +84,9 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.7 | CandidateList model (sort/filter/select/unassociated) | ✅ |
 | T6.0 | Hanawalt/Fink coarse pre-filter | ✅ |
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
-| T6.8 | Auto FoM recompute on phase selection | ⬜ |
-| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ⬜ |
-| T6.10 | Weight tuning (grid/Bayesian) | ⬜ |
+| T6.8 | Auto FoM recompute on phase selection | ✅ |
+| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ |
+| T6.10 | Weight tuning (grid/Bayesian) | ✅ |
 
 ## Phase 7 — Restraints application (`core/search/`)
 
@@ -131,9 +131,9 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T10.2 | Structure factor (scattering factors, DW, LP, multiplicity) | ✅ |
 | T10.3 | Le Bail decomposition | ✅ |
 | T10.4 | Rietveld refinement (scale + cell + peak_width + zero) | ✅ |
-| T10.5 | Residuals | ⬜ |
-| T10.6 | FullProf / GSAS-II adapter | ⬜ |
-| T10.7 | Strategy turn-on | ⬜ |
+| T10.5 | Residuals | ✅ |
+| T10.6 | FullProf / GSAS-II adapter | ✅ |
+| T10.7 | Strategy turn-on | ✅ |
 
 ## Phase 14 — CLI & scripting (`cli/`)
 
