@@ -52,6 +52,11 @@ from .pfsm import (
     pfsm_rank,
     pfsm_score,
 )
+from .residual_update import (
+    EXPLAINED_THRESHOLD,
+    build_residual_peaks,
+    recompute_fom_after_selection,
+)
 from .restraints_apply import (
     apply_restraints,
     prune_candidates,
@@ -102,4 +107,8 @@ __all__ = [
     "compute_rwp",
     "pfsm_score",
     "pfsm_rank",
+    # Residual-driven FoM recompute (T6.8)
+    "recompute_fom_after_selection",
+    "build_residual_peaks",
+    "EXPLAINED_THRESHOLD",
 ]
