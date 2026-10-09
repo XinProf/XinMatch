@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "xinmatch"
 version = "1.0.0"
-description = "XinMatch — Open-source powder XRD phase analysis platform (clean-room reimplementation of Match!-style workflows)"
+description = "XinMatch — Open-source powder XRD phase analysis platform (clean-room implementation guided by publicly documented XRD phase-analysis workflows)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

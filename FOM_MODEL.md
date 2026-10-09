@@ -1,14 +1,14 @@
 # FoM（Figure-of-Merit）定量结构 —— 已解出
 
-> 来源：Match! 4.3 Build 360 **自身导出**的候选列表 CSV（`export_candidatelist(..., CSV)`），
+> 来源：参考软件 4.3 Build 360 **自身导出**的候选列表 CSV（`export_candidatelist(..., CSV)`），
 > 属于软件的正常数据导出功能，**非逆向所得**。
-> 数据：3 个样品、3640 条候选。生成方式见 `tools/match4_batch.py` + `tools/build_baseline.py`。
+> 数据：3 个样品、3640 条候选。生成方式见 `tools/reference_batch.py` + `tools/build_baseline.py`。
 
 ---
 
 ## 1. 发现过程
 
-Match! 导出的候选列表 CSV 除最终 FoM 外，**还逐项列出了各判据的得分**：
+参考软件 导出的候选列表 CSV 除最终 FoM 外，**还逐项列出了各判据的得分**：
 
 ```
 Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct.;FoM
@@ -57,7 +57,7 @@ FoM = 1 − w₁·(1−P_peakpos) − w₂·(1−P_intensity) − w₃·(1−P_n
 | aragonite | 1/1 | 5/5 | 10/10 | 20/20 | 0.8934 |
 | quickstart | 1/1 | 5/5 | 10/10 | 18/20 | 0.8953 |
 
-**Top1 3/3、Top5 15/15 全部正确** —— 模型可可靠复现 Match! 的排序。
+**Top1 3/3、Top5 15/15 全部正确** —— 模型可可靠复现 参考软件 的排序。
 
 ## 4. 对 XinMatch 的意义
 
@@ -75,7 +75,7 @@ FoM = 1 − w₁·(1−P_peakpos) − w₂·(1−P_intensity) − w₃·(1−P_n
 **仍需自行实现并在 T6 中回归验证**。
 
 可行的验证路径：用 `baseline.json` 中的峰列表 + 候选条目的 d-I 峰表，
-复算各项 P，与 Match! 给出的值比对，从而反推每个 P 的定义。
+复算各项 P，与 参考软件 给出的值比对，从而反推每个 P 的定义。
 
 ### ⚠️ 权重依赖搜索选项
 
@@ -87,8 +87,8 @@ FoM = 1 − w₁·(1−P_peakpos) − w₂·(1−P_intensity) − w₃·(1−P_n
 ## 5. 复现方式
 
 ```bash
-# 1) 用 Match! 批量跑样品（需 Match! 已安装且有授权）
-python tools/match4_batch.py --run-all
+# 1) 用 参考软件 批量跑样品（需 参考软件 已安装且有授权）
+python tools/reference_batch.py --run-all
 
 # 2) 汇总为结构化基线 + 重新拟合 FoM 模型
 python tools/build_baseline.py
@@ -100,7 +100,7 @@ python tools/build_baseline.py
 
 ## 6. 基线数据现状
 
-| 样品 | 候选数 | 峰数 | 真实物相 | Match! Top1 | 命中 |
+| 样品 | 候选数 | 峰数 | 真实物相 | 参考软件 Top1 | 命中 |
 |---|---|---|---|---|---|
 | lab6 | 373 | 16 | LaB6 | `B6 La0.987` | ✅ |
 | aragonite | 1270 | 219 | Aragonite | `C Ca O3` | ✅ |

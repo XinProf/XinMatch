@@ -1,10 +1,10 @@
-# Match! 黄金基线目录（tests/baseline/match/）
+# 参考软件 黄金基线目录（tests/baseline/match/）
 
-本目录存放 **L3 验收用的 Match! 黄金基线**：每个样品一行 `{sample_id}.csv`，
-格式为 Match! 4.3 导出的候选列表（分号分隔），由
+本目录存放 **L3 验收用的 参考软件 黄金基线**：每个样品一行 `{sample_id}.csv`，
+格式为 参考软件 4.3 导出的候选列表（分号分隔），由
 `tools/match_baseline.py::load_match_csv` / `load_match_baseline_dir` 直接解析。
 
-> **重要事实声明**：这些候选 CSV **只能由人工在 Match! 4.x 里跑完 Search-Match
+> **重要事实声明**：这些候选 CSV **只能由人工在 参考软件 4.x 里跑完 Search-Match
 > 后导出**。本仓库的脚本（`tools/import_match_baseline.py`）只负责把人工导出的
 > 原始 CSV **规范化**到本目录，绝不生成、伪造或估算任何候选数据。
 
@@ -15,17 +15,17 @@
 | `jingzhun/` | 13 个样品（1-1…7-2） | 精准（必含元素，`元素限定-jingzhun.txt`） | 6,209 |
 | `alloption/` | 13 个样品（1-1…7-2） | 宽松（可能性元素，超轻/轻元素全选，`元素限定-alloption.txt`） | 13,778 |
 
-两套均为人工在 Match! 4.x 用 **SMPF（search-match using profile fitting，
+两套均为人工在 参考软件 4.x 用 **SMPF（search-match using profile fitting，
 无寻峰、无峰形处理、直接原始谱图）** + 数据库 **COD-Inorg 2025.12.01**
-（`C:\Program Files\Match4\RefDB_COD`）导出，经
+（`参考软件安装目录\RefDB_COD`）导出，经
 `tools/import_match_baseline.py` 规范化（编码嗅探/欧式小数逗号/FoM 排序），
 0 行拒绝。验收时 `run_acceptance.py --baseline-dir` 需指向具体子目录
 （`tests/baseline/match/jingzhun` 或 `.../alloption`）。
 
-> 实测结论：两套基线在 Match! top1 排序上完全一致（XinMatch 真实 COD 对
-> 两套基线的 Top-1 一致率均为 69.2%），元素限定宽窄不影响 Match! top1
+> 实测结论：两套基线在 参考软件 top1 排序上完全一致（XinMatch 真实 COD 对
+> 两套基线的 Top-1 一致率均为 69.2%），元素限定宽窄不影响 参考软件 top1
 > ——5-x 差异（Calcite/Quartz/Goethite vs Magnesite/Hematite/Kaolinite）
-> 属 Match! 独有 FoM 偏好，非元素限定所致。
+> 属 参考软件 独有 FoM 偏好，非元素限定所致。
 
 ---
 
@@ -49,7 +49,7 @@ Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct
 
 ## 2. 人工操作步骤（每个样品）
 
-1. **加载谱图**：Match! → `File → Import → Diffraction data`，选择样品谱图
+1. **加载谱图**：参考软件 → `File → Import → Diffraction data`，选择样品谱图
    （推荐两列 ASCII / `.txt` / `.xy`；参考 `tests/fixtures/SAMPLE_INDEX.md`
    第 5 节的推荐加载路径）。
 2. **确认仪器参数**：`Experiment` 对话框里波长设为 Cu Kα1 = 1.5406 Å
@@ -87,7 +87,7 @@ Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct
 
 | 来源 | 路径 | 特点 |
 |---|---|---|
-| 精选测试集（13 个，已有 Match! 导出） | `D:\Project\XRD\test_xrd\txt\*.txt` | 单相→7 相混合、含非晶、微量相；已有精准/宽松两套候选 CSV |
+| 精选测试集（13 个，已有 参考软件 导出） | `D:\Project\XRD\test_xrd\txt\*.txt` | 单相→7 相混合、含非晶、微量相；已有精准/宽松两套候选 CSV |
 | IUCr CPD 国际标样 | `D:\Project\XRD\XRData\IUCr\` | 带 wt% 标定，定量基准；`Must do\*.txt` 为两列 ASCII |
 | 用户真实样品集 | `D:\Project\XRD\XRData\csuHJW\` | 44+ 组，`.raw` 为主，部分配 `.txt/.mdi/.cif` |
 
@@ -118,6 +118,6 @@ Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct
 `CPD-2 ≡ 4-1`、`CPD-3 ≡ 3-2`、`Synthetic Bauxite ≡ 7-1`、`Granodiorite ≡ 7-2`、
 `data001 ≡ 2-2`、`data40 ≡ 1-2`。
 
-> 上述缺口清单只是**建议路径**；实际每个样品的 Match! 候选 CSV 仍需人工按第 2 节
+> 上述缺口清单只是**建议路径**；实际每个样品的 参考软件 候选 CSV 仍需人工按第 2 节
 > 流程逐个导出。本目录随人工进度逐步充实，充实后 `tools/run_acceptance.py
 > --baseline-dir tests/baseline/match` 即可自动读取。

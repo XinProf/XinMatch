@@ -1,6 +1,6 @@
 # XinMatch 实施路线图 v2.0（综合升级版）
 
-> **开放版 Match! —— Powder XRD 物相分析平台**
+> **XinMatch —— 开放版粉末 XRD 物相分析平台**
 > **方法论**：净室设计（Clean Room Design）—— 规格来自官方文档 + 黑盒观察 + 公开算法，代码从零实现
 > **技术栈**：Python 3.11 + PySide6 (Qt6) + NumPy/SciPy + pyqtgraph + SQLite + gemmi
 > **兼容性目标**：L1 文件格式 100% / L2 数据库对齐 / L3 算法 Top-10 命中率 ≥ 80% / L4 UI 工作流一致
@@ -25,7 +25,7 @@
 | **精修** | FullProf集成 | Le Bail + 自研Rietveld + FullProf适配 | LeBail.md / Rietveld*.md |
 | **微结构** | 无 | Scherrer晶粒尺寸 + Williamson-Hall + DOC | crystallite_size.md / doc.md |
 | **定量方法** | I/Ic | RIR法 + 内标法 + Rietveld定量 | quant_analysis_*.md（3篇） |
-| **验收标准** | 主观描述 | 标准样品集 + Match!基线对比 | ROADMAP T0.3/T0.4 |
+| **验收标准** | 主观描述 | 标准样品集 + 参考软件基线对比 | ROADMAP T0.3/T0.4 |
 | **架构原则** | 前后端分离 | 内核与GUI完全解耦 | 技术栈分析报告 §4.3 |
 | **AI Agent协作** | 粗粒度 | 50+独立可验证子任务 | ROADMAP 全部T#任务 |
 
@@ -37,12 +37,12 @@
 
 | 层级 | 目标 | 可行性 | 验收指标 |
 |------|------|--------|---------|
-| **L1 文件格式兼容** | 能读 Match! 支持的全部格式，能写 Match! 可读文件 | ⭐⭐⭐⭐⭐ | 33 种格式双向 round-trip 测试通过 |
+| **L1 文件格式兼容** | 能读 参考软件 支持的全部格式，能写 参考软件 可读文件 | ⭐⭐⭐⭐⭐ | 33 种格式双向 round-trip 测试通过 |
 | **L2 参考数据库兼容** | 覆盖 COD（CC0）；ICDD PDF 设计为「用户自带授权数据」插件 | ⭐⭐⭐⭐ | COD 条目数、28个检索字段对齐 |
-| **L3 算法结果兼容** | FoM 数值无法一致（权重未公开），但**排序质量**必须可比 | ⭐⭐⭐ | 标准样品集上 **Top-10 命中率 ≥ Match! 的 80%** |
-| **L4 UI/工作流兼容** | 术语、菜单结构、快捷键、操作路径一致 | ⭐⭐⭐⭐ | 用户可按 Match! 手册操作 XinMatch |
+| **L3 算法结果兼容** | FoM 数值无法一致（权重未公开），但**排序质量**必须可比 | ⭐⭐⭐ | 标准样品集上 **Top-10 命中率 ≥ 参考软件 的 80%** |
+| **L4 UI/工作流兼容** | 术语、菜单结构、快捷键、操作路径一致 | ⭐⭐⭐⭐ | 用户可按 参考软件 手册操作 XinMatch |
 
-> **L3 关键判断**：FoM 内部权重未公开且用户不可调，因此验收标准是**排序质量（Top-N 命中率）**，而非数值相等。这需要在 Phase 0 就建立「标准样品集 + Match! 基线结果」作为黄金标准。
+> **L3 关键判断**：FoM 内部权重未公开且用户不可调，因此验收标准是**排序质量（Top-N 命中率）**，而非数值相等。这需要在 Phase 0 就建立「标准样品集 + 参考软件 基线结果」作为黄金标准。
 
 ---
 
@@ -53,7 +53,7 @@
 | 层 | 选型 | 理由 |
 |----|------|------|
 | **语言** | Python 3.11+ | 科学计算生态最强；GSAS-II 同栈；C 扩展可后补 |
-| **GUI** | **PySide6 (Qt 6, LGPL)** | 与 Match! 同源 Qt → 外观/交互/快捷键天然贴近；LGPL 可商用 |
+| **GUI** | **PySide6 (Qt 6, LGPL)** | 与 参考软件 同源 Qt → 外观/交互/快捷键天然贴近；LGPL 可商用 |
 | **图谱渲染** | **pyqtgraph** | XRD 谱可达数万点，需 OpenGL 级缩放/拖拽；matplotlib 交互不够 |
 | **3D 可视化** | PyVista / mayavi（可选） | 晶体结构 3D 显示 |
 | **数值计算** | NumPy + SciPy | `scipy.optimize.least_squares` 精修；`scipy.signal` 平滑/寻峰 |
@@ -82,7 +82,7 @@ XinMatch/
 │   └── report/              # 报告数据模型 + 渲染
 ├── ui/                      # PySide6 GUI（只做展示与事件，不含算法）
 ├── cli/                     # 批处理 / 脚本接口（对标 Batch Scripting）
-├── tests/                   # fixtures + 数值回归基线 + Match! 黄金标准
+├── tests/                   # fixtures + 数值回归基线 + 参考软件 黄金标准
 └── docs/                    # 规格文档库（169篇官方帮助 + 术语表 + 功能地图）
 ```
 
@@ -97,15 +97,15 @@ XinMatch/
 ### Phase 0 · 知识基座与黄金基线
 
 > **不做完 Phase 0 就不要开工写代码**，否则后面无法验证。
-> 参考资产：`docs/match4_help/*.md`（169篇）、`docs/FUNCTION_MAP.md`、`docs/INDEX_KEYWORDS.txt`
+> 参考资产：`docs/third-party-help/*.md`（169篇）、`docs/FUNCTION_MAP.md`、`docs/INDEX_KEYWORDS.txt`
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |----|------|------|---------|--------|
-| **T0.1** | 官方文档库提取（✓已完成） | `docs/match4_help/*.md`（169篇）、`FUNCTION_MAP.md` | 627 KB，主题完整 | ✅ 完成 |
+| **T0.1** | 官方文档库提取（✓已完成） | `docs/third-party-help/*.md`（169篇）、`FUNCTION_MAP.md` | 627 KB，主题完整 | ✅ 完成 |
 | **T0.2** | 最新版 vs 4.2.329 版本差异分析 | `docs/version_diff_4.2.329_vs_latest.md` | 新增/变更主题清单完整，含 `whats_new_*` | 🔴 高 |
 | **T0.3** | 建立**标准样品集**（20-30个已知组成的实测XRD数据） | `tests/fixtures/patterns/` + `tests/fixtures/ground_truth.json` | ≥20个样品，覆盖：单相、两相、三相、含非晶、含微量相(<5%)、重叠峰严重 | 🔴 最高 |
-| **T0.4** | 用 Match! 跑标准样品集，记录**黄金基线** | `tests/baseline/match4_baseline.json` | 每个样品：候选列表 Top-20 FoM、选中相、定量结果 | 🔴 最高 |
-| **T0.5** | 建立**术语映射表**：Match! 术语 ↔ XinMatch ↔ 标准晶体学术语 | `docs/TERMINOLOGY.md` | 覆盖 `INDEX_KEYWORDS.txt` 高频词，GUI 与文档统一 | 🟡 中 |
+| **T0.4** | 用 参考软件 跑标准样品集，记录**黄金基线** | `tests/baseline/reference_baseline.json` | 每个样品：候选列表 Top-20 FoM、选中相、定量结果 | 🔴 最高 |
+| **T0.5** | 建立**术语映射表**：参考软件 术语 ↔ XinMatch ↔ 标准晶体学术语 | `docs/TERMINOLOGY.md` | 覆盖 `INDEX_KEYWORDS.txt` 高频词，GUI 与文档统一 | 🟡 中 |
 | **T0.6** | 搭建项目骨架 + CI（pytest、ruff、mypy）+ 进度表 | `pyproject.toml`、目录结构、空模块 | `pytest` 可运行、`ruff` 无错误、`docs/STATUS.md` 就绪 | 🔴 高 |
 
 **Phase 0 验收**：`pytest tests/baseline --collect-only` → 标准样品集与基线齐备
@@ -120,7 +120,7 @@ XinMatch/
 | **T1.2** | `Peak` 数据类：2θ、强度、FWHM、d、hkl、关联状态、标记状态 | `core/model/peak.py` | 支持峰列表增删改、排序、按 2θ 窗口查询（二分查找） | 🔴 高 |
 | **T1.3** | `Entry`（参考库条目）：分子式、矿物名、晶胞、空间群、d-I 峰表、文献、质量标记 | `core/model/entry.py` | 能从 CIF 构造；d-I 表按强度降序 | 🔴 高 |
 | **T1.4** | `Phase`（已选物相）：关联 Entry、缩放因子、2θ 偏移、峰关联表 | `core/model/phase.py` | 支持计算该相贡献的衍射谱 | 🟡 中 |
-| **T1.5** | `Restraints`（限制条件）：元素红/黄/绿三态、晶系、空间群、密度、颜色、年份、作者 | `core/model/restraints.py` | 三态语义与 Match! 一致（红=排除 黄=可选 绿=必须含） | 🔴 高 |
+| **T1.5** | `Restraints`（限制条件）：元素红/黄/绿三态、晶系、空间群、密度、颜色、年份、作者 | `core/model/restraints.py` | 三态语义与 参考软件 一致（红=排除 黄=可选 绿=必须含） | 🔴 高 |
 | **T1.6** | `Project`（工程）：多图谱、峰列表、候选列表、已选相、参数、撤销栈 | `core/model/project.py` | 支持 undo/redo；可序列化为 `.xinmatch.json` | 🟡 中 |
 
 **Phase 1 验收**：`pytest tests/model -q` → 数据模型全绿
@@ -129,7 +129,7 @@ XinMatch/
 
 ### Phase 2 · 衍射数据 I/O（`core/io/`）—— L1 文件格式兼容
 
-> 参考规格：`docs/match4_help/import_diffraction-data_file-formats.md`
+> 参考规格：`docs/third-party-help/import_diffraction-data_file-formats.md`
 > **共 33 种格式**：22种厂商格式 + 6种自由格式 + 结构数据格式
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
@@ -141,7 +141,7 @@ XinMatch/
 | **T2.4** | Rigaku `.ras`/`.raw`、Stoe `.raw`/`.pks`、Shimadzu `.raw`、SCINTAG、MDI `.mdi` | `core/io/vendors_a.py` | 每格式 ≥1 样本通过解析 | 🟡 中 |
 | **T2.5** | 其余：INEL `.dat`、GNR `.esg`、Sietronics `.cpi`、`.xrdml`、`.gdf`、XPowder `.plv`、JEOL/TXRD `.txt` | `core/io/vendors_b.py` | 每格式 ≥1 样本通过解析 | 🟢 低 |
 | **T2.6** | CIF 读取（用 `gemmi`）：晶胞、空间群、原子坐标 → `Entry` | `core/io/cif.py` | 用 `Tutorial/calcite.cif` 验证；能生成 d-I 峰表 | 🔴 高 |
-| **T2.7** | **.mtu 用户数据库** 读写（Match! 私有格式逆向） | `core/io/mtu.py` | 能读取 Tutorial 示例；round-trip 基本一致 | 🟡 中 |
+| **T2.7** | **.mtu 用户数据库** 读写（参考软件 私有格式逆向） | `core/io/mtu.py` | 能读取 Tutorial 示例；round-trip 基本一致 | 🟡 中 |
 | **T2.8** | 导出器：峰表、profile、参考谱、候选列表、答案集、CIF | `core/io/exporters.py` | 每种导出格式能被读回且数值一致 | 🔴 高 |
 | **T2.9** | 格式兼容回归套件：统一入口 `load_pattern(path)` | `tests/io/test_all_formats.py` | 全部样本文件 ✅ 通过；新格式按模板添加 | 🔴 高 |
 
@@ -193,7 +193,7 @@ XinMatch/
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |----|------|------|---------|--------|
 | **T5.1** | COD → SQLite 构建器：解析 CIF/MySQL dump，抽取 `Entry` 字段 | `core/db/build_cod.py` | 全量构建成功；条目数 ≥ COD 官方数（约 50 万） | 🔴 高 |
-| **T5.2** | 表结构设计：entries / peaks(d-I) / elements / cells / authors / minerals + 索引 | `core/db/schema.sql` | 单条查询 <5 ms；覆盖 Match! 的 28 个检索字段 | 🔴 高 |
+| **T5.2** | 表结构设计：entries / peaks(d-I) / elements / cells / authors / minerals + 索引 | `core/db/schema.sql` | 单条查询 <5 ms；覆盖 参考软件 的 28 个检索字段 | 🔴 高 |
 | **T5.3** | **倒排索引**：元素组合 → entry id 集合；d 值区间索引 | `core/db/index_build.py` | 典型检索 <100 ms | 🔴 高 |
 | **T5.4** | d 值检索（核心）：给定峰列表 → 候选 entry（容差窗口） | `core/db/query_peaks.py` | 用 LaB6 标样，正确 entry 必在前 100 名内 | 🔴 最高 |
 | **T5.5** | 多字段组合检索：元素、晶系、空间群、颜色、密度、年份、作者、矿物名 | `core/db/query_filter.py` | 各字段单独测试通过；组合查询正确 | 🟡 中 |
@@ -220,7 +220,7 @@ XinMatch/
 | **T6.6** | **PFSM（全谱匹配）**：对每条候选算全谱 → 拟合缩放 + 2θ偏移 → Rwp 降低量为 FoM | `pfsm.py` | 与 T6.4 在标准样品集上排序相关性 >0.7 | 🔴 高 |
 | **T6.7** | 候选列表模型：排序、筛选、多选、「显示未关联峰」、条目详情 | `candidate_list.py` | 与 `Project` 集成 | 🟡 中 |
 | **T6.8** | 已选相后自动重算 FoM（残差峰驱动） | `residual_update.py` | 选中一相后，剩余候选 FoM 更新正确 | 🟡 中 |
-| **T6.9** | ⭐ **L3 黄金验收**：标准样品集 vs Match! 基线 Top-10 命中率 | `tests/search/test_baseline.py` | **Top-10 命中率 ≥ Match! 基线的 80%** | 🔴 最高 |
+| **T6.9** | ⭐ **L3 黄金验收**：标准样品集 vs 参考软件 基线 Top-10 命中率 | `tests/search/test_baseline.py` | **Top-10 命中率 ≥ 参考软件 基线的 80%** | 🔴 最高 |
 | **T6.10** | 权重标定：用标准样品集反推一组最优默认权重（网格搜索/贝叶斯） | `tune_weights.py` | 命中率提升有量化记录 | 🟡 中 |
 
 **Phase 6 验收**：`pytest tests/search/test_baseline.py` → **Top-10 命中率 ≥ 基线 80%**
@@ -314,7 +314,7 @@ XinMatch/
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |----|------|------|---------|--------|
-| **T12.1** | 报告数据模型：样品信息、实验条件、峰表、候选列表、已选相、定量结果、R 因子 | `report_model.py` | 覆盖 Match! 报告的全部章节 | 🟡 中 |
+| **T12.1** | 报告数据模型：样品信息、实验条件、峰表、候选列表、已选相、定量结果、R 因子 | `report_model.py` | 覆盖 参考软件 报告的全部章节 | 🟡 中 |
 | **T12.2** | 渲染器：HTML（默认）+ PDF（WeasyPrint）+ 纯文本 | `render.py` | 三种格式均可生成且内容一致 | 🟡 中 |
 | **T12.3** | 图谱图片导出（PNG/SVG/EPS，高 DPI） | `figure_export.py` | 300 dpi 输出清晰；SVG 矢量可用 | 🟡 中 |
 | **T12.4** | 剪贴板/图片复制（对标 Copy Pattern Graphics） | `clipboard.py` | Windows 剪贴板写入成功 | 🟢 低 |
@@ -326,19 +326,19 @@ XinMatch/
 ### Phase 13 · GUI（`ui/` · PySide6）
 
 > **只有到这一步才碰 GUI**。前面所有 `core/` 已可 CLI 验证。
-> ⚠️ **图标与视觉资源必须原创或使用开源图标（如 KDE Breeze / Lucide）**，不得复制 Match! 资源。
+> ⚠️ **图标与视觉资源必须原创或使用开源图标（如 KDE Breeze / Lucide）**，不得复制 参考软件 资源。
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |----|------|------|---------|--------|
-| **T13.1** | 主窗口骨架：菜单栏（对标 Match! 菜单结构）、工具栏、状态栏、四个停靠面板 | `ui/main_window.py` | 菜单项与 `FUNCTION_MAP.md` 一一对应 | 🔴 高 |
+| **T13.1** | 主窗口骨架：菜单栏（对标 参考软件 菜单结构）、工具栏、状态栏、四个停靠面板 | `ui/main_window.py` | 菜单项与 `FUNCTION_MAP.md` 一一对应 | 🔴 高 |
 | **T13.2** | **图谱视图（pyqtgraph）**：多谱叠放、垂直/水平偏移、缩放/拖拽/追踪、图例 | `ui/pattern_view.py` | 5 万点实时缩放不掉帧；十字光标追踪 | 🔴 最高 |
-| **T13.3** | 峰列表 / 候选列表 / 匹配列表 三个表格（排序、右键菜单、双击选中） | `ui/tables.py` | 交互与 Match! 一致 | 🔴 高 |
+| **T13.3** | 峰列表 / 候选列表 / 匹配列表 三个表格（排序、右键菜单、双击选中） | `ui/tables.py` | 交互与 参考软件 一致 | 🔴 高 |
 | **T13.4** | **周期表元素选择控件**（Restraints/Composition，红/黄/绿三态） | `ui/periodic_table.py` | 118 元素，三态切换 + Toggle 按钮 | 🟡 中 |
 | **T13.5** | 各功能对话框：导入选项、实验详情、选项设置（15 类）、颜色线型设置 | `ui/dialogs/` | 每类设置可持久化到配置文件 | 🟡 中 |
 | **T13.6** | 快捷键映射（对标 `function_keys.md`：Ctrl+M、Ctrl+Shift+M…） | `ui/shortcuts.py` | 全部列出并生效 | 🟡 中 |
 | **T13.7** | 样式主题：浅色/深色，图标用开源图标库 | `ui/theme.py` | 两种主题无控件不可读 | 🟢 低 |
 
-**Phase 13 验收**：人工按 Match! 手册操作 XinMatch 完成一次完整物相分析 → 结果一致
+**Phase 13 验收**：人工按 参考软件 手册操作 XinMatch 完成一次完整物相分析 → 结果一致
 
 ---
 
@@ -362,7 +362,7 @@ XinMatch/
 |----|------|------|---------|--------|
 | **T15.1** | PyInstaller/Nuitka 打包 Windows x64 安装包 | `dist/` + Inno Setup 脚本 | 干净虚拟机可安装运行 | 🔴 高 |
 | **T15.2** | 数据库分发：COD SQLite 单独下载（体积大，不放安装包） | 下载器 | 首次启动引导下载 | 🟡 中 |
-| **T15.3** | 用户文档（基于自写内容，**不复制** Match! 手册） | `docs/user_guide/` | 覆盖全部功能 | 🟡 中 |
+| **T15.3** | 用户文档（基于自写内容，**不复制** 参考软件 手册） | `docs/user_guide/` | 覆盖全部功能 | 🟡 中 |
 | **T15.4** | 开源协议与合规审查：确认全部依赖许可 | `LICENSE`、`NOTICE` | 无 GPL 传染性依赖（避免引入 GPL 库） | 🔴 高 |
 | **T15.5** | Linux / macOS 打包（可选） | 各平台安装包 | 基本功能可用 | 🟢 低 |
 
@@ -404,13 +404,13 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 【必读文档】
 1. docs/00_TECH_STACK_ANALYSIS.md（技术栈与合规边界）
 2. docs/FUNCTION_MAP.md（功能清单索引）
-3. docs/match4_help/<相关主题>.md（官方规格）
+3. docs/third-party-help/<相关主题>.md（官方规格）
 
 【硬约束】
-- 禁止反汇编/反编译 Match!.exe，禁止逆向授权机制
+- 禁止反汇编/反编译 参考软件主程序，禁止逆向授权机制
 - 代码放进 core/<模块>/，不得依赖 GUI
 - 函数签名：输入/输出都用 numpy 数组或 dataclass
-- 每个函数必须有 docstring：对应 Match! 功能 + 算法来源（文献/公式）
+- 每个函数必须有 docstring：对应 参考软件 功能 + 算法来源（文献/公式）
 - 必须写 pytest 测试
 
 【输入输出】
@@ -423,7 +423,7 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 
 【交付】
 - 实现文件 + 测试文件 + 更新 docs/STATUS.md
-- 报告：实现了什么、测试是否通过、与 Match! 规格的差异点
+- 报告：实现了什么、测试是否通过、与 参考软件 规格的差异点
 ```
 
 ### Agent 角色分工建议
@@ -451,13 +451,13 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 | pyqtgraph 大数据性能 | 交互卡顿 | 中 | 降采样（LTTB 算法）+ OpenGL |
 | 50 万条目全检索性能 | 慢 | 高 | 倒排索引剪枝 + Numba + 预过滤（强峰必中） |
 | 引入 GPL 依赖导致协议冲突 | 法律风险 | 低 | T15.4 严格审查；优先 MIT/BSD/LGPL |
-| 误复制 Match! 视觉资源 | 版权风险 | 低 | 图标/文档一律原创，用开源图标库 |
+| 误复制 参考软件 视觉资源 | 版权风险 | 低 | 图标/文档一律原创，用开源图标库 |
 
 ---
 
 ## 🚀 立即可以开始的第一步（按优先级排序）
 
-1. **T0.3 + T0.4（最高优先级）**：建标准样品集 + 跑 Match! 基线
+1. **T0.3 + T0.4（最高优先级）**：建标准样品集 + 跑 参考软件 基线
    - 没有这个，Phase 6 无法验收
    - 可先从 Tutorial 自带样例 + 公开数据开始
 
@@ -478,7 +478,7 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 
 | 资产 | 路径 | 说明 |
 |------|------|------|
-| 169 篇规格文档（Markdown, 627 KB） | `docs/match4_help/*.md` | 从 `Match4.qch` 提取，**可直接投喂 AI agent** |
+| 169 篇规格文档（Markdown, 627 KB） | `docs/third-party-help/*.md` | 从 `参考软件官方帮助数据库(.qch)` 提取，**可直接投喂 AI agent** |
 | 功能清单索引 | `docs/FUNCTION_MAP.md` | 17 个模块分类，带链接 |
 | 4076 条索引关键词 | `docs/INDEX_KEYWORDS.txt` | 术语表，用于统一 XinMatch 术语 |
 | 技术栈勘察报告 | `docs/00_TECH_STACK_ANALYSIS.md` | 深度分析 + 合规边界 + 选型建议 |

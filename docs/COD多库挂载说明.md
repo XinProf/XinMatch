@@ -6,11 +6,11 @@
 
 ## 1. 结论先行
 
-- **Match! 打包库（`D:\Project\XRD\Match-COD\`）无法直接挂载**：每个库（COD_20260602、
+- **参考软件 打包库（`D:\Project\XRD\Match-COD\`）无法直接挂载**：每个库（COD_20260602、
   COD-Inorganics_20260602、Cements_20201127、Minerals_AMCSD_20260602）仅有 48 个
-  Match! 专有二进制索引文件（`.mti/.mqn/.mqs/.mtb/.mtn/.mtu`），**不含 CIF、不含 SQLite**；
-  净室约束禁止逆向其私有格式，故不进注册表、不实现任何 Match! 读取。
-- **等效替代**：Match! 库与 PolyXRD 的 COD dump 同源（同一 COD 归档导出），
+  参考软件 专有二进制索引文件（`.mti/.mqn/.mqs/.mtb/.mtn/.mtu`），**不含 CIF、不含 SQLite**；
+  净室约束禁止逆向其私有格式，故不进注册表、不实现任何 参考软件 读取。
+- **等效替代**：参考软件 库与 PolyXRD 的 COD dump 同源（同一 COD 归档导出），
   XinMatch 直接使用 PolyXRD 的 SQLite dump（只读挂载），数据覆盖面一致且格式开放。
 
 ## 2. 三库现状与规模（实测）
@@ -70,7 +70,7 @@ python -m tools.build_cod_full_xinmatch --limit 500 --out data\cod_full.db
 - **PDF-2 2004 为 ICDD 商业授权数据**：侧车索引与检索结果仅供本地使用，不得随 XinMatch
   再分发；`PDF2_2004.sqlite` 来自用户自有授权的 PolyXRD dump。
 - COD 数据遵循其公开许可（CIF 归档来源不变）。
-- Match! 专有库（`.mti` 等）不复制、不逆向、不随包。
+- 参考软件 专有库（`.mti` 等）不复制、不逆向、不随包。
 
 ## 7. 后续建议（不在本版本范围）
 

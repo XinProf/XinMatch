@@ -1,8 +1,8 @@
 # XinMatch
 
 Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
-clean-room reimplementation of Match!-style workflows using publicly documented
-algorithms and open reference data (COD).
+clean-room implementation guided by publicly documented XRD phase-analysis
+workflows, published algorithms and open reference data (COD).
 
 > ⚠️ **Pre-alpha.** The project is in the skeleton + planning stage. See
 > [ROADMAP_v3.md](ROADMAP_v3.md) for the full implementation plan and
@@ -52,8 +52,8 @@ xinmatch/
 │   └── report/      # report data model + rendering
 ├── ui/              # PySide6 GUI
 ├── cli/             # command-line / batch interface
-tests/               # pytest suite + fixtures + Match! baseline
-docs/                # 169 extracted Match! help topics + analysis docs
+tests/               # pytest suite + fixtures + reference baseline
+docs/                # analysis docs (reference help retained externally)
 tools/               # helper scripts (doc extraction, baseline building)
 ```
 
@@ -73,8 +73,8 @@ pytest
 
 ## Compliance
 
-XinMatch is **not** a fork of Match! and contains no Match! code or proprietary
-database files. See [docs/00_TECH_STACK_ANALYSIS.md](docs/00_TECH_STACK_ANALYSIS.md)
+XinMatch is **not** a fork of, and contains no code or proprietary database
+files from, any commercial powder XRD analysis software. See [docs/00_TECH_STACK_ANALYSIS.md](docs/00_TECH_STACK_ANALYSIS.md)
 for the detailed compliance boundary.
 
 ## License

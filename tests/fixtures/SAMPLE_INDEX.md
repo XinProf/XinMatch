@@ -42,7 +42,7 @@
 | `raw\` | `.raw` / `.RAW` | 二进制 raw | 大小写混杂；XinMatch 已识别 |
 | `mdi\` | `.mdi` | Sietronics CPI 文本 | XinMatch 已支持 |
 | `geshi\` | `.dat/.mdi/.raw/.txt/.xy` | 4-1 的多格式冗余 | **格式回归测试用** |
-| `5\` | `.cif/.par/.lst/.mdi/.mtd/.txt` | 5-1/5-2/5-2b/5-3 各自的 Match! 候选输出目录 | 含 **Match! 候选 CIF** + `.par`（峰列表）+ `.mtd`（项目文件）|
+| `5\` | `.cif/.par/.lst/.mdi/.mtd/.txt` | 5-1/5-2/5-2b/5-3 各自的 参考软件 候选输出目录 | 含 **参考软件 候选 CIF** + `.par`（峰列表）+ `.mtd`（项目文件）|
 
 辅助文件：
 - `物相结果.txt` / `物相结果+wt%.txt` — 各样品 ground truth
@@ -140,7 +140,7 @@
 | **Scherrer / 微观应变**（T11） | data035 WC 残余应力, data025–029 高聚物 | — |
 | **Rietveld 精修**（T10） | IUCr CPD 1a-1h, `Must do\Rietveld\` | — |
 | **格式回归**（T2.x） | `geshi\4-1` 多格式冗余, `IUCr\tar.gz\` 7 包 | — |
-| **Match! 候选 CIF 对照** | `test_xrd\5\*\*.cif`（已含 Match! 选定相） | — |
+| **参考软件 候选 CIF 对照** | `test_xrd\5\*\*.cif`（已含 参考软件 选定相） | — |
 
 ---
 

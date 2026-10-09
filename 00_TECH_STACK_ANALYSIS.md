@@ -1,8 +1,8 @@
-# XinMatch 逆向分析：Match! 4 技术栈勘察报告
+# XinMatch 逆向分析：参考软件 4 技术栈勘察报告
 
-> 目标软件：MATCH! - Phase Analysis using Powder Diffraction, Version 4.2 Build 329 (Win64)
+> 目标软件：参考商业粉末 XRD 物相分析软件（Version 4.2 Build 329, Win64）
 > 厂商：Crystal Impact, H. Putz & K. Brandenburg GbR, Bonn, Germany
-> 勘察日期：2026-10-06 ｜ 勘察对象：`C:\Program Files\Match4`（4.2.329）+ 最新版安装包（374 MB）
+> 勘察日期：2026-10-06 ｜ 勘察对象：`参考软件安装目录`（4.2.329）+ 最新版安装包（374 MB）
 
 ---
 
@@ -12,7 +12,7 @@
 |---|---|
 | **是什么** | 粉末 X 射线衍射（XRPD）物相定性/定量分析软件，非 EBSD/电子衍射 |
 | **GUI 框架** | **Qt 5.15.2**（MSVC 2019, 64-bit），QtWidgets + QtWebEngine + QtCharts + QtHelp |
-| **主程序规模** | `Match!.exe` 15.1 MB（单文件，无符号、无 PDB） |
+| **主程序规模** | `参考软件主程序` 15.1 MB（单文件，无符号、无 PDB） |
 | **许可证** | EULA **明文禁止反汇编/反编译**（见 §1） |
 | **数据库** | 自研私有倒排索引格式（`.mti/.mqn/.mqs/.mtb`），469 MB，28 个检索字段 |
 | **最高效的逆向路径** | **不是反汇编，而是「官方文档 + 黑盒 + 公开算法 + 开放数据」**（见 §4） |
@@ -30,7 +30,7 @@
 
 | ❌ 不做 | 原因 |
 |---|---|
-| 反汇编 / 反编译 `Match!.exe` | EULA 明文禁止；且这是合同条款，用户安装时已同意 |
+| 反汇编 / 反编译 `参考软件主程序` | EULA 明文禁止；且这是合同条款，用户安装时已同意 |
 | 逆向 / 绕过 `LicenseManager.exe`（60 天试用、授权校验） | 与构建开源替代品无关，且不可规避 |
 
 （补充背景：德国法下为**互操作性**目的的逆向受 `UrhG §69e` 保护，且 `§69g(2)` 规定与之抵触的合同条款无效——所以严格讲该条款在德国未必可执行。但这是你自己的法律判断，且**即便合法，反汇编也是性价比最低的路线**，理由见 §4.1。）
@@ -39,7 +39,7 @@
 
 | ✅ 做法 | 依据 |
 |---|---|
-| 读取安装目录下的官方文档（`Manual.pdf` 165 页、`Match4.qch` 帮助系统） | 文档是随软件分发的用户文档，读取不构成逆向 |
+| 读取安装目录下的官方文档（`Manual.pdf` 165 页、`参考软件官方帮助数据库(.qch)` 帮助系统） | 文档是随软件分发的用户文档，读取不构成逆向 |
 | 黑盒行为观察：运行软件 → 输入数据 → 记录输出 | 纯观察，不涉及二进制 |
 | 分析**数据文件格式**（`.rd/.udi/.mtu/.raw/.xrdml`…） | 互操作性目的；且用于读写用户自己的数据 |
 | 用**公开发表的学术算法**重新实现（Rietveld / Le Bail / Treor / Dicvol / RIR / Scherrer） | 算法本身是公开科学知识，不受软件著作权保护 |
@@ -57,7 +57,7 @@
 Qt5Core.dll / Qt5Gui.dll / Qt5Widgets.dll   ← Qt 5.15.2，编译日期 2020-11-06
 Qt5WebEngineCore.dll (102 MB)               ← 报告/帮助用内嵌 Chromium 渲染
 Qt5Charts.dll                               ← 图表
-Qt5Help.dll + Match4.qch/.qhc               ← 帮助系统（SQLite 格式）
+Qt5Help.dll + 参考软件官方帮助数据库(.qch)/.qhc               ← 帮助系统（SQLite 格式）
 Qt5Sql.dll + qsqlite/qsqlodbc/qsqlpsql      ← 数据库访问
 Qt5PrintSupport.dll / Qt5Svg.dll
 D3Dcompiler_47.dll / libGLESv2.dll / opengl32sw.dll   ← ANGLE 软件渲染
@@ -70,7 +70,7 @@ VC_redist.x64.exe                           ← MSVC 2019 运行库
 ### 2.2 进程结构
 
 ```
-Match!.exe          主程序（15.1 MB）
+参考软件主程序          主程序（15.1 MB）
 LicenseManager.exe  独立授权管理进程（1.1 MB）
 assistant.exe       Qt Assistant（帮助查看器）
 QtWebEngineProcess.exe  Chromium 子进程
@@ -110,7 +110,7 @@ qualsub seq_fpoint  sgrsym  temperature  user_database  year
 
 **自由格式（6）**：DBWS `.rfl/.dat`、ASCII profile 三种变体、ENDEAVOUR peak list
 
-**结构数据**：CIF、ICSD/Retrieve、Match! 用户库 `.mtu`
+**结构数据**：CIF、ICSD/Retrieve、参考软件 用户库 `.mtu`
 
 ### 2.5 功能模块（169 个帮助主题，自动分类）
 
@@ -167,7 +167,7 @@ qualsub seq_fpoint  sgrsym  temperature  user_database  year
 
 | 障碍 | 具体代价 |
 |---|---|
-| 无符号、无 PDB | `Match!.exe` 15.1 MB，静态链接 Qt 部分符号，但业务符号全部缺失 |
+| 无符号、无 PDB | `参考软件主程序` 15.1 MB，静态链接 Qt 部分符号，但业务符号全部缺失 |
 | C++ 虚表 + RTTI | 类继承关系需逐个重建，Qt moc 信号槽为字符串表间接调用 |
 | 20+ 年累积代码 | 版权 2003-2025，大量历史分支、兼容代码、死代码 |
 | Qt 5.15 静态/动态混合 | 需先剥离 Qt 库函数（约 90% 的反汇编体量是 Qt 框架而非业务逻辑） |
@@ -185,7 +185,7 @@ qualsub seq_fpoint  sgrsym  temperature  user_database  year
 | 层 | 选型 | 理由 |
 |---|---|---|
 | 语言 | **Python 3.11+** | 科学计算生态最强；GSAS-II 同栈；C 扩展可后补 |
-| GUI | **PySide6 (Qt 6, LGPL)** | 与 Match! 同源 Qt → 外观/交互/快捷键天然贴近；LGPL 可商用 |
+| GUI | **PySide6 (Qt 6, LGPL)** | 与 参考软件 同源 Qt → 外观/交互/快捷键天然贴近；LGPL 可商用 |
 | 图谱渲染 | **pyqtgraph** | XRD 谱可达数万点，需 OpenGL 级缩放/拖拽；matplotlib 交互不够 |
 | 数值 | **NumPy + SciPy** | `scipy.optimize.least_squares` 做精修；`scipy.signal` 做平滑/寻峰 |
 | 加速（二期） | **Numba / Cython** | FoM 需遍历数十万条 entry，纯 Python 会慢 |
@@ -197,7 +197,7 @@ qualsub seq_fpoint  sgrsym  temperature  user_database  year
 
 ### 4.2 为什么不用 C++ / Qt 复刻
 
-虽然 Match! 是 Qt/C++，但你做的是**新产品**而非**克隆**。Python 开发速度 3-5 倍，且核心热路径可用 Numba/Cython/C 扩展逐点优化。**先用 Python 打通算法正确性，再对瓶颈做加速** —— 这是唯一现实的工期路径。
+虽然 参考软件 是 Qt/C++，但你做的是**新产品**而非**克隆**。Python 开发速度 3-5 倍，且核心热路径可用 Numba/Cython/C 扩展逐点优化。**先用 Python 打通算法正确性，再对瓶颈做加速** —— 这是唯一现实的工期路径。
 
 ### 4.3 架构分层（关键：内核与 GUI 解耦）
 
@@ -231,14 +231,14 @@ XinMatch/
 
 | 层级 | 目标 | 可行性 | 验收指标 |
 |---|---|---|---|
-| **L1 文件格式兼容** | 能读 Match! 支持的格式，能写 Match! 可读的文件 | ⭐⭐⭐⭐⭐ | 33 种格式双向 round-trip 测试通过 |
+| **L1 文件格式兼容** | 能读 参考软件 支持的格式，能写 参考软件 可读的文件 | ⭐⭐⭐⭐⭐ | 33 种格式双向 round-trip 测试通过 |
 | **L2 参考数据库兼容** | 覆盖 COD；ICDD PDF 设计为「用户自带授权数据」插件 | ⭐⭐⭐⭐ | COD 条目数、检索字段对齐 |
-| **L3 算法结果兼容** | FoM **数值**不可能一致（权重未公开），但**排序**必须可比 | ⭐⭐⭐ | 标准样品集上 **Top-10 命中率 ≥ Match! 的 80%** |
-| **L4 UI/工作流兼容** | 术语、菜单结构、快捷键、操作路径一致 | ⭐⭐⭐⭐ | 用户可按 Match! 手册操作 XinMatch |
+| **L3 算法结果兼容** | FoM **数值**不可能一致（权重未公开），但**排序**必须可比 | ⭐⭐⭐ | 标准样品集上 **Top-10 命中率 ≥ 参考软件 的 80%** |
+| **L4 UI/工作流兼容** | 术语、菜单结构、快捷键、操作路径一致 | ⭐⭐⭐⭐ | 用户可按 参考软件 手册操作 XinMatch |
 
 > **L3 的关键判断**：FoM 绝对值无法复现（内部权重未公开且用户不可调）。
 > 因此验收标准必须定为 **排序质量（Top-N 命中率 / 召回率）**，而非数值相等。
-> 这需要在 Phase 0 就建立"标准样品集 + Match! 基线结果"作为黄金标准。
+> 这需要在 Phase 0 就建立"标准样品集 + 参考软件 基线结果"作为黄金标准。
 
 ---
 
@@ -258,7 +258,7 @@ XinMatch/
 
 | 资产 | 路径 | 说明 |
 |---|---|---|
-| 169 篇规格文档（Markdown, 627 KB） | `docs/match4_help/*.md` | 从 `Match4.qch` 解密提取，**可直接投喂 AI agent** |
+| 169 篇规格文档（Markdown, 627 KB） | `docs/third-party-help/*.md` | 从 `参考软件官方帮助数据库(.qch)` 解密提取，**可直接投喂 AI agent** |
 | 功能清单索引 | `docs/FUNCTION_MAP.md` | 17 个模块分类，带链接 |
 | 4076 条索引关键词 | `docs/INDEX_KEYWORDS.txt` | 术语表，用于统一 XinMatch 术语 |
 | 提取脚本（可复用于新版） | `tools/extract_help.py` | 换安装目录即可重新提取 |

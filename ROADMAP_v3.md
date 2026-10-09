@@ -1,12 +1,12 @@
 # ExtMatch 实施路线图 v3.0（合并版）
 
-> **开放版 Match! —— Powder XRD 物相分析平台**
+> **XinMatch —— 开放版粉末 XRD 物相分析平台**
 > **方法论**：净室设计（Clean Room Design）—— 规格来自官方文档 + 黑盒观察 + 公开算法，代码从零实现
 > **技术栈**：Python 3.11 + PySide6 (Qt6) + NumPy/SciPy + pyqtgraph + SQLite + gemmi
 > **兼容性目标**：L1 文件格式 100% / L2 数据库对齐 / L3 算法 Top-10 命中率 ≥ 80% / L4 UI 工作流一致
 >
 > **给 AI Agent 的执行约定**：每个任务 `T#` 都是独立可交付单元。
-> Agent 开工前先读 `docs/00_TECH_STACK_ANALYSIS.md` + `docs/FUNCTION_MAP.md` + 任务指定的 `docs/match4_help/<topic>.md`。
+> Agent 开工前先读 `docs/00_TECH_STACK_ANALYSIS.md` + `docs/FUNCTION_MAP.md` + 任务指定的 `docs/third-party-help/<topic>.md`。
 
 ---
 
@@ -16,12 +16,12 @@
 
 | 层级 | 目标 | 可行性 | 验收指标 |
 |------|------|--------|---------|
-| **L1 文件格式兼容** | 能读 Match! 支持的全部格式，能写 Match! 可读文件 | ⭐⭐⭐⭐⭐ | 33 种格式双向 round-trip 测试通过 |
+| **L1 文件格式兼容** | 能读 参考软件 支持的全部格式，能写 参考软件 可读文件 | ⭐⭐⭐⭐⭐ | 33 种格式双向 round-trip 测试通过 |
 | **L2 参考数据库兼容** | 覆盖 COD（CC0）；ICDD PDF 设计为「用户自带授权数据」插件 | ⭐⭐⭐⭐ | COD 条目数、28 个检索字段对齐 |
-| **L3 算法结果兼容** | FoM 数值无法一致（权重未公开），但**排序质量**必须可比 | ⭐⭐⭐ | 标准样品集上 **Top-10 命中率 ≥ Match! 的 80%** |
-| **L4 UI/工作流兼容** | 术语、菜单结构、快捷键、操作路径一致 | ⭐⭐⭐⭐ | 用户可按 Match! 手册操作 ExtMatch |
+| **L3 算法结果兼容** | FoM 数值无法一致（权重未公开），但**排序质量**必须可比 | ⭐⭐⭐ | 标准样品集上 **Top-10 命中率 ≥ 参考软件 的 80%** |
+| **L4 UI/工作流兼容** | 术语、菜单结构、快捷键、操作路径一致 | ⭐⭐⭐⭐ | 用户可按 参考软件 手册操作 ExtMatch |
 
-> **L3 关键判断**：FoM 内部权重未公开且用户不可调，因此验收标准是**排序质量（Top-N 命中率）**，而非数值相等。这需要在 Phase 0 就建立「标准样品集 + Match! 基线结果」作为黄金标准。
+> **L3 关键判断**：FoM 内部权重未公开且用户不可调，因此验收标准是**排序质量（Top-N 命中率）**，而非数值相等。这需要在 Phase 0 就建立「标准样品集 + 参考软件 基线结果」作为黄金标准。
 
 ---
 
@@ -32,9 +32,9 @@
 | 层 | 选型 | 理由 |
 |----|------|------|
 | **语言** | Python 3.11+ | 科学计算生态最强；GSAS-II 同栈；C 扩展可后补 |
-| **GUI** | **PySide6 (Qt 6, LGPL)** | 与 Match! 同源 Qt → 外观/交互/快捷键天然贴近；LGPL 可商用 |
+| **GUI** | **PySide6 (Qt 6, LGPL)** | 与 参考软件 同源 Qt → 外观/交互/快捷键天然贴近；LGPL 可商用 |
 | **图谱渲染** | **pyqtgraph** | XRD 谱可达数万点，需 OpenGL 级缩放/拖拽；matplotlib 交互不够 |
-| **3D 可视化** | QWebEngineView + Three.js/WebGL | Match! 自身内置 QtWebEngineCore(102MB)，原生壳+Web 承载是实际选择 |
+| **3D 可视化** | QWebEngineView + Three.js/WebGL | 参考软件 自身内置 QtWebEngineCore(102MB)，原生壳+Web 承载是实际选择 |
 | **数值计算** | NumPy + SciPy | `scipy.optimize.least_squares` 精修；`scipy.signal` 平滑/寻峰 |
 | **CIF 解析** | **gemmi** (MIT) | 晶体学标准库，高性能，支持 mmCIF/PDBx |
 | **拟合内核** | lmfit（可选） | 参数约束语法友好，适合精修参数管理 |
@@ -62,7 +62,7 @@ extmatch/
 ├── ui/                      # PySide6 GUI（只做展示与事件，不含算法）
 │   └── structure3d/         # QWebEngineView + Three.js 晶体结构 3D
 ├── cli/                     # 批处理 / 脚本接口（对标 Batch Scripting）
-├── tests/                   # fixtures + 数值回归基线 + Match! 黄金标准
+├── tests/                   # fixtures + 数值回归基线 + 参考软件 黄金标准
 └── docs/                    # 规格文档库（169 篇官方帮助 + 术语表 + 功能地图）
 ```
 
@@ -78,13 +78,13 @@ extmatch/
 【必读】
 1. D:\TEMP\ExtMatch\docs\00_TECH_STACK_ANALYSIS.md  （技术栈与合规边界）
 2. D:\TEMP\ExtMatch\docs\FUNCTION_MAP.md            （功能清单索引）
-3. 本任务指定的 docs/match4_help/<topic>.md          （官方规格，已提取为 Markdown）
+3. 本任务指定的 docs/third-party-help/<topic>.md          （官方规格，已提取为 Markdown）
 
 【硬约束】
-- 禁止反汇编/反编译 Match!.exe，禁止逆向授权机制。规格一律取自官方文档。
+- 禁止反汇编/反编译 参考软件主程序，禁止逆向授权机制。规格一律取自官方文档。
 - 代码放进 D:\TEMP\ExtMatch\core\<模块>\，不得依赖 GUI。
 - 函数签名：输入/输出都用 numpy 数组或 dataclass，禁止在算法层读写文件。
-- 每个函数必须有 docstring 注明：对应 Match! 的哪个功能 + 算法来源（文献/公式）。
+- 每个函数必须有 docstring 注明：对应 参考软件 的哪个功能 + 算法来源（文献/公式）。
 - 必须写 pytest 测试，验收标准见任务书。
 
 【输入输出】
@@ -93,7 +93,7 @@ extmatch/
 
 【交付】
 - 实现文件 + 测试文件 + 更新 docs/STATUS.md 勾选本任务
-- 报告：实现了什么、测试是否通过、与 Match! 规格的差异点
+- 报告：实现了什么、测试是否通过、与 参考软件 规格的差异点
 ```
 
 ---
@@ -104,13 +104,13 @@ extmatch/
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |---|---|---|---|---|
-| **T0.1** | 提取官方文档库 | `docs/match4_help/*.md`（169 篇）、`FUNCTION_MAP.md`、`INDEX_KEYWORDS.txt` | ✅ **已完成**（`tools/extract_help.py` 跑通，627 KB） | ✅ |
-| **T0.2** | 安装最新版到**独立目录**（如 `C:\Program Files\Match4_Latest`），重跑提取脚本，diff 两版功能差异 | `docs/version_diff_4.2.329_vs_latest.md` | 新版本新增/变更主题的清单完整，无遗漏 `whats_new_*` | 🔴 高 |
+| **T0.1** | 提取官方文档库 | `docs/third-party-help/*.md`（169 篇）、`FUNCTION_MAP.md`、`INDEX_KEYWORDS.txt` | ✅ **已完成**（`tools/extract_help.py` 跑通，627 KB） | ✅ |
+| **T0.2** | 安装最新版到**独立目录**（如 `参考软件独立安装目录`），重跑提取脚本，diff 两版功能差异 | `docs/version_diff_4.2.329_vs_latest.md` | 新版本新增/变更主题的清单完整，无遗漏 `whats_new_*` | 🔴 高 |
 | **T0.3** | 建立**标准样品集**：收集 20-30 个已知物相组成的实测 XRD 数据（可用 `Tutorial/` 自带样例 + 公开数据 + ICDD 标样） | `tests/fixtures/patterns/` + `tests/fixtures/ground_truth.json` | ≥20 个样品，覆盖：单相、两相、三相、含非晶、含微量相(<5%)、重叠峰严重 | 🔴 最高 |
-| **T0.4** | 用 Match! 跑标准样品集，记录**基线结果**（候选列表 Top-20 FoM、选中相、定量结果） | `tests/baseline/match4_baseline.json` | 每个样品一条记录，含排序与 FoM 值。**这是 L3 兼容性的黄金标准** | 🔴 最高 |
-| **T0.5** | 建立**术语映射表**：Match! 术语 ↔ ExtMatch 术语 ↔ 标准晶体学术语 | `docs/TERMINOLOGY.md` | 覆盖 `INDEX_KEYWORDS.txt` 中高频词，GUI 与文档统一使用 | 🟡 中 |
+| **T0.4** | 用 参考软件 跑标准样品集，记录**基线结果**（候选列表 Top-20 FoM、选中相、定量结果） | `tests/baseline/reference_baseline.json` | 每个样品一条记录，含排序与 FoM 值。**这是 L3 兼容性的黄金标准** | 🔴 最高 |
+| **T0.5** | 建立**术语映射表**：参考软件 术语 ↔ ExtMatch 术语 ↔ 标准晶体学术语 | `docs/TERMINOLOGY.md` | 覆盖 `INDEX_KEYWORDS.txt` 中高频词，GUI 与文档统一使用 | 🟡 中 |
 | **T0.6** | 搭建项目骨架 + CI（pytest、ruff、mypy）+ `docs/STATUS.md` 进度表 | `pyproject.toml`、目录结构、空模块 | `pytest` 可运行（0 用例通过）、`ruff` 无错误 | 🔴 高 |
-| **T0.7** | 跨平台约定：路径用 `pathlib`、文本统一 UTF-8、换行符处理（注意 Match! 不支持 CR-only 行尾） | `docs/CONVENTIONS.md` | Windows/Linux/macOS 三平台 `pytest` 均通过 | 🟡 中 |
+| **T0.7** | 跨平台约定：路径用 `pathlib`、文本统一 UTF-8、换行符处理（注意 参考软件 不支持 CR-only 行尾） | `docs/CONVENTIONS.md` | Windows/Linux/macOS 三平台 `pytest` 均通过 | 🟡 中 |
 
 **Phase 0 验收**：`pytest tests/baseline --collect-only` → 标准样品集与基线齐备
 
@@ -124,7 +124,7 @@ extmatch/
 | **T1.2** | `Peak` 数据类：2θ、强度、FWHM、d、hkl、关联状态、标记状态 | `core/model/peak.py` | 支持峰列表增删改、排序、按 2θ 窗口查询（二分查找） | 🔴 高 |
 | **T1.3** | `Entry`（参考库条目）：分子式、矿物名、晶胞、空间群、d-I 峰表、文献、质量标记 | `core/model/entry.py` | 能从 CIF 构造；d-I 表按强度降序 | 🔴 高 |
 | **T1.4** | `Phase`（已选物相）：关联 Entry、缩放因子、2θ 偏移、峰关联表 | `core/model/phase.py` | 支持计算该相贡献的衍射谱 | 🟡 中 |
-| **T1.5** | `Restraints`（限制条件）：元素红/黄/绿三态、晶系、空间群、密度、颜色、年份、作者 | `core/model/restraints.py` | 支持序列化；三态语义与 Match! 一致（红=排除 黄=可选 绿=必须含） | 🔴 高 |
+| **T1.5** | `Restraints`（限制条件）：元素红/黄/绿三态、晶系、空间群、密度、颜色、年份、作者 | `core/model/restraints.py` | 支持序列化；三态语义与 参考软件 一致（红=排除 黄=可选 绿=必须含） | 🔴 高 |
 | **T1.6** | `Project`（工程）：多图谱、峰列表、候选列表、已选相、参数、撤销栈 | `core/model/project.py` | 支持 undo/redo；可序列化为 `.extmatch.json` | 🟡 中 |
 
 **Phase 1 验收**：`pytest tests/model -q` → 数据模型全绿
@@ -133,7 +133,7 @@ extmatch/
 
 ## Phase 2 · 衍射数据 I/O（`core/io/`）—— 对标 L1 文件格式兼容
 
-> 参考规格：`docs/match4_help/import_diffraction-data_file-formats.md`
+> 参考规格：`docs/third-party-help/import_diffraction-data_file-formats.md`
 > **共 33 种格式**：22 种厂商格式 + 6 种自由格式 + 结构数据格式
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
@@ -192,20 +192,20 @@ extmatch/
 
 > 数据源：COD（CC0）。已有 `D:\TEMP\cod-cifs-mysql.txz` 与 `D:\SOFTWARE\Profex-COD-250127\cod-250127.db3`
 >
-> ⚠️ **本阶段不逆向 Match! 的 `.mti/.mqs/.mqn/.mtb` 索引格式。** COD 是 CC0 开放数据，
+> ⚠️ **本阶段不逆向 参考软件 的 `.mti/.mqs/.mqn/.mtb` 索引格式。** COD 是 CC0 开放数据，
 > 直接用官方源重建即可，且数据更新更及时、字段语义更清晰。仅 T5.9 做 `.mtu` 导入兼容（互操作性，非逆向）。
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |---|---|---|---|---|
 | **T5.1** | COD → SQLite 构建器：解析 CIF/MySQL dump，抽取 `Entry` 字段 | `core/db/build_cod.py` | 全量构建成功；条目数 ≥ COD 官方数（约 50 万） | 🔴 高 |
-| **T5.2** | 表结构设计：entries / peaks(d-I) / elements / cells / authors / minerals，+ 索引 | `core/db/schema.sql` | 单条查询 <5 ms；范围覆盖 Match! 的 28 个检索字段 | 🔴 高 |
+| **T5.2** | 表结构设计：entries / peaks(d-I) / elements / cells / authors / minerals，+ 索引 | `core/db/schema.sql` | 单条查询 <5 ms；范围覆盖 参考软件 的 28 个检索字段 | 🔴 高 |
 | **T5.3** | **倒排索引**：元素组合 → entry id 集合；晶胞参数/d 值区间索引 | `core/db/index_build.py` | 典型检索 <100 ms | 🔴 高 |
 | **T5.4** | d 值检索（核心）：给定峰列表 → 候选 entry（容差窗口） | `core/db/query_peaks.py` | 用 LaB6 标样，正确 entry 必在前 100 名内 | 🔴 最高 |
 | **T5.5** | 多字段组合检索：元素、晶系、空间群、颜色、密度、年份、作者、矿物名 | `core/db/query_filter.py` | 各字段单独测试通过；组合查询正确 | 🟡 中 |
 | **T5.6** | **用户数据库 UDB**：增删查改、导入/导出 `.mtu`、CIF 导入、ICSD 导入 | `core/db/user_db.py` | 自建库可持久化；round-trip 一致 | 🟡 中 |
 | **T5.7** | 数据库管理：多库切换、合并、重命名、删除（对标 Reference Database Library） | `core/db/manager.py` | 多库并存无冲突 | 🟡 中 |
 | **T5.8** | **ICDD PDF 适配层**（插件式，不含数据）：定义接口，用户自带授权数据可挂载 | `core/db/pdf_plugin.py` | 接口清晰；用 COD 实现一份参考实现 | 🟢 低 |
-| **T5.9** | `.mtu` 导入兼容层（**互操作性**，P2 可选）。已知格式：`MATCH!_USER_DATABASE` 魔数(20B) + 版本号 `uint16 LE`(2) + 疑似未压缩长度 `uint32 LE`(78805 > 文件 52730，存在压缩) + 数据区；字符串为 `uint16 LE` 长度前缀 + 内容 | `core/io/mtu.py` | 能读入 `Tutorial/colleague_database.mtu` 并转出 entries；原生格式仍为 SQLite/JSON | 🟢 低 |
+| **T5.9** | `.mtu` 导入兼容层（**互操作性**，P2 可选）。已知格式：`用户数据库文件头魔数` 魔数(20B) + 版本号 `uint16 LE`(2) + 疑似未压缩长度 `uint32 LE`(78805 > 文件 52730，存在压缩) + 数据区；字符串为 `uint16 LE` 长度前缀 + 内容 | `core/io/mtu.py` | 能读入 `Tutorial/colleague_database.mtu` 并转出 entries；原生格式仍为 SQLite/JSON | 🟢 低 |
 
 **Phase 5 验收**：LaB6 检索 → 正确 entry 进 Top-100
 
@@ -227,7 +227,7 @@ extmatch/
 | **T6.6** | **PFSM**：对每条候选算全谱 → 拟合缩放 + 2θ 偏移 → Rwp 降低量为 FoM | `pfsm.py` | 与 T6.4 在标准样品集上排序相关性 >0.7 | 🔴 高 |
 | **T6.7** | 候选列表模型：排序、筛选、多选、"显示未关联峰"、条目详情 | `candidate_list.py` | 与 `Project` 集成 | 🟡 中 |
 | **T6.8** | 已选相后自动重算 FoM（残差峰驱动） | `residual_update.py` | 选中一相后，剩余候选 FoM 更新正确 | 🟡 中 |
-| **T6.9** | ⭐ **L3 验收**：在 `tests/fixtures` 上跑，与 `match4_baseline.json` 对比 **Top-10 命中率** | `tests/search/test_baseline.py` | **Top-10 命中率 ≥ Match! 基线的 80%** | 🔴 最高 |
+| **T6.9** | ⭐ **L3 验收**：在 `tests/fixtures` 上跑，与 `reference_baseline.json` 对比 **Top-10 命中率** | `tests/search/test_baseline.py` | **Top-10 命中率 ≥ 参考软件 基线的 80%** | 🔴 最高 |
 | **T6.10** | 权重标定：用标准样品集反推一组最优默认权重（网格搜索/贝叶斯） | `tune_weights.py` | 命中率提升有量化记录 | 🟡 中 |
 
 **Phase 6 验收**：`pytest tests/search/test_baseline.py` → **Top-10 命中率 ≥ 基线 80%**
@@ -287,12 +287,12 @@ extmatch/
 
 > ⚠️ **关键架构决策（2026-10-08）：XinMatch 不自研精修算法。**
 >
-> 对标 Match! 集成 FullProf 的模式，XinMatch 选择集成 **GSAS-II**（Python 编写，可通过 `GSASIIscriptable` API 嵌入式集成，无需外部进程）。
+> 对标 参考软件 集成 FullProf 的模式，XinMatch 选择集成 **GSAS-II**（Python 编写，可通过 `GSASIIscriptable` API 嵌入式集成，无需外部进程）。
 > 工作流：XinMatch 完成物相鉴定 → 把**已选相的 CIF + 原始谱图 + 精修参数**传给 GSAS-II → GSAS-II 执行 Le Bail / Rietveld 精修 → XinMatch 解析 GSAS-II 输出（Rwp、精修后 CIF、prf 残差谱）回填数据模型。
 >
 > 因此 T10.1–T10.5、T10.7 的自研实现仅作 **参考/交叉验证**（用于校验 GSAS-II 输出是否合理），**不进生产路径**。生产精修唯一集成点是 **T10.6b（GSAS-II 适配层）**，配合 T10.8（项目构造器）和 T10.9（结果解析）形成完整闭环。
 >
-> 参考软件（已安装于本机）：GSAS-II = `C:\gsas2main\GSAS-II`（`GSASII\GSASIIscriptable.py`）、MAUD = `C:\MAUD3`/`C:\MAUD2`（GUI 参考）、FullProf = `C:\FullProf_Suite`（已装但不选用）、Match! = `C:\Program Files\Match4`（工作流参考）。
+> 参考软件（已安装于本机）：GSAS-II = `C:\gsas2main\GSAS-II`（`GSASII\GSASIIscriptable.py`）、MAUD = `C:\MAUD3`/`C:\MAUD2`（GUI 参考）、FullProf = `C:\FullProf_Suite`（已装但不选用）、参考软件 = `参考软件安装目录`（工作流参考）。
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 | 路径 |
 |---|---|---|---|---|---|
@@ -301,7 +301,7 @@ extmatch/
 | T10.3 | Le Bail 分解（迭代分配重叠峰强度） | `le_bail.py` | 收敛；Rwp <10% | 🟢 低 | 📚 reference only |
 | T10.4 | Rietveld 精修（最小二乘 + 参数约束） | `rietveld.py` | 标准样品 Rwp <8% | 🟢 低 | 📚 reference only |
 | T10.5 | 残差 R 因子（Rp/Rwp/R_exp/χ²/GoF）+ 残差峰分析 | `residuals.py` | 残差谱正确 | 🟢 低 | 📚 reference only |
-| T10.6 | FullProf 适配层 | — | — | ❌ 不做 | Match! 用 FullProf，XinMatch 选 GSAS-II |
+| T10.6 | FullProf 适配层 | — | — | ❌ 不做 | 参考软件 用 FullProf，XinMatch 选 GSAS-II |
 | **T10.6b** | ⭐ **GSAS-II 适配层（生产精修唯一入口）**：`RietveldAdapter` Protocol + `LocalRietveldAdapter` fallback（无 GSAS-II 时）+ `GSAS2RietveldAdapter`（lazy import `GSASIIscriptable`）+ `.gss` ESD 格式解析 | `gsas2_adapter.py` | 能驱动 GSAS-II 完成一轮精修；GSAS-II 不可用时 graceful fallback | 🔴 最高 | 🏭 production |
 | T10.7 | 策略化精修（参数逐步开启） | `turn_on.py` | 参数顺序可配 | 🟢 低 | 📚 reference only |
 | **T10.8** | ⭐ **GSAS-II 项目构造器**：把 XinMatch 的 `Entry`/`Phase`（含 CIF）+ `Pattern` + 精修参数 → GSAS-II 可执行项目（.gpx / 脚本） | `gsas2_project.py` | 用 IUCr CPD-1c 的 Al2O3/ZnO/CaF2 三 CIF + 原始谱能构造出可在 GSAS-II 中直接运行的项目 | 🔴 最高 | 🏭 production |
@@ -331,7 +331,7 @@ extmatch/
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |---|---|---|---|---|
-| **T12.1** | 报告数据模型：样品信息、实验条件、峰表、候选列表、已选相、定量结果、R 因子 | `report_model.py` | 覆盖 Match! 报告的全部章节 | 🟡 中 |
+| **T12.1** | 报告数据模型：样品信息、实验条件、峰表、候选列表、已选相、定量结果、R 因子 | `report_model.py` | 覆盖 参考软件 报告的全部章节 | 🟡 中 |
 | **T12.2** | 渲染器：HTML（默认）+ PDF（WeasyPrint）+ 纯文本 | `render.py` | 三种格式均可生成且内容一致 | 🟡 中 |
 | **T12.3** | 图谱图片导出（PNG/SVG/EPS，高 DPI） | `figure_export.py` | 300 dpi 输出清晰；SVG 矢量可用 | 🟡 中 |
 | **T12.4** | 剪贴板/图片复制（对标 Copy Pattern Graphics） | `clipboard.py` | Windows 剪贴板写入成功 | 🟢 低 |
@@ -347,20 +347,20 @@ extmatch/
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
 |---|---|---|---|---|
 | **T13.0** | ⭐ **GUI 架构决策：PySide6 原生主框架 + QWebEngineView 嵌入**（仅用于 3D 结构、报告富文本、帮助浏览）。菜单/停靠面板/表格/图谱一律原生 Qt，不用 Web 重做 | `ui/app.py` | 主界面全原生；3D 与报告区域为 Web 容器 | 🔴 高 |
-| **T13.1** | 主窗口骨架：菜单栏（对标 Match! 菜单结构）、工具栏、状态栏、四个停靠面板 | `ui/main_window.py` | 菜单项与 `FUNCTION_MAP.md` 一一对应 | 🔴 高 |
+| **T13.1** | 主窗口骨架：菜单栏（对标 参考软件 菜单结构）、工具栏、状态栏、四个停靠面板 | `ui/main_window.py` | 菜单项与 `FUNCTION_MAP.md` 一一对应 | 🔴 高 |
 | **T13.2** | **图谱视图（pyqtgraph）**：多谱叠放、垂直/水平偏移、缩放/拖拽/追踪、图例 | `ui/pattern_view.py` | 5 万点实时缩放不掉帧；十字光标追踪 | 🔴 最高 |
-| **T13.3** | 峰列表 / 候选列表 / 匹配列表 三个表格（排序、右键菜单、双击选中） | `ui/tables.py` | 交互与 Match! 一致 | 🔴 高 |
+| **T13.3** | 峰列表 / 候选列表 / 匹配列表 三个表格（排序、右键菜单、双击选中） | `ui/tables.py` | 交互与 参考软件 一致 | 🔴 高 |
 | **T13.4** | **周期表元素选择控件**（Restraints/Composition 标签页，红/黄/绿三态） | `ui/periodic_table.py` | 118 元素，三态切换 + Toggle 按钮 | 🟡 中 |
 | **T13.5** | 各功能对话框：导入选项、实验详情、选项设置（15 类）、颜色线型设置 | `ui/dialogs/` | 每类设置可持久化到配置文件 | 🟡 中 |
 | **T13.6** | 快捷键映射（对标 `function_keys.md`：Ctrl+M、Ctrl+Shift+M、Ctrl+Shift+K…） | `ui/shortcuts.py` | 全部列出并生效 | 🟡 中 |
-| **T13.7** | 样式主题：浅色/深色，图标资源**自绘或用开源图标**（不复制 Match! 图标） | `ui/theme.py` | 两种主题无控件不可读 | 🟢 低 |
+| **T13.7** | 样式主题：浅色/深色，图标资源**自绘或用开源图标**（不复制 参考软件 图标） | `ui/theme.py` | 两种主题无控件不可读 | 🟢 低 |
 | **T13.8** | ⭐ **精修向导 GUI（MAUD 风格，委托 GSAS-II）**：分步引导——选已鉴定相 → 选背景处理 → 勾选精修参数组（Scale/Cell/Profile/Atoms）→ 运行 → 查看 R 因子 + 残差谱 + 精修后晶胞参数。**不重写算法**，所有计算调用 T10.6b/T10.8/T10.9（GSAS-II）；界面交互参考 MAUD（`C:\MAUD3`）的向导式设计，比 GSAS-II 原生 GUI 直观 | `ui/refinement_wizard.py` | 能驱动 GSAS-II 完成一轮精修并显示结果；无 GSAS-II 时友好提示 | 🔴 最高 |
 
-> ⚠️ **图标与视觉资源必须原创或使用开源图标（如 KDE Breeze / Lucide）**，不得复制 Match! 的 `Match4_Win.ico` 或帮助文档内嵌截图。
+> ⚠️ **图标与视觉资源必须原创或使用开源图标（如 KDE Breeze / Lucide）**，不得复制 参考软件 的 `参考软件图标` 或帮助文档内嵌截图。
 >
-> ⚠️ **精修 GUI 原则**：XinMatch 只做**交互体验**（参数选择、进度展示、结果可视化），**不做任何精修计算**——所有 Le Bail/Rietveld/残差计算全部委托 GSAS-II。这与 Match! 集成 FullProf 的模式一致。
+> ⚠️ **精修 GUI 原则**：XinMatch 只做**交互体验**（参数选择、进度展示、结果可视化），**不做任何精修计算**——所有 Le Bail/Rietveld/残差计算全部委托 GSAS-II。这与 参考软件 集成 FullProf 的模式一致。
 
-**Phase 13 验收**：人工按 Match! 手册操作 ExtMatch 完成一次完整物相分析（含 GSAS-II 精修）→ 结果一致
+**Phase 13 验收**：人工按 参考软件 手册操作 ExtMatch 完成一次完整物相分析（含 GSAS-II 精修）→ 结果一致
 
 ---
 
@@ -373,7 +373,7 @@ extmatch/
 | **T14.1** | CLI：`ExtMatch import → process → search → quantify → report` 一条龙 | `cli/main.py` | 对标准样品集批量跑通，输出 JSON/报告 | 🟡 中 |
 | **T14.2** | Python API（供二次开发） | `extmatch/__init__.py` | 文档字符串完整；有 3 个示例脚本 | 🟡 中 |
 | **T14.3** | 批处理脚本语言（对标 Batch Scripting），先支持 JSON/YAML 配置驱动 | `cli/batch.py` | 配置可复现全流程 | 🟢 低 |
-| **T14.4** | 串口仪器控制（对应 Match! 的 Qt5SerialPort 能力，P2 可选）：串口配置、数据采集、实时图谱 | `cli/instrument.py` | 能接收串口数据流并实时绘制 | 🟢 低 |
+| **T14.4** | 串口仪器控制（对应 参考软件 的 Qt5SerialPort 能力，P2 可选）：串口配置、数据采集、实时图谱 | `cli/instrument.py` | 能接收串口数据流并实时绘制 | 🟢 低 |
 
 **Phase 14 验收**：命令行批处理 10 个样品 → 全部成功并输出报告
 
@@ -385,7 +385,7 @@ extmatch/
 |---|---|---|---|---|
 | **T15.1** | PyInstaller/Nuitka 打包 Windows x64 安装包 | `dist/` + Inno Setup 脚本 | 干净虚拟机可安装运行 | 🔴 高 |
 | **T15.2** | 数据库分发：COD SQLite 单独下载（体积大，不放安装包） | 下载器 | 首次启动引导下载 | 🟡 中 |
-| **T15.3** | 用户文档（基于自写内容，**不复制** Match! 手册） | `docs/user_guide/` | 覆盖全部功能 | 🟡 中 |
+| **T15.3** | 用户文档（基于自写内容，**不复制** 参考软件 手册） | `docs/user_guide/` | 覆盖全部功能 | 🟡 中 |
 | **T15.4** | 开源协议与合规审查：确认全部依赖许可（PySide6 LGPL、gemmi MIT、NumPy BSD…） | `LICENSE`、`NOTICE` | 无 GPL 传染性依赖（注意：避免引入 GPL 库） | 🔴 高 |
 | **T15.5** | Linux（AppImage/deb）+ macOS（dmg）打包 | `dist/` 多平台产物 | 两平台可安装运行；T0.7 的跨平台约定生效 | 🟢 低 |
 
@@ -395,7 +395,7 @@ extmatch/
 
 ## Phase 16 · 晶体结构可视化（`ui/structure3d/`）
 
-> 采用 **QWebEngineView + Three.js / WebGL** 嵌入 PySide6。理由：Match! 自身也内置 QtWebEngineCore(102 MB)，
+> 采用 **QWebEngineView + Three.js / WebGL** 嵌入 PySide6。理由：参考软件 自身也内置 QtWebEngineCore(102 MB)，
 > 说明"原生壳 + Web 承载 3D"是这类软件的实际选择；且 Web 3D 生态远好于 Qt3D。
 
 | ID | 任务 | 输出 | 验收标准 | 优先级 |
@@ -439,7 +439,7 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 
 | 阶段 | 检查点命令/动作 | 通过标志 |
 |---|---|---|
-| P0 | `pytest tests/baseline --collect-only` | 标准样品集与 Match! 基线齐备 |
+| P0 | `pytest tests/baseline --collect-only` | 标准样品集与 参考软件 基线齐备 |
 | P1 | `pytest tests/model -q` | 数据模型全绿 |
 | P2 | `pytest tests/io -q` | 33 种格式 round-trip 全绿 |
 | P3 | 对 `LaB6_Cu_Ka1.dat` 跑自动流水线 | 峰位与 NIST 标准值偏差 <0.01° |
@@ -448,7 +448,7 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 | P6 | `pytest tests/search/test_baseline.py` | **Top-10 命中率 ≥ 基线 80%** |
 | P7-P11 | 各自数值回归测试 | 见各任务验收标准 |
 | P10 | 用 IUCr CPD 样品跑 "物相鉴定 → GSAS-II 项目构造 → 精修 → 结果解析" 闭环 | Rwp < 8%，定量误差 < 3 wt% |
-| P13 | 人工按 Match! 手册操作 ExtMatch 完成一次完整物相分析（含 GSAS-II 精修向导） | 结果一致 |
+| P13 | 人工按 参考软件 手册操作 ExtMatch 完成一次完整物相分析（含 GSAS-II 精修向导） | 结果一致 |
 | P16 | 加载一个复杂结构（如沸石），检查对称展开与晶面显示 | 与 Diamond/VESTA 显示一致 |
 
 ---
@@ -463,7 +463,7 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 | pyqtgraph 大数据性能 | 交互卡顿 | 中 | 降采样（LTTB 算法）+ OpenGL |
 | 50 万条目全检索性能 | 慢 | 高 | 倒排索引剪枝 + Numba + 预过滤（强峰必中） |
 | 引入 GPL 依赖导致协议冲突 | 法律风险 | 低 | T15.4 严格审查；优先 MIT/BSD/LGPL |
-| 误复制 Match! 视觉资源 | 版权风险 | 低 | 图标/文档一律原创 |
+| 误复制 参考软件 视觉资源 | 版权风险 | 低 | 图标/文档一律原创 |
 | GSAS-II 版本/API 不稳定 | 精修集成断裂 | 中 | T10.6b 适配层做 Protocol 抽象，GSAS-II 版本升级只改适配层；保留 LocalRietveldAdapter fallback |
 | 无 GSAS-II 环境时无法精修 | 生产功能不可用 | 中 | 打包时可选捆绑 GSAS-II（其许可允许）；或引导用户安装并检测 |
 
@@ -483,7 +483,7 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 | **集成工程师** | P12、P14、P15 | 报告生成、CLI、打包 | 低（收尾） |
 | **测试工程师** | 全阶段 | pytest、数值回归、基线比对 | 贯穿 |
 
-> 每个 agent 开工前**必读**：`docs/00_TECH_STACK_ANALYSIS.md`（合规边界）+ `docs/01_方案对比与补充.md`（已纠正的误区）+ 本任务对应的 `docs/match4_help/<topic>.md`。
+> 每个 agent 开工前**必读**：`docs/00_TECH_STACK_ANALYSIS.md`（合规边界）+ `docs/01_方案对比与补充.md`（已纠正的误区）+ 本任务对应的 `docs/third-party-help/<topic>.md`。
 
 ---
 
@@ -491,13 +491,13 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 
 | 里程碑 | 相对时间 | 交付物 | 验收标准 |
 |---|---|---|---|
-| **M0 知识基座** | 第 2-4 周 | 标准样品集 + Match! 基线 + 文档库 | T0.3/T0.4 完成，Phase 6 可验收 |
+| **M0 知识基座** | 第 2-4 周 | 标准样品集 + 参考软件 基线 + 文档库 | T0.3/T0.4 完成，Phase 6 可验收 |
 | **M1 数据层** | 第 8 周 | 33 种格式解析器 + 数据模型 | `pytest tests/io` 全绿 |
 | **M2 预处理与寻峰** | 第 12 周 | 自动流水线 + Profile Fitting | LaB6 峰位偏差 <0.01°，Rwp <2% |
 | **M3 数据库** | 第 14 周 | COD → SQLite 全量 + 倒排索引 | 单次检索 <1 s |
 | **M4 物相鉴定** | 第 20 周 | Search-Match + Restraints + PFSM | **Top-10 命中率 ≥ 基线 80%** |
 | **M5 高级分析** | 第 28 周 | 指标化 + Le Bail/Rietveld + 定量 + 微结构 | Rwp <8%，定量误差 <3 wt% |
-| **M6 产品化** | 第 36 周 | GUI + 3D 可视化 + 报告 + CLI | 可按 Match! 手册完成完整分析 |
+| **M6 产品化** | 第 36 周 | GUI + 3D 可视化 + 报告 + CLI | 可按 参考软件 手册完成完整分析 |
 | **M7 发布** | 第 40 周 | 三平台安装包 + 文档 + 合规审查 | 干净环境可安装运行 |
 
 > 为什么不是 12-18 周：见 `docs/01_方案对比与补充.md` §2.2。参照 GSAS-II、Profex、FullProf 的实际投入，
@@ -509,7 +509,7 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 
 | 资产 | 路径 | 说明 |
 |------|------|------|
-| 169 篇规格文档（Markdown, 627 KB） | `docs/match4_help/*.md` | 从 `Match4.qch` 提取，**可直接投喂 AI agent** |
+| 169 篇规格文档（Markdown, 627 KB） | `docs/third-party-help/*.md` | 从 `参考软件官方帮助数据库(.qch)` 提取，**可直接投喂 AI agent** |
 | 功能清单索引 | `docs/FUNCTION_MAP.md` | 17 个模块分类，带链接 |
 | 4076 条索引关键词 | `docs/INDEX_KEYWORDS.txt` | 术语表，用于统一 ExtMatch 术语 |
 | 技术栈勘察报告 | `docs/00_TECH_STACK_ANALYSIS.md` | 深度分析 + 合规边界 + 选型建议 |
@@ -520,8 +520,8 @@ T0 ──> T1 ──> T2 ──> T3 ──> T4 ──┐
 
 ## 立即可以开始的第一步（按优先级排序）
 
-1. **T0.3 / T0.4（最高优先级）**：建立标准样品集 + 跑 Match! 基线。没有这个，Phase 6 无法验收。可先用 Tutorial 样例 + 公开数据（如 NIST 标样）起步。
-2. **T0.2**：安装最新版 Match! 到独立目录，跑 `tools/extract_help.py` 看版本差异。
+1. **T0.3 / T0.4（最高优先级）**：建立标准样品集 + 跑 参考软件 基线。没有这个，Phase 6 无法验收。可先用 Tutorial 样例 + 公开数据（如 NIST 标样）起步。
+2. **T0.2**：安装最新版 参考软件 到独立目录，跑 `tools/extract_help.py` 看版本差异。
 3. **并行启动组 A（T2 I/O）**：33 种格式解析，纯文本规格，AI agent 可立即开工。
 4. **并行启动组 C（T5 数据库）**：COD → SQLite schema 设计 + 导入，不依赖其他模块。
 

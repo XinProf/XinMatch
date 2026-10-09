@@ -23,8 +23,8 @@ preprocess:
 search:
   db: ../data/cod_inorganics.db  # 必填：参考库（真实 COD 小库）
   top_n: 20                      # 候选列表长度
-  window_deg: 0.3                # 峰相关窗口（Match! 默认 0.3°）
-  # FoM 权重覆盖（缺省全用 Match! 4.3 反推权重；只写要改的键）
+  window_deg: 0.3                # 峰相关窗口（参考软件 默认 0.3°）
+  # FoM 权重覆盖（缺省全用 参考软件 4.3 反推权重；只写要改的键）
   # weights:
   #   peakpos: 0.2275
   #   npeaks: 0.30

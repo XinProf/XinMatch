@@ -29,16 +29,16 @@
 </style>
 <div class="wrap">
   <h1>XinMatch L3 黄金基线验收 · 真实 COD 库</h1>
-  <div class="sub">数据源：COD_inorganics.sqlite → cod_inorganics.db（71,199 条目 / 6,266,200 峰）· vs Match! 13 样品候选 CSV · 2026-10-09</div>
+  <div class="sub">数据源：COD_inorganics.sqlite → cod_inorganics.db（71,199 条目 / 6,266,200 峰）· vs 参考软件 13 样品候选 CSV · 2026-10-09</div>
 
   <div class="cards">
     <div class="card">
-      <div class="k">Match! Top-1 一致率</div>
+      <div class="k">参考软件 Top-1 一致率</div>
       <div class="v fail">9/13 <span style="font-size:14px;">69.2%</span></div>
       <div class="m fail">阈值 80% · FAIL（差 2 个样品）</div>
     </div>
     <div class="card">
-      <div class="k">Match! Top-5 重叠率（均值）</div>
+      <div class="k">参考软件 Top-5 重叠率（均值）</div>
       <div class="v pass">67.7%</div>
       <div class="m pass">阈值 60% · PASS</div>
     </div>
@@ -56,7 +56,7 @@
 
   <table>
     <thead>
-      <tr><th>样品</th><th>Match! Top-1</th><th>XinMatch Top-1</th><th>一致判定</th><th>Top-5 重叠</th><th>GT 验证</th></tr>
+      <tr><th>样品</th><th>参考软件 Top-1</th><th>XinMatch Top-1</th><th>一致判定</th><th>Top-5 重叠</th><th>GT 验证</th></tr>
     </thead>
     <tbody>
 <tr><td class="sid">1-1</td><td><b>96-400-1849</b><br><span class="eid">96-400-1849</span></td><td><b>LiFePO₄</b><br><span class="eid">96-400-1848</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>—</td></tr>
@@ -77,18 +77,18 @@
 
   <div class="note">
     <b>结论 ①：检索与召回已达标。</b>真实 COD 库（71,199 条目）上 Hanawalt 最强峰召回 + entry_id 索引后，13 个样品候选集均在数秒内完成，
-    XinMatch Top-5 与 Match! 重叠 67.7%（≥60% PASS），9 个样品 Top-5 完全一致（100%）。
+    XinMatch Top-5 与 参考软件 重叠 67.7%（≥60% PASS），9 个样品 Top-5 完全一致（100%）。
   </div>
   <div class="note2">
-    <b>结论 ②：13/13 样品 top1 均为 ground-truth 真相相。</b>与 Match! 的 4 处 Top-1 差异全部集中在 5-x 混合物样品，且双方选的<b>都是真相相</b>：
-    5-1 我们排 CaCO₃(calcite)、Match! 排 Magnesite；5-2/5-2b 我们排 Quartz、Match! 排 Hematite；5-3 我们排 Goethite、Match! 排 Kaolinite。
+    <b>结论 ②：13/13 样品 top1 均为 ground-truth 真相相。</b>与 参考软件 的 4 处 Top-1 差异全部集中在 5-x 混合物样品，且双方选的<b>都是真相相</b>：
+    5-1 我们排 CaCO₃(calcite)、参考软件 排 Magnesite；5-2/5-2b 我们排 Quartz、参考软件 排 Hematite；5-3 我们排 Goethite、参考软件 排 Kaolinite。
     实验谱证据显示我们的选择物理正确——5-1 中 Calcite 主线 d=3.032 (I=19431) 远强于 Magnesite 主线 d=2.746 (I=8222)。
   </div>
   <div class="note">
     <b>结论 ③：差异无法用 FoM 权重复刻。</b>FoM 权重扫描（default / no-intensity / low-intensity / position-dominant 4 组组合，
-    13 样品 × ~15k 候选 P 值缓存）<b>全部停在 9/13</b>。Match! 对 5-x 混合物样品 P(I/I0)=n.a.（弃用强度项），且其偏好
-    （Magnesite/Hematite/Kaolinite）在位置、覆盖、缩放每个维度上均落后于我们的 top1 条目——是 Match! 独有 FoM 内部逻辑的产物，
-    不是线性权重可复现的。另：Match!/PolyXRD 的 COD 快照存在条目级差异（96-901-5965 库内=Cl5 K Pb2 而 Match!=Hematite；96-900-9231 Kaolinite 缺失）。
+    13 样品 × ~15k 候选 P 值缓存）<b>全部停在 9/13</b>。参考软件 对 5-x 混合物样品 P(I/I0)=n.a.（弃用强度项），且其偏好
+    （Magnesite/Hematite/Kaolinite）在位置、覆盖、缩放每个维度上均落后于我们的 top1 条目——是 参考软件 独有 FoM 内部逻辑的产物，
+    不是线性权重可复现的。另：参考软件/PolyXRD 的 COD 快照存在条目级差异（96-901-5965 库内=Cl5 K Pb2 而 参考软件=Hematite；96-900-9231 Kaolinite 缺失）。
   </div>
   <div class="foot">docs/l3_golden_report_cod.json · tools/run_acceptance.py --cod-db · tools/build_cod_xinmatch.py · 155 项回归全绿 · ruff 全绿</div>
 </div>

@@ -1,5 +1,5 @@
 ##############################################################################
-###               Crystal structure data exported by Match!                ###
+###               Crystal structure data exported by the reference software                ###
 ##############################################################################
 ###                           Data published by:                           ###
 ###                                                                        ###
@@ -97,8 +97,8 @@ _pd_peak_intensity
 ##############################################################################
 ###                            Comments                                    ###
 ##############################################################################
-###   Diffraction pattern calculated by Match!. 
-###   I/Ic calculated by Match!. 
+###   Diffraction pattern calculated by the reference software. 
+###   I/Ic calculated by the reference software. 
 ###   Space group has been derived from given symmetry operations. 
 ##############################################################################
 

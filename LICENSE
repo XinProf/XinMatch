@@ -25,7 +25,8 @@ SOFTWARE.
 Compliance note
 ---------------
 XinMatch is an independent clean-room implementation. It does not contain any
-code, binary, or proprietary database extracted from Match! (Crystal Impact).
+code, binary, or proprietary database extracted from any commercial powder XRD
+analysis software.
 All specifications are derived from publicly available documentation, published
 scientific algorithms, and black-box observation of file formats for
 interoperability. See ``docs/00_TECH_STACK_ANALYSIS.md`` for the full

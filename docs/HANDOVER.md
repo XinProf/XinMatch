@@ -10,7 +10,7 @@
 
 ### 1.1 一句话定位
 
-**XinMatch** 是一个开源的粉末 X 射线衍射（XRPD）物相分析平台，对标商业软件 Match!，采用净室实现（clean-room）策略——只参考公开文档与已发表算法，不反编译、不复用专有代码。数据基础是 CC0 公共领域的 [COD](https://www.crystallography.net/cod/) 数据库。
+**XinMatch** 是一个开源的粉末 X 射线衍射（XRPD）物相分析平台，对标商业软件 参考软件，采用净室实现（clean-room）策略——只参考公开文档与已发表算法，不反编译、不复用专有代码。数据基础是 CC0 公共领域的 [COD](https://www.crystallography.net/cod/) 数据库。
 
 ### 1.2 功能边界
 
@@ -43,7 +43,7 @@
 
 | Phase | 主题 | 完成度 |
 |---|---|---|
-| P0 | 知识基座 + 黄金基线 | 🟡 30%（T0.3/T0.4 是最大短板，需人工跑 Match!） |
+| P0 | 知识基座 + 黄金基线 | 🟡 30%（T0.3/T0.4 是最大短板，需人工跑 参考软件） |
 | P1 | 核心数据模型 | ✅ 100% |
 | P2 | I/O | ✅ 80%（Bruker `.raw` 待补） |
 | P3 | 预处理 | ✅ 100% |
@@ -171,12 +171,12 @@ eb977d8  T8.2 内标法 + T8.4 DOC + T11.2 W-H微观应变（Agent I）
 
 ### 5.2 🔴 第二优先：升级 L3 黄金基线验收
 
-用户已用 Match! 手动跑完 13 个样品（`D:\Project\XRD\test_xrd\txt\`），导出两份候选 CSV：
+用户已用 参考软件 手动跑完 13 个样品（`D:\Project\XRD\test_xrd\txt\`），导出两份候选 CSV：
 
 | 基线 | 路径 | 用途 |
 |---|---|---|
 | **精准** | `D:\Project\XRD\test_xrd\match-candidate list-jingzhun\` | 主基线：Top-N 命中率比较 |
-| **宽松** | `D:\Project\XRD\test_xrd\match-candidate list-alloption\` | 副基线：复现 Match! 干扰相剔除行为 |
+| **宽松** | `D:\Project\XRD\test_xrd\match-candidate list-alloption\` | 副基线：复现 参考软件 干扰相剔除行为 |
 
 CSV 字段含 `Entry;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);FoM`，与 XinMatch FoM 模块对应。
 
@@ -185,12 +185,12 @@ CSV 字段含 `Entry;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);FoM`，与 X
 2. 在 [tools/run_acceptance.py](../tools/run_acceptance.py) 加 `match_top1_agreement` / `match_top5_overlap` 指标
 3. 阈值：Top-1 ≥ 80%、Top-5 交集 ≥ 60%（对标 ExtMatch L3）
 
-**注意**：Match! 用 SMPF（Search-Match using Profile Fitting）模式，不做传统寻峰，`P(#peaks)` 全为 0；比较以 `FoM` 总分为主。
+**注意**：参考软件 用 SMPF（Search-Match using Profile Fitting）模式，不做传统寻峰，`P(#peaks)` 全为 0；比较以 `FoM` 总分为主。
 
 ### 5.3 🟡 第三优先：完成 T0.3/T0.4 标准样品集
 
 T0.3/T0.4 是 L3 兼容性验收的唯一阻塞项，**只能人工**：
-- 在 Match! 中跑 20–30 个标准样品，导出候选 CSV 到 `tests/baseline/match/`
+- 在 参考软件 中跑 20–30 个标准样品，导出候选 CSV 到 `tests/baseline/match/`
 - 当前只有 13 个（在 `test_xrd/txt/`），数量略少但已可启动黄金基线
 
 ### 5.4 🟡 第四优先：T13 GUI 续做
@@ -202,7 +202,7 @@ P13 完成度 25%，剩余：
 | T13.3 | 峰 / 候选 / 匹配列表表格 |
 | T13.4 | 周期表元素选择器（三态：红/黄/绿） |
 | T13.5 | 对话框（导入 / 实验 / 选项） |
-| T13.6 | 快捷键映射（对标 Match!） |
+| T13.6 | 快捷键映射（对标 参考软件） |
 | T13.7 | 主题（浅色/深色） |
 | **T13.8** | **精修向导 GUI**（MAUD 风格，委托 GSAS-II） |
 
@@ -223,16 +223,16 @@ P13 完成度 25%，剩余：
 
 #### ✅ 正确决策
 
-1. **委托 GSAS-II 而非自研精修**：Le Bail/Rietveld 是几十年的算法积累，自研只会做"差强人意"的版本。GSAS-II 是 Python 编写，可通过 `GSASIIscriptable` API 嵌入式集成（不像 FullProf 需要外部进程）。这与 Match! 集成 FullProf 的模式一致。
+1. **委托 GSAS-II 而非自研精修**：Le Bail/Rietveld 是几十年的算法积累，自研只会做"差强人意"的版本。GSAS-II 是 Python 编写，可通过 `GSASIIscriptable` API 嵌入式集成（不像 FullProf 需要外部进程）。这与 参考软件 集成 FullProf 的模式一致。
 2. **Kernel/GUI 解耦**：core 层完全无 GUI 依赖，单元测试可在 offscreen 模式跑，大幅降低 CI 复杂度。
-3. **FoM 权重用 NNLS+网格反推**：从 Match! 导出的 CSV 反推权重，R²=0.9913 → 0.9971，证明已发表权重在搜索范围内最优。
-4. **三态元素过滤（红/黄/绿）**：把 Restraints 从布尔过滤升级为加权评分，更符合 Match! 实际行为。
+3. **FoM 权重用 NNLS+网格反推**：从 参考软件 导出的 CSV 反推权重，R²=0.9913 → 0.9971，证明已发表权重在搜索范围内最优。
+4. **三态元素过滤（红/黄/绿）**：把 Restraints 从布尔过滤升级为加权评分，更符合 参考软件 实际行为。
 
 #### ⚠️ 教训
 
 1. **Agent J/K/L 没 commit 就退出**：尽管代码完整且子模块测试全过，但工作树留下一堆未提交改动，给接手者造成混乱。**改进**：每个 Agent 完成后必须 commit，或主 Agent 在汇总时统一 commit。
 2. **慢测试与快测试混合跑**：5 阶段 Rietveld turn-on 每轮 7–21 分钟，混在全量 pytest 会导致 183s 变成 20+ 分钟。**改进**：慢测试用 `pytest.mark.slow` 标记，CI 默认跳过。
-3. **L3 验收基线缺失导致代理验收**：T6.9 本应用 Match! 黄金基线，但因 T0.3/T0.4 未做，只能用"已知物相命中率"做代理（11/13 通过，2 失败因 COD 缺 LiFePO4/NCM811）。**改进**：现在用户已手动跑完 Match! 基线，应立即升级。
+3. **L3 验收基线缺失导致代理验收**：T6.9 本应用 参考软件 黄金基线，但因 T0.3/T0.4 未做，只能用"已知物相命中率"做代理（11/13 通过，2 失败因 COD 缺 LiFePO4/NCM811）。**改进**：现在用户已手动跑完 参考软件 基线，应立即升级。
 4. **COD 数据缺失**：LiFePO4/NCM811 在 COD-Inorg 2025.12.01 中没有完美匹配项，导致 1-1 和 5-x 系列样品失败。**改进**：可考虑补充 AMCSD 或用户自建数据库。
 
 ### 6.2 工程实践
@@ -246,7 +246,7 @@ P13 完成度 25%，剩余：
 
 #### 测试策略
 
-- ✅ **合成回归测试**：每个数值算法用合成数据（已知 D/ε、已知 wt%）做回归，避免依赖外部 GSAS-II/Match!
+- ✅ **合成回归测试**：每个数值算法用合成数据（已知 D/ε、已知 wt%）做回归，避免依赖外部 GSAS-II/参考软件
 - ✅ **skipif 守卫外部依赖**：`@pytest.mark.skipif(not GSAS2_AVAILABLE)` 让 CI 在无 GSAS-II 环境下仍能跑
 - ✅ **fixture 真实化**：GSAS-II 解析模块用真实捕获的 `.lst`/`.prf`/`.gpx` 做 fixture，比合成更可信
 - ⚠️ **xfail 标记已知限制**：内标法对择优取向敏感（CPD-1c ZnO），用 `xfail` 标记而非"硬通过"
@@ -258,7 +258,7 @@ P13 完成度 25%，剩余：
   - `D:\Project\XRD\test_xrd\` — 13 样品，含物相结果 + wt% + 元素限定
   - `D:\Project\XRD\XRData\IUCr\` — IUCr CPD 国际标样（全 wt%）
   - `D:\Project\XRD\XRData\csuHJW\` — 44+ 组真实样品
-- ⚠️ **Match! SMPF 模式不寻峰**：`P(#peaks)=0.0000`，比较以 `FoM` 总分为主
+- ⚠️ **参考软件 SMPF 模式不寻峰**：`P(#peaks)=0.0000`，比较以 `FoM` 总分为主
 
 ### 6.3 路线图演化
 
@@ -273,7 +273,7 @@ P13 完成度 25%，剩余：
 - 新增 **T10.8**（GSAS-II 项目构造器）、**T10.9**（GSAS-II 结果解析）、**T13.8**（MAUD 风格精修向导 GUI）
 
 **理由**：
-- 对标 Match! 集成 FullProf 的模式，XinMatch 选择集成 GSAS-II
+- 对标 参考软件 集成 FullProf 的模式，XinMatch 选择集成 GSAS-II
 - GSAS-II 是 Python 编写，可通过 `GSASIIscriptable` API 嵌入式集成
 - GUI 参考 MAUD 的向导式交互（比 GSAS-II 原生 GUI 直观）
 - XinMatch 只做交互体验，不做任何精修计算
@@ -294,8 +294,8 @@ P13 完成度 25%，剩余：
 | **GSAS-II** | `C:\gsas2main\GSAS-II` | 生产精修集成（`GSASII\GSASIIscriptable.py` 可用） |
 | **MAUD** | `C:\MAUD3` / `C:\MAUD2` | GUI 交互参考（向导式） |
 | **FullProf** | `C:\FullProf_Suite` | 已装但不选用 |
-| **Match!** | `C:\Program Files\Match4` | 工作流参考 + 黄金基线来源 |
-| **COD 数据库** | `C:\Program Files\Match4\RefDB_COD` | COD-Inorg 2025.12.01 |
+| **参考软件** | `参考软件安装目录` | 工作流参考 + 黄金基线来源 |
+| **COD 数据库** | `参考软件安装目录\RefDB_COD` | COD-Inorg 2025.12.01 |
 
 ---
 
@@ -365,8 +365,8 @@ python -m xinmatch.cli <subcommand>
 | L3 验收脚本 | [tools/run_acceptance.py](../tools/run_acceptance.py) |
 | 权重微调脚本 | [tools/tune_weights.py](../tools/tune_weights.py) |
 | P 值反推框架 | [tools/build_baseline.py](../tools/build_baseline.py) |
-| Match! 黄金基线（精准） | `D:\Project\XRD\test_xrd\match-candidate list-jingzhun\` |
-| Match! 黄金基线（宽松） | `D:\Project\XRD\test_xrd\match-candidate list-alloption\` |
+| 参考软件 黄金基线（精准） | `D:\Project\XRD\test_xrd\match-candidate list-jingzhun\` |
+| 参考软件 黄金基线（宽松） | `D:\Project\XRD\test_xrd\match-candidate list-alloption\` |
 
 ---
 
@@ -376,12 +376,12 @@ python -m xinmatch.cli <subcommand>
 
 1. ✅ **已完成**：全量 pytest 无回归；Agent J/K/L 成果已 commit（T10.8/T10.9/T13.0–13.2，41 用例全绿 + ruff 全绿）；STATUS.md 已同步
 2. ✅ **已完成**：T6.9 L3 黄金基线升级 + 真实 COD 库接入（commit 8903c3f）
-   - `tools/match_baseline.py`（Match! CSV 解析）+ `run_acceptance.py --baseline-dir/--cod-db`
+   - `tools/match_baseline.py`（参考软件 CSV 解析）+ `run_acceptance.py --baseline-dir/--cod-db`
    - 真实 COD 库 `data/cod_inorganics.db`（71,199 条目 / 626 万峰，idx_peaks_entry_id 索引使 2-1 检索 293 s → 6.31 s）
    - Hanawalt 最强峰召回 + 5-x Profile Data Ascii Dump 格式支持
    - 验收结果：**Top-1 一致率 69.2%（9/13）FAIL vs 80%；Top-5 重叠 67.7% PASS；13/13 样品 top1 均为真相相**
-   - FoM 权重扫描（4 组组合 + 13 样品 × ~15k 候选 P 值缓存）全部停在 9/13 → 5-x 差异（Calcite/Quartz/Goethite vs Magnesite/Hematite/Kaolinite）**不是线性权重问题**，属 Match! 独有 FoM 内部逻辑 + COD 快照条目级差异（96-901-5965/96-900-0381 内容错位、96-900-9231 缺失）
-   - 若需继续追平 Top-1：方向为逆向 Match! FoM 内部逻辑（T0.8 深挖）或补库（Kaolinite 等），但物理上我们 top1 正确
+   - FoM 权重扫描（4 组组合 + 13 样品 × ~15k 候选 P 值缓存）全部停在 9/13 → 5-x 差异（Calcite/Quartz/Goethite vs Magnesite/Hematite/Kaolinite）**不是线性权重问题**，属 参考软件 独有 FoM 内部逻辑 + COD 快照条目级差异（96-901-5965/96-900-0381 内容错位、96-900-9231 缺失）
+   - 若需继续追平 Top-1：方向为逆向 参考软件 FoM 内部逻辑（T0.8 深挖）或补库（Kaolinite 等），但物理上我们 top1 正确
 3. ✅ **已完成**：T13.3–T13.8 GUI 全部模块 + T8.3 Rietveld 定量（commit 076686b/d290ce3/13638cb/cffa3a7，117 passed + 1 skipped）
    - T13.3 三表格（`ui/tables.py`）、T13.4 周期表（`ui/periodic_table.py`，118 元素三态）、T13.5 对话框（`ui/dialogs/`，15 类选项 + 颜色线型，YAML 持久化）、T13.6 快捷键（`ui/shortcuts.py`，67 条）、T13.7 主题（`ui/theme.py`，浅/深）、T13.8 精修向导（`ui/refinement_wizard.py`，MAUD 风格四步，委托 GSAS-II）、T8.3 Rietveld 定量（`core/quant/rietveld_quant.py`）
    - 修复两个生产路径 bug：**pattern_to_gss 的 .gss 格式 bug**（ncards/token 数不符 GSAS 规范，修复后 raw txt→.gss 端到端可读）与 **scale 因子未精修**（驱动从未开 HAP Scale，加入 scale-only 收敛后 Rwp 59%→14–17%）
@@ -390,7 +390,7 @@ python -m xinmatch.cli <subcommand>
 
 **重要约束**：
 - 不要自研精修算法——所有 Le Bail/Rietveld/残差/峰形计算委托 GSAS-II
-- 不要复制 Match! 视觉资源——图标/文档一律原创或用开源图标（KDE Breeze / Lucide）
+- 不要复制 参考软件 视觉资源——图标/文档一律原创或用开源图标（KDE Breeze / Lucide）
 - 不要删除已有 reference-only 精修代码——它们用于交叉验证 GSAS-II 输出是否合理
 - 不要跳过 ruff 检查——CI 要求全绿
 

@@ -1,6 +1,6 @@
 # ============================================================================
 # XinMatch T8.3 precision fixture (COD standard CIF, public domain).
-# Provenance: COD 2300112 - zincite ZnO, space group P 63 m c (No.186). Sowa & Ahsbahs (2006), J. Appl. Cryst. 39(2), 169-175, doi:10.1107/S0021889805042457. Public domain (COD). Cell a=3.2494(2), c=5.2054(2), Z=2; Zn on 2b (1/3,2/3,0), O on 2b (1/3,2/3,0.3823), U_iso 0.0065/0.0075 A^2. Clean original COD file (the shipped ZnO.cif is a Match! re-export with an embedded pd_peak loop).
+# Provenance: COD 2300112 - zincite ZnO, space group P 63 m c (No.186). Sowa & Ahsbahs (2006), J. Appl. Cryst. 39(2), 169-175, doi:10.1107/S0021889805042457. Public domain (COD). Cell a=3.2494(2), c=5.2054(2), Z=2; Zn on 2b (1/3,2/3,0), O on 2b (1/3,2/3,0.3823), U_iso 0.0065/0.0075 A^2. Clean original COD file (the shipped ZnO.cif is a re-export from the reference software with an embedded pd_peak loop).
 # The block below is the COD file copied verbatim from the read-only
 # archive at D:\Project\XRD\PolyXRD\cod\cif\2\30\01\2300112.cif. Do not edit the COD body by hand.
 # ============================================================================

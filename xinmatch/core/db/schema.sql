@@ -1,6 +1,6 @@
 -- XinMatch reference database schema (Phase 5)
 -- SQLite DDL for the COD-style reference database.
--- Covers the 28 Match! search fields: element, cell, d-value, formula,
+-- Covers the 28 参考软件 search fields: element, cell, d-value, formula,
 -- mineral name, author, journal, year, space group, color, density, etc.
 
 -- ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS element_combo (
 );
 
 -- ---------------------------------------------------------------------------
--- Indexes for the common Match! search fields
+-- Indexes for the common 参考软件 search fields
 -- ---------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_elements_element_entry
     ON elements(element, entry_id);

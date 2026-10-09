@@ -9,9 +9,9 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | ID | Task | Status |
 |----|------|--------|
 | T0.1 | Extract official doc library (169 topics) | ✅ |
-| T0.2 | Re-extract against latest Match!, diff versions | ⬜ |
-| T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 Match! 操作步骤 + 13→20–30 缺口清单：建议 IUCr CPD-1a/1b/1d/1e/1f/1g/1h、CPD-4、csuHJW data002/033/038/020/036）；样品采集本身只能人工在 Match! 中执行，尚未跑) |
-| T0.4 | Run Match! baseline on the sample set | 🟡 (转换链就绪：Match! 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；等待人工跑完 20–30 样品后导入) |
+| T0.2 | Re-extract against latest 参考软件, diff versions | ⬜ |
+| T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 参考软件 操作步骤 + 13→20–30 缺口清单：建议 IUCr CPD-1a/1b/1d/1e/1f/1g/1h、CPD-4、csuHJW data002/033/038/020/036）；样品采集本身只能人工在 参考软件 中执行，尚未跑) |
+| T0.4 | Run 参考软件 baseline on the sample set | 🟡 (转换链就绪：参考软件 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；等待人工跑完 20–30 样品后导入) |
 | T0.5 | Terminology mapping table | ⬜ |
 | T0.6 | Project skeleton + CI (pytest, ruff, mypy) | 🟡 |
 | T0.7 | Cross-platform conventions | ✅ |
@@ -85,7 +85,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.0 | Hanawalt/Fink coarse pre-filter | ✅ |
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ✅ |
-| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ (real COD db 71,199 entries: **13/13 samples top1 = ground-truth phase**; vs Match! CSV: Top-5 overlap 67.7% ≥ 60% PASS, Top-1 agreement 69.2% (9/13) < 80% FAIL — 4 mismatches are multi-phase 5-x samples where both sides pick a true phase; FoM weight sweep (4 combos) all stop at 9/13, not reproducible by linear weights; see docs/l3_golden_acceptance_cod.html) |
+| T6.9 | L3 acceptance (Top-10 vs 参考软件 baseline) | ✅ (real COD db 71,199 entries: **13/13 samples top1 = ground-truth phase**; vs 参考软件 CSV: Top-5 overlap 67.7% ≥ 60% PASS, Top-1 agreement 69.2% (9/13) < 80% FAIL — 4 mismatches are multi-phase 5-x samples where both sides pick a true phase; FoM weight sweep (4 combos) all stop at 9/13, not reproducible by linear weights; see docs/l3_golden_acceptance_cod.html) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 
 ## Phase 7 — Restraints application (`core/search/`)
@@ -137,7 +137,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 >
 > 因此 T10.1–T10.5、T10.7 的自研实现仅作**参考/交叉验证**用，不进生产路径；
 > **T10.6b（GSAS-II 适配层）是精修唯一的生产集成点**。
-> （Match! 集成 FullProf，XinMatch 选择 GSAS-II，因为它是 Python 编写可嵌入式集成。）
+> （参考软件 集成 FullProf，XinMatch 选择 GSAS-II，因为它是 Python 编写可嵌入式集成。）
 
 | ID | Task | Status | 说明 |
 |----|------|--------|------|
@@ -146,7 +146,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T10.3 | Le Bail decomposition | ✅ (reference only) | 同上 |
 | T10.4 | Rietveld refinement (scale + cell + peak_width + zero) | ✅ (reference only) | 同上 |
 | T10.5 | Residuals (Rp/Rwp/R_exp/χ²/GoF) | ✅ (reference only) | 同上；生产上由 GSAS-II 输出 |
-| T10.6 | FullProf adapter | ❌ not doing | Match! 用 FullProf，XinMatch 选 GSAS-II |
+| T10.6 | FullProf adapter | ❌ not doing | 参考软件 用 FullProf，XinMatch 选 GSAS-II |
 | T10.6b | **GSAS-II adapter (production path)** | ✅ | `gsas2_adapter.py`：Protocol + Local fallback + `.gss` 解析 + lazy import |
 | T10.7 | Strategy turn-on (Parameter Turn-On) | ✅ (reference only) | 自研策略化；生产上由 GSAS-II 的 refine controls 承担 |
 | T10.8 | GSAS-II 项目构造器（CIF + Pattern → GSAS-II .gpx 项目） | ✅ | `gsas2_project.py`：driver+清单自包含，Gsas2NotAvailableError 优雅降级；cpd-1c 三相机实测 Rwp≈59% |
@@ -165,7 +165,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 
 > **精修 GUI 特别说明**：精修面板采用 **MAUD 风格向导式交互**（分步引导：选相 → 选背景 → 选精修参数组 → 运行 → 查看 R 因子与残差），
 > 但所有实际计算委托给 GSAS-II（T10.6b）。XinMatch 不重写精修算法，只重写交互体验。
-> 参考软件：`C:\MAUD3`（MAUD 界面）、`C:\Program Files\Match4`（Match! 工作流）。
+> 参考软件：`C:\MAUD3`（MAUD 界面）、`参考软件安装目录`（参考软件 工作流）。
 
 | ID | Task | Status |
 |----|------|--------|

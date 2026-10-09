@@ -17,7 +17,7 @@
 - All source files and data files written by XinMatch must be **UTF-8**.
 - When reading third-party files (vendor diffraction formats), sniff the
   encoding; default to `latin-1` for legacy formats, but document it.
-- **Newlines**: Match! does not support CR-only line endings. When *writing*
+- **Newlines**: The reference software does not support CR-only line endings. When *writing*
   files, use `\n` (LF) universally — never `\r` alone. Python's `open(...,
   newline="")` gives explicit control.
 
@@ -33,7 +33,7 @@
 - The algorithm layer must **not** read or write files — I/O lives in
   `xinmatch/core/io/`.
 - Every public function needs a docstring stating:
-  1. which Match! feature it implements,
+  1. which reference-software feature it implements,
   2. the algorithm source (publication / formula),
   3. parameter meanings and units.
 

@@ -47,7 +47,7 @@ desktop.ini
 *.db3
 *.sqlite
 *.sqlite3
-# Match! proprietary database files (not redistributed)
+# Proprietary commercial XRD database files (not redistributed)
 *.mti
 *.mqs
 *.mqn
