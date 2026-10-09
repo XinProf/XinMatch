@@ -22,11 +22,11 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-import xinmatch
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.refine.cif_store import export_cifs, match_entry_cifs
 from xinmatch.core.search.fom import CandidateResult
+from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import load_config, save_config
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
@@ -35,7 +35,6 @@ from xinmatch.ui.periodic_table import PeriodicTableWidget
 from xinmatch.ui.refinement_wizard import RefinementWizard
 from xinmatch.ui.shortcuts import install_shortcuts
 from xinmatch.ui.structure_view import (
-    THREEMOL_VERSION,
     StructureViewDialog,
     resolve_entry_cif,
 )
@@ -425,17 +424,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _open_about(self) -> None:
         """Show the About box; version read dynamically from xinmatch.__version__."""
-        version = xinmatch.__version__
-        QtWidgets.QMessageBox.about(
-            self,
-            "关于 XinMatch",
-            (
-                "<h3>XinMatch</h3>"
-                f"<p>版本 <b>{version}</b></p>"
-                "<p>开源粉末 XRD 物相分析平台 —— Match! 的净室开源替代。</p>"
-                f"<p>3Dmol.js {THREEMOL_VERSION}</p>"
-            ),
-        )
+        AboutDialog(self).exec()
 
     # ------------------------------------------------------------------
     # Placeholder handler

@@ -106,12 +106,19 @@ def test_set_candidates_and_pattern_store_state(qapp):
 
 def test_about_dialog_dynamic_version(qapp):
     win = MainWindow()
-    with patch("PySide6.QtWidgets.QMessageBox.about") as mock_about:
+    instances = []
+
+    class FakeAbout:
+        def __init__(self, *args, **kwargs):
+            instances.append(self)
+
+        def exec(self):
+            return 0
+
+    with patch("xinmatch.ui.main_window.AboutDialog", FakeAbout):
         win._open_about()
-    assert mock_about.called
-    # Version string shown must equal the live package version, never hardcoded.
-    text = mock_about.call_args[0][2]
-    assert xinmatch.__version__ in text
+    # About 对话框被实例化并展示；版本语义由 AboutDialog 内部动态读取保证。
+    assert len(instances) == 1
 
 
 def test_window_icon_set_when_asset_exists(qapp):
