@@ -21,6 +21,7 @@ document on stdout.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sqlite3
 import sys
@@ -436,6 +437,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _configure_stdio() -> None:
+    """Force UTF-8 on stdout/stderr so help texts containing non-ASCII
+    characters (e.g. "Å") do not crash on Windows GBK consoles / PyInstaller
+    bundles (UnicodeEncodeError).  Lossy replacement keeps the CLI usable
+    even if the terminal cannot display the glyph."""
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            with contextlib.suppress(OSError, ValueError):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point.
 
@@ -449,6 +461,7 @@ def main(argv: list[str] | None = None) -> int:
     int
         Process exit code (0 on success, non-zero on error).
     """
+    _configure_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
 
