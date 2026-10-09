@@ -56,9 +56,9 @@ def test_injected_callbacks_fire(qapp):
 def test_default_wiring_triggers_module_action(qapp):
     win = MainWindow()
     registered = install_shortcuts(win)
-    # Ctrl+M → search_match 模块占位动作 → 状态栏提示
-    registered["search_match"].trigger()
-    assert "Search-Match" in win.statusBar().currentMessage()
+    # Ctrl+A → raw_processing 模块占位动作 → 状态栏提示
+    registered["auto_raw_data_processing"].trigger()
+    assert "原始数据处理" in win.statusBar().currentMessage()
     # Ctrl+F5 等 profile_fitting 条目同样联动
     registered["profile_fit"].trigger()
     assert "Profile Fitting" in win.statusBar().currentMessage()

@@ -27,10 +27,21 @@ from xinmatch.core.db.multi_db import (
     open_library,
     resolve_default,
 )
+from xinmatch.core.io import load_pattern
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
+from xinmatch.core.peak.peak_search import find_peaks
 from xinmatch.core.refine.cif_store import export_cifs, match_entry_cifs
+from xinmatch.core.report.render import render_text
+from xinmatch.core.report.report_model import (
+    CandidateEntry,
+    CandidateListSection,
+    PeakListSection,
+    Report,
+    SampleInfo,
+)
 from xinmatch.core.search.fom import CandidateResult
+from xinmatch.core.search.search_match import search_match
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import load_config, save_config
@@ -46,6 +57,19 @@ from xinmatch.ui.structure_view import (
 )
 from xinmatch.ui.tables import CandidateListTable, MatchListTable, PeakListTable
 from xinmatch.ui.theme import apply_theme, current_theme
+
+# 主题图标（并行任务交付；缺失时回退到 Qt 标准 pixmap）。
+try:  # pragma: no cover - 取决于并行任务产物是否落地
+    from xinmatch.ui.icons import icon as _themed_icon
+except ImportError:  # pragma: no cover
+    _themed_icon = None
+
+# PDF-2 源目录注入（并行任务交付；缺失时静默跳过）。
+try:  # pragma: no cover
+    from xinmatch.core.db.multi_db import library_by_id, set_pdf2_source_dir
+except ImportError:  # pragma: no cover
+    library_by_id = None  # type: ignore[assignment]
+    set_pdf2_source_dir = None  # type: ignore[assignment]
 
 
 def _asset_path(name: str) -> Path:
@@ -131,6 +155,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._last_outcome = None
         # Multi-DB mount: registry id of the library last opened for search.
         self._active_library_id: str | None = None
+        # 当前已打开数据文件的显示名（文件名），用于状态栏 / 报告。
+        self._current_filename: str = ""
 
         self.module_actions: dict[str, QtGui.QAction] = {}
 
@@ -153,23 +179,49 @@ class MainWindow(QtWidgets.QMainWindow):
         style = self.style()
         for mod_id, label, anchor in MODULES:
             action = QtGui.QAction(label, self)
-            pix = getattr(
-                QtWidgets.QStyle, _TOOLBAR_ICONS.get(mod_id, ""), None
-            )
-            if pix is not None:
-                action.setIcon(style.standardIcon(pix))
-            action.setStatusTip(f"{label}（Match!: {anchor}）— 占位动作")
+            # 主题图标优先；缺失时回退到 Qt 标准 pixmap。
+            themed = _themed_icon(mod_id) if _themed_icon is not None else None
+            if themed is not None:
+                action.setIcon(themed)
+            else:
+                pix = getattr(
+                    QtWidgets.QStyle, _TOOLBAR_ICONS.get(mod_id, ""), None
+                )
+                if pix is not None:
+                    action.setIcon(style.standardIcon(pix))
+            action.setStatusTip(f"{label}（参考软件锚点：{anchor}）")
             if mod_id == "options":
                 # T13.5 集成：选项模块动作直接打开选项设置对话框（持久化）。
                 action.triggered.connect(self._open_options_dialog)
             elif mod_id == "reference_db":
                 # 多库挂载：参考数据库模块动作打开库选择对话框（持久化）。
                 action.triggered.connect(self._open_library_dialog)
+            elif mod_id == "search_match":
+                # Search-Match 真实接线：寻峰 → 检索 → 候选列表 / 峰列表。
+                action.triggered.connect(self._run_search_match)
+            elif mod_id == "report_print":
+                # 报告预览：基于当前候选与峰列表渲染文本报告。
+                action.triggered.connect(self._run_report_preview)
             else:
                 action.triggered.connect(
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
                 )
             self.module_actions[mod_id] = action
+
+        # 文件→打开数据（Ctrl+O）：真实导入动作，放在文件菜单顶部。
+        self.open_action = QtGui.QAction("打开数据…", self)
+        self.open_action.setShortcut(QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Open))
+        self.open_action.setStatusTip(
+            "打开衍射数据文件（自动识别格式：两列 ASCII / Bruker / Panalytical …）"
+        )
+        open_icon = _themed_icon("open") if _themed_icon is not None else None
+        if open_icon is not None:
+            self.open_action.setIcon(open_icon)
+        else:
+            self.open_action.setIcon(
+                style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton)
+            )
+        self.open_action.triggered.connect(self._open_data_file)
 
     def _build_menus(self) -> None:
         """Assemble the menu bar from :data:`MENU_LAYOUT`."""
@@ -178,6 +230,10 @@ class MainWindow(QtWidgets.QMainWindow):
             menu = menus[title] = self.menuBar().addMenu(title)
             for mod_id in ids:
                 menu.addAction(self.module_actions[mod_id])
+        # 文件菜单顶部插入"打开数据…"（位于"数据导入"模块动作之上）。
+        file_menu = menus["文件(&F)"]
+        file_menu.insertAction(self.module_actions["data_import"], self.open_action)
+        file_menu.insertSeparator(self.module_actions["data_import"])
         exit_action = QtGui.QAction("退出(&Q)", self)
         exit_action.setShortcut(QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Quit))
         exit_action.triggered.connect(self.close)
@@ -234,6 +290,8 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar = self.addToolBar("主工具栏")
         toolbar.setObjectName("mainToolbar")
         toolbar.setMovable(False)
+        toolbar.addAction(self.open_action)
+        toolbar.addSeparator()
         for mod_id in TOOLBAR_MODULES:
             toolbar.addAction(self.module_actions[mod_id])
 
@@ -303,6 +361,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def _open_library_dialog(self) -> None:
         """Multi-DB mount — pick / switch the active reference database."""
         config = load_config()
+        # PDF-2 源路径配置注入（并行任务交付；函数缺失时静默跳过）。
+        if set_pdf2_source_dir is not None:
+            set_pdf2_source_dir(
+                (config.get("pdf2_source_dir") or "").strip() or None
+            )
         current = (config.get("reference_db") or {}).get("selected_library_id")
         dialog = LibraryDialog(current_id=current, parent=self)
         if dialog.exec():
@@ -360,14 +423,16 @@ class MainWindow(QtWidgets.QMainWindow):
         target = "dark" if current_theme() == "light" else "light"
         apply_theme(self, target)
         self._theme_action.setText(f"切换主题（当前：{current_theme()}）")
+        # 谱图区配色随主题切换（并行任务交付；缺失时静默跳过）。
+        getattr(self.pattern_view, "apply_theme_colors", lambda: None)()
 
     # ------------------------------------------------------------------
     # T13.8 / Phase 16 integration: state feeding + refinement wizard / 3D view
     # ------------------------------------------------------------------
-    def set_pattern(self, pattern: Pattern) -> None:
+    def set_pattern(self, pattern: Pattern, name: str = "实验谱") -> None:
         """Store the current experimental pattern and plot it centrally."""
         self._current_pattern = pattern
-        self.pattern_view.add_pattern(pattern, name="实验谱")
+        self.pattern_view.add_pattern(pattern, name=name)
 
     def set_candidates(self, results: list[CandidateResult]) -> None:
         """Store the latest search-match results and fill the candidate dock."""
@@ -498,6 +563,127 @@ class MainWindow(QtWidgets.QMainWindow):
     def _open_about(self) -> None:
         """Show the About box; version read dynamically from xinmatch.__version__."""
         AboutDialog(self).exec()
+
+    # ------------------------------------------------------------------
+    # v1.0.0 体验修订：打开数据 / Search-Match 真实接线 / 报告预览
+    # ------------------------------------------------------------------
+    def _open_data_file(self) -> None:
+        """文件→打开数据（Ctrl+O）：选择文件并自动嗅探格式后载入谱图。"""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "打开衍射数据文件",
+            "",
+            "衍射数据文件（自动识别）(*.txt *.dat *.rd *.udf *.uxd "
+            "*.xrdml *.brml *.dif *.raw);;所有文件 (*)",
+        )
+        if not path:
+            # 用户取消：不报错、不改动现有谱图。
+            return
+        try:
+            pattern = load_pattern(path)
+        except (FileNotFoundError, ValueError, NotImplementedError) as exc:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "无法打开衍射数据文件",
+                f"文件：{path}\n\n原因：{exc}\n\n"
+                "请确认文件存在且格式受支持（两列 ASCII / Bruker / Panalytical 等）。",
+            )
+            return
+        self.pattern_view.clear()
+        fname = Path(path).name
+        self._current_filename = fname
+        self.set_pattern(pattern, name=fname)
+        n = len(pattern)
+        x0 = float(pattern.two_theta[0]) if n else 0.0
+        x1 = float(pattern.two_theta[-1]) if n else 0.0
+        self.statusBar().showMessage(
+            f"已打开 {fname}：{n} 点，2θ {x0:.2f}–{x1:.2f}°"
+        )
+
+    def _run_search_match(self) -> None:
+        """Search-Match：对当前实验谱寻峰后检索参考数据库，填充候选列表。"""
+        if self._current_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "尚未打开衍射数据",
+                "请先通过 文件→打开数据… 载入衍射谱，再运行 Search-Match。",
+            )
+            return
+        pattern = self._current_pattern
+        try:
+            conn = self.open_search_library()
+        except LibraryNotAvailableError:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "无可用参考数据库",
+                "参考数据库不可用，Search-Match 无法执行。\n"
+                "请在 设置→参考数据库… 中选择一个可用库后重试。",
+            )
+            return
+        try:
+            peaks = find_peaks(pattern.two_theta, pattern.intensity)
+            results = search_match(peaks, conn, pattern.wavelength)
+        except Exception as exc:  # noqa: BLE001 — 检索过程异常一律友好提示
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Search-Match 检索失败",
+                f"检索过程中出现错误：\n\n{exc}",
+            )
+            return
+        self.set_candidates(results)
+        self.peak_table.set_peaks(peaks)
+        lib_label = self._active_library_id or "默认库"
+        if library_by_id is not None and self._active_library_id:
+            rec = library_by_id(self._active_library_id)
+            if rec is not None:
+                lib_label = rec.display_name
+        self.statusBar().showMessage(
+            f"检索完成：{len(results)} 个候选（库：{lib_label}）", 8000
+        )
+
+    def _run_report_preview(self) -> None:
+        """报告与打印：渲染当前候选 + 峰列表为文本报告并弹出只读预览。"""
+        if not self._candidates:
+            QtWidgets.QMessageBox.information(
+                self,
+                "尚无候选物相",
+                "请先运行 Search-Match 得到候选列表，再生成报告。",
+            )
+            return
+        pattern = self._current_pattern
+        wavelength = pattern.wavelength if pattern is not None else 1.5406
+        sample_name = self._current_filename or "实验谱"
+        peaks: list = []
+        if pattern is not None:
+            peaks = find_peaks(pattern.two_theta, pattern.intensity)
+        report = Report(
+            sample_info=SampleInfo(sample_name=sample_name, wavelength=wavelength),
+            peak_list=PeakListSection(peaks=peaks),
+            candidate_list=CandidateListSection(
+                candidates=[
+                    CandidateEntry(
+                        entry_id=c.entry.entry_id,
+                        formula=c.entry.formula,
+                        name=c.entry.mineral_name or "",
+                        fom=c.fom,
+                    )
+                    for c in self._candidates
+                ]
+            ),
+        )
+        text = render_text(report)
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle("Search-Match 报告预览")
+        dlg.resize(760, 560)
+        layout = QtWidgets.QVBoxLayout(dlg)
+        view = QtWidgets.QPlainTextEdit(dlg)
+        view.setReadOnly(True)
+        view.setPlainText(text)
+        layout.addWidget(view)
+        close_btn = QtWidgets.QPushButton("关闭", dlg)
+        close_btn.clicked.connect(dlg.accept)
+        layout.addWidget(close_btn)
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # Placeholder handler

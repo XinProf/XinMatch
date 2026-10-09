@@ -36,10 +36,11 @@ def test_every_module_action_appears_in_a_menu(qapp):
 
 
 def test_placeholder_action_writes_status_bar(qapp):
+    # search_match 已接真实检索，改测仍为占位的模块动作（原始数据处理）。
     win = MainWindow()
     win.show()
-    win.module_actions["search_match"].trigger()
-    assert "Search-Match" in win.statusBar().currentMessage()
+    win.module_actions["raw_processing"].trigger()
+    assert "原始数据处理" in win.statusBar().currentMessage()
 
 
 def test_dock_panels_present(qapp):
