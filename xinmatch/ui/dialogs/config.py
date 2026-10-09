@@ -59,6 +59,13 @@ DEFAULTS: dict[str, Any] = {
     "reference_db": {
         "selected_library_id": "cod_inorganics",
     },
+    # PDF-2 (PolyXRD dump) source location override.  Empty string = not
+    # configured, so the core layer falls back to the ``XINMATCH_POLYXRD_DIR``
+    # env var / the built-in default directory.  A non-empty value (a directory
+    # containing ``PDF2_2004.sqlite``, or the ``.sqlite`` file itself) takes
+    # precedence over the env var; see
+    # :func:`xinmatch.core.db.multi_db.set_pdf2_source_dir`.
+    "pdf2_source_dir": "",
     "candidate_list": {
         "show_quality": True,
         "show_crystal_system": True,

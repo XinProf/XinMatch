@@ -80,6 +80,11 @@ DEFAULT_POLYXRD_DIR = Path(
     )
 )
 
+#: Runtime PDF-2 source override set by the GUI (config ``pdf2_source_dir``).
+#: When not ``None`` it takes precedence over the ``XINMATCH_POLYXRD_DIR`` env
+#: var / :data:`DEFAULT_POLYXRD_DIR`.  ``None`` = not configured (fall back).
+_pdf2_source_override: Path | None = None
+
 
 # ---------------------------------------------------------------------------
 # Path resolution
@@ -129,9 +134,47 @@ def user_data_dir() -> Path:
     return Path.home() / ".xinmatch"
 
 
+def set_pdf2_source_dir(path: str | Path | None) -> None:
+    """Set / clear the GUI-level PDF-2 source override.
+
+    Precedence inside :func:`pdf2_source_path` is:
+
+    1. this override (GUI / YAML config);
+    2. the ``XINMATCH_POLYXRD_DIR`` environment variable;
+    3. the built-in :data:`DEFAULT_POLYXRD_DIR`.
+
+    Parameters
+    ----------
+    path:
+        Either a directory that contains ``PDF2_2004.sqlite`` (the resolved
+        path becomes ``<dir>/PDF2_2004.sqlite``), or the ``.sqlite`` file
+        itself (used directly).  Pass ``None`` to clear the override and
+        fall back to the env var / default directory.
+    """
+    global _pdf2_source_override
+    _pdf2_source_override = Path(path) if path is not None else None
+
+
 def pdf2_source_path() -> Path:
-    """Source PolyXRD PDF-2 2004 dump (read-only input)."""
-    return DEFAULT_POLYXRD_DIR / "PDF2_2004.sqlite"
+    """Source PolyXRD PDF-2 2004 dump (read-only input).
+
+    A GUI/config override (see :func:`set_pdf2_source_dir`) wins over the
+    ``XINMATCH_POLYXRD_DIR`` env var / :data:`DEFAULT_POLYXRD_DIR`.
+    """
+    if _pdf2_source_override is not None:
+        p = _pdf2_source_override
+        if p.is_dir():
+            return p / "PDF2_2004.sqlite"
+        if p.is_file():
+            return p
+        # Path does not (yet) exist: decide by extension so a directory-style
+        # config still resolves to the conventional file name.
+        if p.suffix.lower() == ".sqlite":
+            return p
+        return p / "PDF2_2004.sqlite"
+    env = os.environ.get("XINMATCH_POLYXRD_DIR")
+    base = Path(env) if env else DEFAULT_POLYXRD_DIR
+    return base / "PDF2_2004.sqlite"
 
 
 def pdf2_sidecar_path() -> Path:
@@ -423,5 +466,6 @@ __all__ = [
     "pdf2_source_path",
     "project_root",
     "resolve_default",
+    "set_pdf2_source_dir",
     "user_data_dir",
 ]
