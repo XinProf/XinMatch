@@ -49,9 +49,18 @@ def create_app(argv: Sequence[str] | None = None) -> QtWidgets.QApplication:
 
 def _maybe_show_splash(app: QtWidgets.QApplication) -> QtWidgets.QSplashScreen | None:
     """Show ``assets/splash.png`` as an in-app splash until the main window
-    is ready; returns ``None`` when the asset is missing (e.g. tests run
-    without the assets tree)."""
+    is ready; returns ``None`` when the asset is missing or the platform is
+    offscreen (e.g. tests run with ``QT_QPA_PLATFORM=offscreen``).
+
+    Why skip offscreen: ``QSplashScreen.show()`` processes pending events,
+    which can consume a pre-scheduled ``QTimer.singleShot(0, quit)`` before
+    ``app.exec()`` starts — leaving the event loop running forever.  The
+    splash is a cosmetic startup feature, so headless test environments
+    safely run without it.
+    """
     del app  # QSplashScreen needs no extra setup beyond the QApplication.
+    if os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+        return None
     from xinmatch.ui.main_window import _asset_path
 
     path = _asset_path("splash.png")
