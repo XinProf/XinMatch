@@ -1,0 +1,38 @@
+# XinMatch 批处理配置示例（T14.3）
+# 用法: & D:\Project\XRD\python310\python.exe tools\batch_runner.py tools\batch_config.example.yaml
+# 配置内所有相对路径都相对本文件所在目录解析。
+
+# --- 样品列表：每个样品跑一条完整流水线 -------------------------------
+samples:
+  - name: 1-1                    # 可选；缺省取 path 的文件主干
+    path: ../test_xrd/txt/1-1.txt
+  - name: 2-1
+    path: ../test_xrd/txt/2-1.txt
+  - name: 3-1
+    path: ../test_xrd/txt/3-1.txt
+    # wavelength: 1.5406         # 可选：覆盖谱图自带波长（Cu Kα1 默认）
+
+# --- 自动预处理（原样透传给 auto_process()，全部可选）-----------------
+preprocess:
+  smooth: true
+  background: true
+  strip_alpha2: false            # 合成/模拟谱建议关掉；真实 Cu 谱可开
+  peak_sensitivity: low          # low / medium / high
+
+# --- 搜索匹配参数 -----------------------------------------------------
+search:
+  db: ../data/cod_inorganics.db  # 必填：参考库（真实 COD 小库）
+  top_n: 20                      # 候选列表长度
+  window_deg: 0.3                # 峰相关窗口（Match! 默认 0.3°）
+  # FoM 权重覆盖（缺省全用 Match! 4.3 反推权重；只写要改的键）
+  # weights:
+  #   peakpos: 0.2275
+  #   npeaks: 0.30
+  # restraints:                  # 可选：Restraints.from_dict 字典
+  #   elements_required: [Zn, O]
+
+# --- 输出 -------------------------------------------------------------
+output:
+  dir: batch_out                 # 每个样品一个报告文件，落在这里
+  formats: [html, md, txt]       # html / md / txt 任意子集
+  # summary: batch_out/summary.md   # 可选；缺省 = {dir}/batch_summary.md
