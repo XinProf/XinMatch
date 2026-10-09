@@ -49,6 +49,8 @@ FMT_ESG = "esg"              # GNR/Ital Structures (.esg)
 FMT_GDF = "gdf"              # G670 (.gdf)
 FMT_RAW = "raw"              # Generic / vendor raw (.raw)
 FMT_SHIMADZU_RAW = "shimadzu_raw"  # Shimadzu XRD binary (.raw)
+FMT_RAW2 = "raw2"            # RAW2 fixed-header binary (.raw)
+FMT_RIGAKU_RAW = "rigaku_raw"  # Rigaku RINT-2000 binary (.raw)
 
 # Extensions that map 1:1 to a format
 _EXTENSION_MAP: dict[str, str] = {
@@ -123,6 +125,14 @@ def detect_format(path: str | Path) -> str:
     # Shimadzu XRD binary .raw magic
     if raw.startswith(b"Shimadzu XRD"):
         return FMT_SHIMADZU_RAW
+
+    # RAW2 fixed-header binary (IUCr round-robin .raw etc.)
+    if raw.startswith(b"RAW2"):
+        return FMT_RAW2
+
+    # Rigaku RINT-2000 binary .raw
+    if raw.startswith(b"FI\x00\x00"):
+        return FMT_RIGAKU_RAW
 
     # XML root -> XRDML
     head = raw[:512].lstrip()

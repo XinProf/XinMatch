@@ -27,6 +27,7 @@ from xinmatch.core.io.free import (
     read_endeavour,
 )
 from xinmatch.core.io.panalytical import read_rd, read_udf, read_udi
+from xinmatch.core.io.rigaku import read_raw2, read_rigaku_raw
 from xinmatch.core.io.shimadzu_raw import read_shimadzu_raw
 from xinmatch.core.model import Pattern
 
@@ -43,6 +44,8 @@ _READERS = {
     detect.FMT_UXD: read_uxd,
     detect.FMT_BRML: read_brml,
     detect.FMT_SHIMADZU_RAW: read_shimadzu_raw,
+    detect.FMT_RAW2: read_raw2,
+    detect.FMT_RIGAKU_RAW: read_rigaku_raw,
     detect.FMT_RAW: read_raw,
 }
 
@@ -60,6 +63,8 @@ __all__ = [
     "read_uxd",
     "read_brml",
     "read_shimadzu_raw",
+    "read_raw2",
+    "read_rigaku_raw",
     "read_raw",
 ]
 

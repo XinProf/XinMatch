@@ -308,3 +308,54 @@ def write_shimadzu_raw(path: Path, pat: Pattern) -> None:
     put_i32(632, int(round(float(max(pat.intensity)))))
     buf += struct.pack(f"<{n}i", *[int(round(float(v))) for v in pat.intensity])
     path.write_bytes(bytes(buf))
+
+
+# ---------------------------------------------------------------------------
+# RAW2 fixed-header binary
+# ---------------------------------------------------------------------------
+def write_raw2(path: Path, pat: Pattern) -> None:
+    """Write a RAW2 fixed-header binary file (magic ``RAW2``).
+
+    Mirrors the layout read by :func:`xinmatch.core.io.rigaku.read_raw2`:
+    magic + padded header, int16 point count at 0x102, float32 step/start
+    at 0x10C/0x110, and float32 intensities after a 316-byte header.
+    """
+    start = float(pat.two_theta[0])
+    step = float(pat.step) if pat.step else 0.02
+    n = len(pat)
+
+    buf = bytearray(b"RAW2" + b"CPD-1C.DAT" + b" " * 120 + b"Cu")
+    buf = buf.ljust(316, b"\x00")
+    assert len(buf) == 316
+    buf[0x102 : 0x104] = struct.pack("<h", n)
+    buf[0x10C : 0x110] = struct.pack("<f", step)
+    buf[0x110 : 0x114] = struct.pack("<f", start)
+    buf += struct.pack(f"<{n}f", *[float(v) for v in pat.intensity])
+    path.write_bytes(bytes(buf))
+
+
+# ---------------------------------------------------------------------------
+# Rigaku RINT-2000 binary
+# ---------------------------------------------------------------------------
+def write_rigaku_raw(path: Path, pat: Pattern) -> None:
+    """Write a Rigaku RINT-2000 binary file (magic ``FI\\x00\\x00``).
+
+    Mirrors the layout read by :func:`xinmatch.core.io.rigaku.
+    read_rigaku_raw`: magic, header text padded to offset 0xC5A, float32
+    (start, end, step) at 0xB92, then float32 intensities to the end of
+    file.
+    """
+    start = float(pat.two_theta[0])
+    step = float(pat.step) if pat.step else 0.02
+    n = len(pat)
+    # the header stores the *nominal* end 2θ (last point + step); the
+    # reader derives n = round((end - start) / step)
+    end = start + step * n
+
+    buf = bytearray(b"FI\x00\x00" + b"RINT2000 vertical goniometer Cu" + b"\x00" * 64)
+    buf = buf.ljust(0xC5A, b"\x00")
+    buf[0xB92 : 0xB96] = struct.pack("<f", start)
+    buf[0xB96 : 0xB9A] = struct.pack("<f", end)
+    buf[0xB9A : 0xB9E] = struct.pack("<f", step)
+    buf += struct.pack(f"<{n}f", *[float(v) for v in pat.intensity])
+    path.write_bytes(bytes(buf))
