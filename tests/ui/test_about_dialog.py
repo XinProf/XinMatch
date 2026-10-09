@@ -78,3 +78,22 @@ def test_open_about_wires_about_dialog(qapp, monkeypatch):
     win._open_about()
     assert len(instances) == 1
     instances[0].exec_.assert_called_once()
+
+
+def test_about_has_no_open_source_or_cleanroom_mention(qapp):
+    """关于页不出现"开源 / 净室 / 商业对标"类措辞。"""
+    dlg = AboutDialog()
+    texts = [lbl.text() for lbl in dlg.findChildren(QtWidgets.QLabel)]
+    joined = "\n".join(texts)
+    for banned in ("开源", "净室", "clean-room", "CleanRoom"):
+        assert banned not in joined
+    # 功能简介两行存在
+    assert any("X 射线衍射仪数据分析软件" in t for t in texts)
+    assert any("物相识别" in t and "Rietveld" in t for t in texts)
+
+
+def test_about_has_copyright_line(qapp):
+    dlg = AboutDialog()
+    copyright_label = dlg.findChild(QtWidgets.QLabel, "about_copyright")
+    assert copyright_label is not None
+    assert "版权所有" in copyright_label.text()

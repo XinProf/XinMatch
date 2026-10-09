@@ -223,6 +223,53 @@ class MainWindow(QtWidgets.QMainWindow):
             )
         self.open_action.triggered.connect(self._open_data_file)
 
+        # ---- 工具栏补充动作（参考同类 XRD 软件工具栏布局；占位/已有接线）----
+        self.background_action = self._tool_action(
+            "背景扣除", "background",
+            lambda _checked=False: self._placeholder("背景扣除"),
+            "扣除谱图背景（预处理功能，待接线）",
+        )
+        self.smooth_action = self._tool_action(
+            "平滑", "smooth",
+            lambda _checked=False: self._placeholder("平滑"),
+            "谱图平滑（预处理功能，待接线）",
+        )
+        self.ko2_action = self._tool_action(
+            "Kα2 剥离", "ko2",
+            lambda _checked=False: self._placeholder("Kα2 剥离"),
+            "剥离 Kα2 分量（预处理功能，待接线）",
+        )
+        self.reset_action = self._tool_action(
+            "重置为原始数据", "reset",
+            lambda _checked=False: self._placeholder("重置为原始数据"),
+            "恢复打开时的原始谱图（待接线）",
+        )
+        self.peakdetect_action = self._tool_action(
+            "峰检测", "peakdetect",
+            lambda _checked=False: self._placeholder("峰检测"),
+            "自动峰检测（待接线）",
+        )
+        self.codsearch_action = self._tool_action(
+            "COD 搜索", "codsearch",
+            lambda _checked=False: self._open_library_dialog(),
+            "选择 COD 参考数据库进行检索",
+        )
+
+    def _tool_action(
+        self,
+        label: str,
+        icon_name: str,
+        slot,
+        tip: str,
+    ) -> QtGui.QAction:
+        """Build a toolbar action with an original SVG icon and status tip."""
+        action = QtGui.QAction(label, self)
+        action.setStatusTip(tip)
+        if _themed_icon is not None:
+            action.setIcon(_themed_icon(icon_name))
+        action.triggered.connect(slot)
+        return action
+
     def _build_menus(self) -> None:
         """Assemble the menu bar from :data:`MENU_LAYOUT`."""
         menus: dict[str, QtWidgets.QMenu] = {}
@@ -255,11 +302,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._theme_action = QtGui.QAction("切换主题（当前：浅色）", self)
         self._theme_action.triggered.connect(self._toggle_theme)
         menus["设置(&O)"].addAction(self._theme_action)
-        menus["设置(&O)"].addSeparator()
-        about_action = QtGui.QAction("关于 XinMatch…", self)
-        about_action.triggered.connect(self._open_about)
-        menus["设置(&O)"].addAction(about_action)
-        self.about_action = about_action
 
         # T13.8 / Phase 16：精修菜单（精修向导 + 3D 结构视图）。
         refine_menu = self.menuBar().addMenu("精修(&E)")
@@ -268,6 +310,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refinement_wizard_action.setStatusTip(
             "打开 Rietveld 精修向导（GSAS-II 后端）"
         )
+        if _themed_icon is not None:
+            self.refinement_wizard_action.setIcon(_themed_icon("wizard"))
         self.refinement_wizard_action.triggered.connect(
             self._open_refinement_wizard
         )
@@ -285,15 +329,45 @@ class MainWindow(QtWidgets.QMainWindow):
         self.structure_view_action.triggered.connect(self._open_structure_view)
         refine_menu.addAction(self.structure_view_action)
 
+        # 帮助菜单：关于 XinMatch…（独立顶级菜单，不放在设置里）。
+        help_menu = self.menuBar().addMenu("帮助(&H)")
+        about_action = QtGui.QAction("关于 XinMatch…", self)
+        about_action.setStatusTip("查看版本、联系方式与版权信息")
+        if _themed_icon is not None:
+            about_action.setIcon(_themed_icon("help"))
+        about_action.triggered.connect(self._open_about)
+        help_menu.addAction(about_action)
+        self.about_action = about_action
+
     def _build_toolbar(self) -> None:
-        """Main toolbar with the most frequent module quick actions."""
+        """Main toolbar mirroring the common XRD-software action layout.
+
+        分组顺序参考同类 XRD 数据分析软件：打开 / 保存导出 / 预处理
+        （背景扣除·平滑·Kα2 剥离·重置）/ 峰检测 / Search-Match ·
+        Profile Fitting / Rietveld·精修向导 / COD 搜索 / 报告·设置。
+        """
         toolbar = self.addToolBar("主工具栏")
         toolbar.setObjectName("mainToolbar")
         toolbar.setMovable(False)
         toolbar.addAction(self.open_action)
+        toolbar.addAction(self.module_actions["data_export"])
         toolbar.addSeparator()
-        for mod_id in TOOLBAR_MODULES:
-            toolbar.addAction(self.module_actions[mod_id])
+        toolbar.addAction(self.background_action)
+        toolbar.addAction(self.smooth_action)
+        toolbar.addAction(self.ko2_action)
+        toolbar.addAction(self.reset_action)
+        toolbar.addAction(self.peakdetect_action)
+        toolbar.addSeparator()
+        toolbar.addAction(self.module_actions["search_match"])
+        toolbar.addAction(self.module_actions["profile_fitting"])
+        toolbar.addSeparator()
+        toolbar.addAction(self.module_actions["rietveld"])
+        toolbar.addAction(self.refinement_wizard_action)
+        toolbar.addSeparator()
+        toolbar.addAction(self.codsearch_action)
+        toolbar.addSeparator()
+        toolbar.addAction(self.module_actions["report_print"])
+        toolbar.addAction(self.module_actions["options"])
 
     def _build_statusbar(self) -> None:
         """Status bar: transient module messages + permanent cursor readout."""

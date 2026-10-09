@@ -126,3 +126,39 @@ def test_window_icon_set_when_asset_exists(qapp):
     win = MainWindow()
     if _asset_path("logo.png").is_file():
         assert not win.windowIcon().isNull()
+
+
+def test_about_in_help_menu_not_settings(qapp):
+    """关于 XinMatch… 位于独立"帮助"菜单，不在"设置"菜单中。"""
+    win = MainWindow()
+    settings_menu = next(
+        m for m in win.menuBar().findChildren(QtWidgets.QMenu)
+        if m.title() == "设置(&O)"
+    )
+    assert win.about_action not in settings_menu.actions()
+    help_menu = next(
+        m for m in win.menuBar().findChildren(QtWidgets.QMenu)
+        if m.title() == "帮助(&H)"
+    )
+    assert win.about_action in help_menu.actions()
+
+
+def test_toolbar_processing_actions_present(qapp):
+    """工具栏补齐：背景扣除/平滑/Kα2 剥离/重置/峰检测/COD 搜索/精修向导。"""
+    win = MainWindow()
+    for attr in (
+        "background_action", "smooth_action", "ko2_action",
+        "reset_action", "peakdetect_action", "codsearch_action",
+    ):
+        action = getattr(win, attr)
+        assert action.text(), f"{attr} must have a label"
+        assert not action.icon().isNull(), f"{attr} must have an icon"
+    assert win.refinement_wizard_action in win.findChildren(QtWidgets.QToolBar)[0].actions()
+
+
+def test_codsearch_action_opens_library_dialog(qapp):
+    """COD 搜索动作触发库选择对话框（不崩溃）。"""
+    win = MainWindow()
+    with patch.object(win, "_open_library_dialog") as mock_open:
+        win.codsearch_action.trigger()
+    mock_open.assert_called_once()

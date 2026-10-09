@@ -181,6 +181,38 @@ _BODIES: dict[str, str] = {
         '<path d="M4.5 6h15M9.5 6V4h5v2M6.5 6l1 14h9l1-14"/>'
     ),
     "quit": ('<circle cx="12" cy="12" r="8.5"/><path d="M9 9l6 6M15 9l-6 6"/>'),
+    # ---- 数据处理（参考同类 XRD 软件工具栏常用符号语义，原创绘制）----
+    "background": (
+        '<path d="M3.5 19.5h17"/>'
+        '<path d="M4.5 19.5l2.5-8 3 6 3-10 3 6 2.5-5 2 4" stroke="{accent}"/>'
+        '<path d="M3 8.5L21 17" stroke="{fg}" stroke-dasharray="2 1.6" stroke-width="1.2"/>'
+    ),
+    "smooth": (
+        '<path d="M3.5 15.5c3-5.5 4.5 3.5 8.5 3.5s5.5-9 8.5-3.5" stroke="{accent}" stroke-width="1.8"/>'
+        '<path d="M3.5 19.5h17"/>'
+    ),
+    "ko2": (
+        '<path d="M4 19.5h16"/>'
+        '<path d="M6.5 19.5c.3-2.5 1.3-5 2.4-6.8M12.5 19.5c.3-3 1.4-6 2.6-8.4" stroke="{accent}"/>'
+        '<path d="M17.5 19.5c.3-2.5 1.4-5.4 2.6-7.6" stroke-width="1.2"/>'
+    ),
+    "peakdetect": (
+        '<path d="M4 19.5h16"/>'
+        '<path d="M4.5 19.5l2.8-8 3.4 6.5 3-12 3.4 6.5 2.4-5 1.5 3" stroke="{accent}"/>'
+        '<circle cx="13.7" cy="6" r="1.9" fill="{accent}" stroke="{accent}"/>'
+    ),
+    "wizard": (
+        '<path d="M5 19.5l10-10"/>'
+        '<path d="M16.6 7.9l1.5 1.5" stroke="{accent}"/>'
+        '<path d="M7.2 6.2l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9z" fill="{accent}" stroke="{accent}"/>'
+    ),
+    "codsearch": (
+        '<ellipse cx="9" cy="6.8" rx="5.4" ry="2.5"/>'
+        '<path d="M3.6 6.8v8.2c0 1.4 2.4 2.5 5.4 2.5s5.4-1.1 5.4-2.5v-3.2"/>'
+        '<path d="M3.6 11c0 1.4 2.4 2.5 5.4 2.5s5.4-1.1 5.4-2.5"/>'
+        '<circle cx="16.3" cy="15.7" r="3.1" stroke="{accent}"/>'
+        '<path d="M19.4 18.8l2.6 2.6" stroke="{accent}"/>'
+    ),
 }
 
 #: 未知名回退的通用图标（立方体轮廓）。
