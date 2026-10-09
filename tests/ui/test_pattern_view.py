@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import numpy as np
+from PySide6 import QtGui
 
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.ui.pattern_view import PatternView
+from xinmatch.ui.theme import apply_theme
 
 
 def _synth(n_points: int = 50_000, seed: int = 0) -> Pattern:
@@ -66,3 +68,40 @@ def test_fifty_k_points_render_offscreen(qapp):
         for xx in range(0, image.width(), 16):
             colors.add(image.pixelColor(xx, yy).rgb())
     assert len(colors) > 2
+
+
+def _view_bg(view: PatternView) -> QtGui.QColor:
+    """读谱图区背景色（pyqtgraph 0.13.7：setBackground 落到 QGraphicsView 笔刷）。"""
+    return view.backgroundBrush().color()
+
+
+def test_light_theme_plot_background_is_light(qapp):
+    apply_theme(qapp, "light")
+    view = PatternView()
+    bg = _view_bg(view)
+    assert bg.red() >= 220 and bg.green() >= 220 and bg.blue() >= 220
+
+
+def test_dark_theme_plot_background_is_dark_non_black(qapp):
+    apply_theme(qapp, "dark")
+    view = PatternView()
+    bg = _view_bg(view)
+    assert bg.red() < 64 and bg.green() < 64 and bg.blue() < 64
+    assert (bg.red(), bg.green(), bg.blue()) != (0, 0, 0)
+
+
+def test_apply_theme_colors_idempotent_and_switches(qapp):
+    apply_theme(qapp, "light")
+    view = PatternView()
+    light_bg = _view_bg(view)
+    # 反复调用不抛异常。
+    for _ in range(3):
+        view.apply_theme_colors()
+    # 切到深色后重设，颜色确实变化。
+    apply_theme(qapp, "dark")
+    view.apply_theme_colors()
+    dark_bg = _view_bg(view)
+    assert light_bg != dark_bg
+    assert dark_bg.lightness() < light_bg.lightness()
+    # 还原浅色，避免污染后续测试。
+    apply_theme(qapp, "light")

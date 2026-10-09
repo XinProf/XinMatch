@@ -2,7 +2,7 @@
 
 T13.2 — Pattern view: multi-pattern overlay, zoom / pan, cursor tracking.
 
-Match! references (docs/):
+参考软件行为（docs/）：
 - ``diffpattern_basics.md`` — the diffraction pattern graphics; multiple
   patterns are stacked on top of each other; the legend in the upper-right
   corner lists sample IDs / entry names.
@@ -24,6 +24,13 @@ GraphicsView that already owns a single PlotItem) rather than building a
 GraphicsView by hand — pyqtgraph 0.14's ``autoDownsample``/``clipToView``
 code caches the enclosing "view" while an item first enters the scene, and
 the hand-built layout resolves that cache to the GraphicsView itself.
+
+主题
+----
+谱图区背景 / 网格 / 轴 / crosshair / 读数颜色统一从
+:data:`xinmatch.ui.theme.THEMES` 的 ``chart_*`` 语义令牌取色；
+:meth:`apply_theme_colors` 幂等可反复调用，主窗口切换浅/深主题后会重新调用。
+默认浅色主题下谱图区为近白背景（严禁黑色），深色主题下为深灰（非纯黑）。
 """
 
 from __future__ import annotations
@@ -36,8 +43,9 @@ import pyqtgraph as pg
 from PySide6 import QtCore
 
 from xinmatch.core.model.pattern import Pattern
+from xinmatch.ui import theme as _theme
 
-# Clean distinct colors for stacked patterns; no Match! visual assets used.
+# Clean distinct colors for stacked patterns; no commercial visual assets used.
 PATTERN_COLORS: tuple[str, ...] = (
     "#1f77b4",
     "#d62728",
@@ -53,8 +61,8 @@ PATTERN_COLORS: tuple[str, ...] = (
 class PatternView(pg.PlotWidget):
     """Widget displaying one or more overlaid experimental/reference patterns.
 
-    Corresponds to the upper-left graphics panel in Match!'s working area
-    (``docs/working_area.md``).
+    Corresponds to the upper-left graphics panel in the reference software's
+    working area (``docs/working_area.md``).
     """
 
     #: Emitted while the mouse moves over the plot; argument is the
@@ -67,15 +75,15 @@ class PatternView(pg.PlotWidget):
         self._plot = self.plotItem
         self._plot.setLabel("bottom", "2θ", units="°")
         self._plot.setLabel("left", "Intensity", units="counts")
-        self._plot.showGrid(x=True, y=True, alpha=0.25)
-        # Match! zoom/tracking: left-drag pan, wheel zoom (diffpattern_zoom.md).
+        self._plot.showGrid(x=True, y=True, alpha=0.3)
+        # 参考软件 zoom/tracking: left-drag pan, wheel zoom (diffpattern_zoom.md).
         self._plot.setMouseEnabled(x=True, y=True)
 
         # Upper-right legend listing each overlaid pattern (diffpattern_basics.md).
         self._legend = self._plot.addLegend(offset=(12, 12))
 
         # Crosshair: horizontal + vertical InfiniteLine following the mouse
-        # (Match! "vertical line at mouse cursor position", options_diffpattern.md).
+        # (参考软件 "vertical line at mouse cursor position", options_diffpattern.md).
         self._vline = pg.InfiniteLine(angle=90, pen=pg.mkPen("#555555", dash=[4, 3]))
         self._hline = pg.InfiniteLine(angle=0, pen=pg.mkPen("#555555", dash=[4, 3]))
         self._plot.addItem(self._vline, ignoreBounds=True)
@@ -83,10 +91,42 @@ class PatternView(pg.PlotWidget):
         self._readout = pg.TextItem(anchor=(0, 1), color="#222222")
         self._plot.addItem(self._readout, ignoreBounds=True)
 
+        # 按当前主题设置谱图区配色（浅色默认近白背景）。
+        self.apply_theme_colors()
+
         self._records: dict[str, dict] = {}
         self._counter = itertools.count(1)
 
         self.scene().sigMouseMoved.connect(self._on_scene_mouse_moved)
+
+    # ------------------------------------------------------------------
+    # Theming
+    # ------------------------------------------------------------------
+    def apply_theme_colors(self) -> None:
+        """从当前主题的 ``chart_*`` 令牌重设谱图区配色（幂等）。
+
+        读取 :data:`xinmatch.ui.theme.THEMES` 中 ``current_theme()`` 对应的
+        chart_bg / chart_grid / chart_axis / chart_cursor / chart_text，
+        设置背景、坐标轴 pen 与刻度文本 pen、crosshair 虚线 pen、读数文本色。
+        可在主题切换后反复调用，不抛异常、不重复添加 item。
+        """
+        tokens = _theme.THEMES[_theme.current_theme()]
+        # 谱图区背景。
+        self.setBackground(tokens["chart_bg"])
+        # 坐标轴 / 刻度文本 pen（pyqtgraph 网格线与轴 pen 同源，随轴色变暗/变亮）。
+        axis_pen = pg.mkPen(tokens["chart_axis"])
+        for axis_name in ("bottom", "left"):
+            axis = self._plot.getAxis(axis_name)
+            axis.setPen(axis_pen)
+            axis.setTextPen(tokens["chart_axis"])
+        # showGrid 保留，alpha 控制网格淡度（颜色随 chart_axis）。
+        self._plot.showGrid(x=True, y=True, alpha=0.3)
+        # crosshair 虚线。
+        cursor_pen = pg.mkPen(tokens["chart_cursor"], dash=[4, 3])
+        self._vline.setPen(cursor_pen)
+        self._hline.setPen(cursor_pen)
+        # 读数文本色。
+        self._readout.setColor(tokens["chart_text"])
 
     # ------------------------------------------------------------------
     # Pattern management
@@ -96,9 +136,9 @@ class PatternView(pg.PlotWidget):
         """Overlay *pattern*; returns a handle used by :meth:`remove_pattern`.
 
         Multiple patterns are stacked on top of each other exactly like in
-        Match! (``diffpattern_basics.md``, "Multiple diffraction patterns").
-        Each curve uses ``autoDownsample`` + ``clipToView`` so that a
-        50 000-point trace stays responsive.
+        the reference software (``diffpattern_basics.md``, "Multiple
+        diffraction patterns").  Each curve uses ``autoDownsample`` +
+        ``clipToView`` so that a 50 000-point trace stays responsive.
         """
         key = f"P{next(self._counter)}"
         label = name or str(pattern.metadata.get("sample_id") or f"Pattern {key}")
@@ -173,7 +213,7 @@ class PatternView(pg.PlotWidget):
         self.cursor_moved.emit(text)
 
     def _anchor_wavelength(self) -> float:
-        """Wavelength of the bottom-most ("anchor") pattern, like in Match!."""
+        """Wavelength of the bottom-most ("anchor") pattern."""
         for rec in self._records.values():
             return float(rec["pattern"].wavelength)
         return 0.0
