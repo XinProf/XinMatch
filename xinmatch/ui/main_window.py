@@ -20,7 +20,14 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
+from xinmatch.ui.dialogs.config import load_config, save_config
+from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 from xinmatch.ui.pattern_view import PatternView
+from xinmatch.ui.periodic_table import PeriodicTableWidget
+from xinmatch.ui.shortcuts import install_shortcuts
+from xinmatch.ui.tables import CandidateListTable, MatchListTable, PeakListTable
+from xinmatch.ui.theme import apply_theme, current_theme
 
 # 15 functional modules (FUNCTION_MAP.md sections 1–15).
 # (module id, label, Match! help anchor this module maps to)
@@ -97,6 +104,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._build_statusbar()
         self._build_central()
         self._build_docks()
+        self._install_shortcuts()
+        # T13.7：默认浅色主题（窗口级 palette + QSS，可被切换）。
+        apply_theme(self, "light")
+        self._theme_action.setText(f"切换主题（当前：{current_theme()}）")
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -112,9 +123,13 @@ class MainWindow(QtWidgets.QMainWindow):
             if pix is not None:
                 action.setIcon(style.standardIcon(pix))
             action.setStatusTip(f"{label}（Match!: {anchor}）— 占位动作")
-            action.triggered.connect(
-                lambda _checked=False, lbl=label: self._placeholder(lbl)
-            )
+            if mod_id == "options":
+                # T13.5 集成：选项模块动作直接打开选项设置对话框（持久化）。
+                action.triggered.connect(self._open_options_dialog)
+            else:
+                action.triggered.connect(
+                    lambda _checked=False, lbl=label: self._placeholder(lbl)
+                )
             self.module_actions[mod_id] = action
 
     def _build_menus(self) -> None:
@@ -129,6 +144,15 @@ class MainWindow(QtWidgets.QMainWindow):
         exit_action.triggered.connect(self.close)
         menus["文件(&F)"].addSeparator()
         menus["文件(&F)"].addAction(exit_action)
+
+        # T13.5 / T13.7 集成：颜色线型设置与主题切换入口（设置菜单）。
+        colors_action = QtGui.QAction("颜色与线型设置…", self)
+        colors_action.triggered.connect(self._open_colors_dialog)
+        menus["设置(&O)"].addSeparator()
+        menus["设置(&O)"].addAction(colors_action)
+        self._theme_action = QtGui.QAction("切换主题（当前：浅色）", self)
+        self._theme_action.triggered.connect(self._toggle_theme)
+        menus["设置(&O)"].addAction(self._theme_action)
 
     def _build_toolbar(self) -> None:
         """Main toolbar with the most frequent module quick actions."""
@@ -152,28 +176,60 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _build_docks(self) -> None:
         """Dock panels mirroring the Match! working area."""
-        # Bottom: candidate list (working_area.md).
+        # Bottom: candidate list (working_area.md).  T13.3 候选列表表格挂载。
+        self.candidate_table = CandidateListTable()
         cand = QtWidgets.QDockWidget("候选列表 Candidate List", self)
         cand.setObjectName("candidateDock")
-        cand.setWidget(QtWidgets.QWidget())
+        cand.setWidget(self.candidate_table)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, cand)
 
-        # Upper-right: tabbed restraints / peak list / data sheet.
+        # Upper-right: tabbed restraints / peak list / data sheet.  T13.4 周期表
+        # 进"限制条件"页，T13.3 峰列表进"峰列表"页；数据表留占位。
+        self.periodic_table = PeriodicTableWidget()
+        self.peak_table = PeakListTable()
         tabs = QtWidgets.QTabWidget()
-        tabs.addTab(QtWidgets.QWidget(), "限制条件")
-        tabs.addTab(QtWidgets.QWidget(), "峰列表")
+        tabs.addTab(self.periodic_table, "限制条件")
+        tabs.addTab(self.peak_table, "峰列表")
         tabs.addTab(QtWidgets.QWidget(), "数据表")
         right = QtWidgets.QDockWidget("检索与数据", self)
         right.setObjectName("rightDock")
         right.setWidget(tabs)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, right)
 
-        # Lower-right: match list, tabified with the right dock.
+        # Lower-right: match list, tabified with the right dock.  T13.3 匹配表挂载。
+        self.match_table = MatchListTable()
         match = QtWidgets.QDockWidget("匹配物相 Match List", self)
         match.setObjectName("matchDock")
-        match.setWidget(QtWidgets.QWidget())
+        match.setWidget(self.match_table)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, match)
         self.tabifyDockWidget(right, match)
+
+    # ------------------------------------------------------------------
+    # T13.5 / T13.6 / T13.7 integration
+    # ------------------------------------------------------------------
+    def _install_shortcuts(self) -> None:
+        """Register the full Match!-style shortcut map (T13.6)."""
+        self.shortcuts = install_shortcuts(self)
+
+    def _open_options_dialog(self) -> None:
+        """T13.5 — options settings dialog with config persistence."""
+        dialog = OptionsDialog(load_config(), self)
+        if dialog.exec():
+            save_config(dialog.values())
+
+    def _open_colors_dialog(self) -> None:
+        """T13.5 — colors & linestyles dialog with config persistence."""
+        config = load_config()
+        dialog = ColorsDialog(config.get("colors", {}), self)
+        if dialog.exec():
+            config["colors"] = dialog.values()
+            save_config(config)
+
+    def _toggle_theme(self) -> None:
+        """T13.7 — switch light/dark theme on the main window."""
+        target = "dark" if current_theme() == "light" else "light"
+        apply_theme(self, target)
+        self._theme_action.setText(f"切换主题（当前：{current_theme()}）")
 
     # ------------------------------------------------------------------
     # Placeholder handler

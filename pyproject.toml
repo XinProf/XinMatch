@@ -63,6 +63,9 @@ ignore = ["E501"]
 minversion = "7.0"
 testpaths = ["tests"]
 addopts = "-q --tb=short"
+markers = [
+    "slow: slow-running tests (GSAS-II refinement / long computations), excluded from default CI runs",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

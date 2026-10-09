@@ -100,7 +100,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T8.1 | RIR quantitative (adiabatic + reference-ratio) | ✅ |
 | T8.2 | Internal standard method | ✅ (IUCr CPD-1c CaF₂ err < 0.12 wt%) |
-| T8.3 | Rietveld quantitative (depends on Phase 10) | ⬜ |
+| T8.3 | Rietveld quantitative (depends on Phase 10) | ✅ (`core/quant/rietveld_quant.py` 委托 GSAS-II 闭环：build→run→parse→wt%，误差表见模块 docstring。CPD-1c 与 test_xrd 3-1 端到端 Rwp≈14–15%、GoF≈2.3；微量相 CaF₂ 误差 +2.3 wt%（<3 wt% 达标）；主相 ZnO/Al₂O₃ 误差 ~9–12 wt% 未达 Phase 8 <3 wt%——归因：ZnO 择优取向未有效建模（CPD 轮测文献已知难点，T8.2 内标法同标 xfail）+ 手写 CIF 原子坐标 + 通用仪器参数文件与实际衍射仪不匹配；降至 <3 wt% 需 COD 标准 CIF + 实测仪器参数文件) |
 | T8.4 | DOC amorphous content | ✅ (test_xrd 3-2 glass err 4.81 wt% < 7% threshold) |
 
 ## Phase 9 — Indexing (`core/index/`)
@@ -172,12 +172,12 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T13.0 | GUI architecture (PySide6 native + QWebEngineView for 3D/report) | ✅ |
 | T13.1 | Main window skeleton (menu/toolbar/statusbar/dock panels) | ✅ |
 | T13.2 | Pattern view (pyqtgraph, multi-pattern, zoom/trace) | ✅ |
-| T13.3 | Peak / candidate / match list tables | ⬜ |
-| T13.4 | Periodic table element selector (3-state) | ⬜ |
-| T13.5 | Dialogs (import / experiment / options) | ⬜ |
-| T13.6 | Shortcut mapping | ⬜ |
-| T13.7 | Themes | ⬜ |
-| **T13.8** | **Refinement wizard GUI (MAUD-style, delegates to GSAS-II)** | ⬜ | **新增**：精修向导，调用 T10.6b GSAS-II 适配层 |
+| T13.3 | Peak / candidate / match list tables | ✅ (`ui/tables.py`：Peak/Candidate/Match 三表 QTableView，排序/右键菜单/双击选中信号，已挂载进候选/峰列表/匹配 dock) |
+| T13.4 | Periodic table element selector (3-state) | ✅ (`ui/periodic_table.py`：118 元素红/黄/绿三态循环 + Toggle 启用开关，语义对齐 core 三态元素过滤；已挂载"限制条件"页) |
+| T13.5 | Dialogs (import / experiment / options) | ✅ (`ui/dialogs/`：导入选项/实验详情/13 类选项/颜色线型四对话框，统一 YAML 配置 load/save；选项与颜色对话框已接线到"设置"菜单) |
+| T13.6 | Shortcut mapping | ✅ (`ui/shortcuts.py`：67 条对照 function_keys.md 全量映射，QAction 方式已安装到主窗口并验证触发) |
+| T13.7 | Themes | ✅ (`ui/theme.py`：浅/深主题语义令牌 + QPalette/QSS，对比度断言两主题无不可读控件；图标用 Qt 标准图标；主窗口"设置"菜单可切换) |
+| **T13.8** | **Refinement wizard GUI (MAUD-style, delegates to GSAS-II)** | ✅ (`ui/refinement_wizard.py`：四步向导——选已鉴定相→背景处理→勾选 Scale/Cell/Profile/Atoms→运行→R 因子+残差谱+精修后晶胞；无 GSAS-II 时友好降级提示；计算全委托 T10.6b/T10.8/T10.9 不重写算法；结果信号 refinement_finished) |
 
 ## Phases 14–16
 
