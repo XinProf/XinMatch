@@ -26,9 +26,13 @@ from xinmatch.core.io.free import (
     read_dbws,
     read_endeavour,
 )
+from xinmatch.core.io.mdi import read_mdi
 from xinmatch.core.io.panalytical import read_rd, read_udf, read_udi
 from xinmatch.core.io.rigaku import read_raw2, read_rigaku_raw
 from xinmatch.core.io.shimadzu_raw import read_shimadzu_raw
+from xinmatch.core.io.shimadzu_txt import read_shimadzu_txt
+from xinmatch.core.io.vendor_misc import read_cpi, read_esg, read_gdf, read_plv, read_ras
+from xinmatch.core.io.xrdml import read_xrdml
 from xinmatch.core.model import Pattern
 
 # Reader dispatch table: format identifier -> callable
@@ -43,7 +47,15 @@ _READERS = {
     detect.FMT_UDI: read_udi,
     detect.FMT_UXD: read_uxd,
     detect.FMT_BRML: read_brml,
+    detect.FMT_XRDML: read_xrdml,
+    detect.FMT_RAS: read_ras,
+    detect.FMT_CPI: read_cpi,
+    detect.FMT_PLV: read_plv,
+    detect.FMT_MDI: read_mdi,
+    detect.FMT_ESG: read_esg,
+    detect.FMT_GDF: read_gdf,
     detect.FMT_SHIMADZU_RAW: read_shimadzu_raw,
+    detect.FMT_SHIMADZU_TXT: read_shimadzu_txt,
     detect.FMT_RAW2: read_raw2,
     detect.FMT_RIGAKU_RAW: read_rigaku_raw,
     detect.FMT_RAW: read_raw,
@@ -62,7 +74,15 @@ __all__ = [
     "read_udf",
     "read_uxd",
     "read_brml",
+    "read_xrdml",
+    "read_ras",
+    "read_cpi",
+    "read_plv",
+    "read_mdi",
+    "read_esg",
+    "read_gdf",
     "read_shimadzu_raw",
+    "read_shimadzu_txt",
     "read_raw2",
     "read_rigaku_raw",
     "read_raw",

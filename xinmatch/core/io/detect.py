@@ -49,6 +49,7 @@ FMT_ESG = "esg"              # GNR/Ital Structures (.esg)
 FMT_GDF = "gdf"              # G670 (.gdf)
 FMT_RAW = "raw"              # Generic / vendor raw (.raw)
 FMT_SHIMADZU_RAW = "shimadzu_raw"  # Shimadzu XRD binary (.raw)
+FMT_SHIMADZU_TXT = "shimadzu_txt"  # Shimadzu XRD ASCII export (.txt/.smz)
 FMT_RAW2 = "raw2"            # RAW2 fixed-header binary (.raw)
 FMT_RIGAKU_RAW = "rigaku_raw"  # Rigaku RINT-2000 binary (.raw)
 
@@ -122,22 +123,26 @@ def detect_format(path: str | Path) -> str:
         except zipfile.BadZipFile:
             pass
 
-    # Shimadzu XRD binary .raw magic
-    if raw.startswith(b"Shimadzu XRD"):
-        return FMT_SHIMADZU_RAW
-
-    # RAW2 fixed-header binary (IUCr round-robin .raw etc.)
-    if raw.startswith(b"RAW2"):
-        return FMT_RAW2
-
-    # Rigaku RINT-2000 binary .raw
-    if raw.startswith(b"FI\x00\x00"):
-        return FMT_RIGAKU_RAW
-
     # XML root -> XRDML
     head = raw[:512].lstrip()
     if head.startswith(b"<?xml") or head.lower().startswith(b"<xrdml"):
         return FMT_XRDML
+
+    # Vendor binary magic checks apply to .raw containers only; a text file
+    # whose banner happens to start with "Shimadzu XRD" (or "RAW2") must
+    # stay on the text path.
+    if ext == ".raw":
+        # Shimadzu XRD binary .raw magic
+        if raw.startswith(b"Shimadzu XRD"):
+            return FMT_SHIMADZU_RAW
+        # RAW2 fixed-header binary (IUCr round-robin .raw etc.)
+        if raw.startswith(b"RAW2"):
+            return FMT_RAW2
+        # Rigaku RINT-2000 binary .raw
+        if raw.startswith(b"FI\x00\x00"):
+            return FMT_RIGAKU_RAW
+        # otherwise fall through to text signature checks below, and finally
+        # to the generic FMT_RAW fallback
 
     # Decode text for content sniffing (latin-1 never fails)
     try:
@@ -269,13 +274,20 @@ def _sniff_dat(lines: list[str]) -> str | None:
 
 
 def _sniff_txt(lines: list[str]) -> str | None:
-    """Sniff a ``.txt`` file — JEOL / TXRD export or generic 2-column.
+    """Sniff a ``.txt`` file — Shimadzu instrument export, JEOL/TXRD dump,
+    or generic 2-column.
 
-    Scans forward past header / metadata blocks (banners such as
-    "Profile Data Ascii Dump", ``Group/Data/File Name`` lines, measurement
-    conditions, column captions) until a line with at least two numeric
-    values is found — that is the first data row of a 2-column profile.
+    A Shimadzu instrument export carries a metadata header with
+    ``target``/``voltage`` and ``<2Theta>`` column captions; when those
+    tokens are present the file is routed to the Shimadzu text reader so
+    the radiation metadata is preserved.  Otherwise the file is scanned
+    forward past header / metadata blocks until a line with at least two
+    numeric values is found — that is the first data row of a 2-column
+    profile.
     """
+    head = "\n".join(lines[:60]).lower()
+    if ("target" in head and "voltage" in head) or "<2theta>" in head:
+        return FMT_SHIMADZU_TXT
     for ln in lines[:60]:
         s = ln.strip()
         if not s or s.startswith(("#", "!", ";", "//")):
