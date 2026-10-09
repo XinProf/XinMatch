@@ -133,9 +133,11 @@ def compute_peaks_from_cif(
                     continue
                 try:
                     f = sfc.calculate_sf_from_small_structure(ss, hkl)
+                    # OverflowError on pathological CIFs (huge |f|) must not
+                    # abort the whole library build — treat as unusable hkl.
+                    f2 = float(f.real ** 2 + f.imag ** 2)
                 except Exception:
                     continue
-                f2 = float(f.real ** 2 + f.imag ** 2)
                 if f2 <= 0.0:
                     continue
                 theta = math.asin(min(1.0, wavelength / (2.0 * d)))
@@ -315,7 +317,13 @@ def build(
                     (current_cod,),
                 )
             continue
-        entry = _row_to_entry(row, dmin=dmin, max_peaks=max_peaks)
+        try:
+            entry = _row_to_entry(row, dmin=dmin, max_peaks=max_peaks)
+        except Exception as exc:  # noqa: BLE001 - one bad entry must not kill the build
+            logger.warning(
+                "entry %d skipped (unexpected error): %s", current_cod, exc
+            )
+            entry = None
         if entry is None:
             skipped_no_peaks += 1
             with conn:
