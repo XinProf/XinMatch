@@ -7,6 +7,7 @@ shared YAML configuration helpers:
 * :class:`~xinmatch.ui.dialogs.experiment_dialog.ExperimentDetailsDialog`
 * :class:`~xinmatch.ui.dialogs.options_dialog.OptionsDialog`
 * :class:`~xinmatch.ui.dialogs.colors_dialog.ColorsDialog`
+* :class:`~xinmatch.ui.dialogs.library_dialog.LibraryDialog`
 * :func:`~xinmatch.ui.dialogs.config.load_config` /
   :func:`~xinmatch.ui.dialogs.config.save_config` /
   :func:`~xinmatch.ui.dialogs.config.default_config`
@@ -23,12 +24,14 @@ from xinmatch.ui.dialogs.config import (
 )
 from xinmatch.ui.dialogs.experiment_dialog import ExperimentDetailsDialog
 from xinmatch.ui.dialogs.import_dialog import ImportDialog
+from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 
 __all__ = [
     "ColorsDialog",
     "ExperimentDetailsDialog",
     "ImportDialog",
+    "LibraryDialog",
     "OptionsDialog",
     "config_path",
     "default_config",

@@ -53,6 +53,12 @@ DEFAULTS: dict[str, Any] = {
         "correlation_window_deg": 0.3,
         "use_marked_peaks_only": False,
     },
+    # Multi-DB mount: which registered reference library search-match opens.
+    # Missing / unknown ids resolve to the bundled default
+    # (``xinmatch.core.db.multi_db.resolve_default()``, i.e. ``cod_inorganics``).
+    "reference_db": {
+        "selected_library_id": "cod_inorganics",
+    },
     "candidate_list": {
         "show_quality": True,
         "show_crystal_system": True,

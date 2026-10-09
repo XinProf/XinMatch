@@ -22,6 +22,11 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from xinmatch.core.db.multi_db import (
+    LibraryNotAvailableError,
+    open_library,
+    resolve_default,
+)
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.refine.cif_store import export_cifs, match_entry_cifs
@@ -29,6 +34,7 @@ from xinmatch.core.search.fom import CandidateResult
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import load_config, save_config
+from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 from xinmatch.ui.pattern_view import PatternView
 from xinmatch.ui.periodic_table import PeriodicTableWidget
@@ -123,6 +129,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._current_pattern: Pattern | None = None
         self._candidates: list[CandidateResult] = []
         self._last_outcome = None
+        # Multi-DB mount: registry id of the library last opened for search.
+        self._active_library_id: str | None = None
 
         self.module_actions: dict[str, QtGui.QAction] = {}
 
@@ -154,6 +162,9 @@ class MainWindow(QtWidgets.QMainWindow):
             if mod_id == "options":
                 # T13.5 集成：选项模块动作直接打开选项设置对话框（持久化）。
                 action.triggered.connect(self._open_options_dialog)
+            elif mod_id == "reference_db":
+                # 多库挂载：参考数据库模块动作打开库选择对话框（持久化）。
+                action.triggered.connect(self._open_library_dialog)
             else:
                 action.triggered.connect(
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
@@ -178,6 +189,13 @@ class MainWindow(QtWidgets.QMainWindow):
         colors_action.triggered.connect(self._open_colors_dialog)
         menus["设置(&O)"].addSeparator()
         menus["设置(&O)"].addAction(colors_action)
+        # 多库挂载：参考数据库选择/切换入口（设置菜单）。
+        self.library_action = QtGui.QAction("参考数据库…", self)
+        self.library_action.setStatusTip(
+            "选择 / 切换 Search-Match 使用的参考数据库"
+        )
+        self.library_action.triggered.connect(self._open_library_dialog)
+        menus["设置(&O)"].addAction(self.library_action)
         self._theme_action = QtGui.QAction("切换主题（当前：浅色）", self)
         self._theme_action.triggered.connect(self._toggle_theme)
         menus["设置(&O)"].addAction(self._theme_action)
@@ -281,6 +299,61 @@ class MainWindow(QtWidgets.QMainWindow):
         if dialog.exec():
             config["colors"] = dialog.values()
             save_config(config)
+
+    def _open_library_dialog(self) -> None:
+        """Multi-DB mount — pick / switch the active reference database."""
+        config = load_config()
+        current = (config.get("reference_db") or {}).get("selected_library_id")
+        dialog = LibraryDialog(current_id=current, parent=self)
+        if dialog.exec():
+            config.setdefault("reference_db", {})[
+                "selected_library_id"
+            ] = dialog.selected_id()
+            save_config(config)
+
+    def open_search_library(self):
+        """Open the selected reference DB for search-match, with safe fallback.
+
+        Reads ``reference_db.selected_library_id`` from the YAML config and
+        opens it read-only via
+        :func:`~xinmatch.core.db.multi_db.open_library`; the returned
+        connection targets the XinMatch schema and can be fed straight to
+        :func:`~xinmatch.core.search.search_match.search_match`.
+
+        When the chosen library is unavailable (missing / unbuilt / corrupt)
+        a warning box explains why and the default bundled library is used
+        instead, so that search-match always has a working connection.  Raises
+        only when *both* the selected and the default library are broken.
+        """
+        config = load_config()
+        selected = (config.get("reference_db") or {}).get("selected_library_id")
+        selected = selected or resolve_default().id
+        try:
+            conn = open_library(selected)
+        except LibraryNotAvailableError as exc:
+            default = resolve_default()
+            QtWidgets.QMessageBox.warning(
+                self,
+                "参考数据库不可用",
+                f"所选参考数据库「{selected}」不可用，已自动回退到默认库"
+                f"「{default.display_name}」进行检索。\n\n原因：{exc}",
+            )
+            try:
+                conn = open_library(default.id)
+            except LibraryNotAvailableError as exc_default:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "无可用参考数据库",
+                    f"默认参考数据库也不可用，检索无法执行。\n\n{exc_default}",
+                )
+                raise
+            self._active_library_id = default.id
+            self.statusBar().showMessage(
+                f"已回退到默认参考数据库：{default.display_name}", 8000
+            )
+            return conn
+        self._active_library_id = selected
+        return conn
 
     def _toggle_theme(self) -> None:
         """T13.7 — switch light/dark theme on the main window."""
