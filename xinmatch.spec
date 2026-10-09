@@ -51,6 +51,15 @@ hiddenimports += _pg_h
 datas += [
     ("xinmatch/core/db/schema.sql", "xinmatch/core/db"),
     ("data/cod_inorganics.db", "data"),
+    # Brand assets (logo / splash / icons).  Read at runtime through
+    # ``_asset_path`` (``Path(__file__).resolve().parents[2] / "assets"``),
+    # which in the onedir bundle resolves to ``_internal/assets`` — so the
+    # whole folder must be collected at that destination.
+    ("assets", "assets"),
+    # Locally bundled 3Dmol.js + HTML template (``structure_view.py``
+    # ``ASSETS_DIR`` = ``ui/assets/3dmol``).  Required for the 3D viewer to
+    # work inside the bundle (no CDN at runtime).
+    ("xinmatch/ui/assets", "xinmatch/ui/assets"),
 ]
 
 # ---- Windows version resource (FileVersion / ProductVersion = 1.0.0) ----
@@ -77,6 +86,11 @@ version_info = vi.VSVersionInfo(
                     vi.StringStruct("OriginalFilename", "XinMatch.exe"),
                     vi.StringStruct("ProductName", APP_NAME),
                     vi.StringStruct("ProductVersion", APP_VERSION),
+                    # v1.0.0 品牌要求：联系方式（用户指定 sshztx@outlook.com）
+                    # 写入可执行文件版本资源。
+                    vi.StringStruct("LegalCopyright", "Copyright 2026 XinMatch Contributors <sshztx@outlook.com>"),
+                    vi.StringStruct("Contact", "sshztx@outlook.com"),
+                    vi.StringStruct("联系方式", "sshztx@outlook.com"),
                 ],
             )
         ]),
@@ -114,7 +128,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name=APP_NAME,
-    icon="build/xinmatch.ico",
+    icon="assets/icons/logo.ico",
     version=version_info,
     debug=False,
     bootloader_ignore_signals=False,
