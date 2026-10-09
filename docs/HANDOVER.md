@@ -374,10 +374,16 @@ python -m xinmatch.cli <subcommand>
 
 按建议顺序：
 
-1. **立即**：跑全量 pytest 排查"python.exe ?? 报错"来源；清理临时文件；commit Agent J/K/L 的工作（拆 3 个 commit）
-2. **短期**：升级 T6.9 L3 验收为黄金基线（用 Match! CSV 比较 Top-N 命中率）
-3. **中期**：续做 T13.3–T13.8 GUI；T8.3 Rietveld 定量（GSAS-II 闭环已通）
-4. **长期**：T0.3/T0.4 标准样品集扩充到 20–30 个；T14.3/T14.4 批处理+串口；Phase 15 打包；Phase 16 3D 可视化
+1. ✅ **已完成**：全量 pytest 无回归；Agent J/K/L 成果已 commit（T10.8/T10.9/T13.0–13.2，41 用例全绿 + ruff 全绿）；STATUS.md 已同步
+2. ✅ **已完成**：T6.9 L3 黄金基线升级 + 真实 COD 库接入（commit 8903c3f）
+   - `tools/match_baseline.py`（Match! CSV 解析）+ `run_acceptance.py --baseline-dir/--cod-db`
+   - 真实 COD 库 `data/cod_inorganics.db`（71,199 条目 / 626 万峰，idx_peaks_entry_id 索引使 2-1 检索 293 s → 6.31 s）
+   - Hanawalt 最强峰召回 + 5-x Profile Data Ascii Dump 格式支持
+   - 验收结果：**Top-1 一致率 69.2%（9/13）FAIL vs 80%；Top-5 重叠 67.7% PASS；13/13 样品 top1 均为真相相**
+   - FoM 权重扫描（4 组组合 + 13 样品 × ~15k 候选 P 值缓存）全部停在 9/13 → 5-x 差异（Calcite/Quartz/Goethite vs Magnesite/Hematite/Kaolinite）**不是线性权重问题**，属 Match! 独有 FoM 内部逻辑 + COD 快照条目级差异（96-901-5965/96-900-0381 内容错位、96-900-9231 缺失）
+   - 若需继续追平 Top-1：方向为逆向 Match! FoM 内部逻辑（T0.8 深挖）或补库（Kaolinite 等），但物理上我们 top1 正确
+3. **中期（待办）**：续做 T13.3–T13.8 GUI；T8.3 Rietveld 定量（GSAS-II 闭环已通）
+4. **长期（待办）**：T0.3/T0.4 标准样品集扩充到 20–30 个；T14.3/T14.4 批处理+串口；Phase 15 打包；Phase 16 3D 可视化
 
 **重要约束**：
 - 不要自研精修算法——所有 Le Bail/Rietveld/残差/峰形计算委托 GSAS-II
