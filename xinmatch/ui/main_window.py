@@ -18,16 +18,33 @@ reused.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6 import QtCore, QtGui, QtWidgets
 
+import xinmatch
+from xinmatch.core.model.pattern import Pattern
+from xinmatch.core.model.phase import Phase
+from xinmatch.core.search.fom import CandidateResult
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import load_config, save_config
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 from xinmatch.ui.pattern_view import PatternView
 from xinmatch.ui.periodic_table import PeriodicTableWidget
+from xinmatch.ui.refinement_wizard import RefinementWizard
 from xinmatch.ui.shortcuts import install_shortcuts
+from xinmatch.ui.structure_view import (
+    THREEMOL_VERSION,
+    StructureViewDialog,
+    resolve_entry_cif,
+)
 from xinmatch.ui.tables import CandidateListTable, MatchListTable, PeakListTable
 from xinmatch.ui.theme import apply_theme, current_theme
+
+
+def _asset_path(name: str) -> Path:
+    """Resolve a top-level ``assets/`` file (logo.png / splash.png)."""
+    return Path(__file__).resolve().parents[2] / "assets" / name
 
 # 15 functional modules (FUNCTION_MAP.md sections 1–15).
 # (module id, label, Match! help anchor this module maps to)
@@ -96,6 +113,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("XinMatch")
         self.resize(1280, 800)
 
+        # Application icon (original assets/logo.png; absent -> Qt default icon).
+        logo = _asset_path("logo.png")
+        if logo.is_file():
+            self.setWindowIcon(QtGui.QIcon(str(logo)))
+
+        # State fed by the controller layer: current experimental pattern and
+        # the latest search-match candidate list.
+        self._current_pattern: Pattern | None = None
+        self._candidates: list[CandidateResult] = []
+        self._last_outcome = None
+
         self.module_actions: dict[str, QtGui.QAction] = {}
 
         self._build_actions()
@@ -153,6 +181,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self._theme_action = QtGui.QAction("切换主题（当前：浅色）", self)
         self._theme_action.triggered.connect(self._toggle_theme)
         menus["设置(&O)"].addAction(self._theme_action)
+        menus["设置(&O)"].addSeparator()
+        about_action = QtGui.QAction("关于 XinMatch…", self)
+        about_action.triggered.connect(self._open_about)
+        menus["设置(&O)"].addAction(about_action)
+        self.about_action = about_action
+
+        # T13.8 / Phase 16：精修菜单（精修向导 + 3D 结构视图）。
+        refine_menu = self.menuBar().addMenu("精修(&E)")
+        self.refinement_wizard_action = QtGui.QAction("打开精修向导…", self)
+        self.refinement_wizard_action.setShortcut("Ctrl+Shift+W")
+        self.refinement_wizard_action.setStatusTip(
+            "打开 Rietveld 精修向导（GSAS-II 后端）"
+        )
+        self.refinement_wizard_action.triggered.connect(
+            self._open_refinement_wizard
+        )
+        refine_menu.addAction(self.refinement_wizard_action)
+        self.structure_view_action = QtGui.QAction("3D 结构视图…", self)
+        self.structure_view_action.setShortcut("Ctrl+Shift+V")
+        self.structure_view_action.setStatusTip("以 3Dmol.js 显示当前选定相的晶体结构")
+        self.structure_view_action.triggered.connect(self._open_structure_view)
+        refine_menu.addAction(self.structure_view_action)
 
     def _build_toolbar(self) -> None:
         """Main toolbar with the most frequent module quick actions."""
@@ -230,6 +280,111 @@ class MainWindow(QtWidgets.QMainWindow):
         target = "dark" if current_theme() == "light" else "light"
         apply_theme(self, target)
         self._theme_action.setText(f"切换主题（当前：{current_theme()}）")
+
+    # ------------------------------------------------------------------
+    # T13.8 / Phase 16 integration: state feeding + refinement wizard / 3D view
+    # ------------------------------------------------------------------
+    def set_pattern(self, pattern: Pattern) -> None:
+        """Store the current experimental pattern and plot it centrally."""
+        self._current_pattern = pattern
+        self.pattern_view.add_pattern(pattern, name="实验谱")
+
+    def set_candidates(self, results: list[CandidateResult]) -> None:
+        """Store the latest search-match results and fill the candidate dock."""
+        self._candidates = list(results)
+        self.candidate_table.set_candidates(self._candidates)
+
+    def _selected_candidate_results(self) -> list[CandidateResult]:
+        """Candidate rows selected in the dock; fall back to all candidates."""
+        idxs = self.candidate_table.selectionModel().selectedRows()
+        if not idxs:
+            return list(self._candidates)
+        proxy = self.candidate_table.model()
+        selected: list[CandidateResult] = []
+        for idx in idxs:
+            row = proxy.mapToSource(idx).row()
+            if 0 <= row < len(self._candidates):
+                selected.append(self._candidates[row])
+        return selected or list(self._candidates)
+
+    def _open_refinement_wizard(self) -> None:
+        """T13.8 — open the Rietveld refinement wizard for current phases."""
+        candidates = self._selected_candidate_results()
+        if not candidates:
+            QtWidgets.QMessageBox.information(
+                self,
+                "无已鉴定相",
+                "当前没有候选物相。\n请先运行 Search-Match，并在候选列表中选择要精修的相。",
+            )
+            return
+        if self._current_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "无实验衍射谱",
+                "尚未载入实验衍射谱。\n请先导入衍射数据，再打开精修向导。",
+            )
+            return
+
+        phases: list[Phase] = []
+        cif_paths: dict[str, str] = {}
+        for cand in candidates:
+            entry_id = cand.entry.entry_id
+            cif = resolve_entry_cif(entry_id)
+            if cif is None:
+                continue
+            phases.append(Phase(entry=cand.entry))
+            cif_paths[entry_id] = str(cif)
+
+        if not phases:
+            QtWidgets.QMessageBox.information(
+                self,
+                "找不到 CIF",
+                "选中相在本地 COD 归档中没有对应的 CIF 文件，无法运行 Rietveld 精修。",
+            )
+            return
+
+        wizard = RefinementWizard(
+            phases, cif_paths, self._current_pattern, parent=self
+        )
+        wizard.refinement_finished.connect(self._on_refinement_finished)
+        wizard.exec()
+
+    def _on_refinement_finished(self, outcome) -> None:
+        """Remember the last refinement result for downstream views."""
+        self._last_outcome = outcome
+        rwp = getattr(outcome.r_factors, "rwp", None)
+        msg = "精修完成。" if rwp is None else f"精修完成（Rwp = {rwp * 100:.2f}%）。"
+        self.statusBar().showMessage(msg, 8000)
+
+    def _open_structure_view(self) -> None:
+        """Phase 16 — open the 3D viewer for the currently selected phase."""
+        candidates = self._selected_candidate_results()
+        if not candidates:
+            QtWidgets.QMessageBox.information(
+                self,
+                "无已鉴定相",
+                "当前没有候选物相。\n请先运行 Search-Match，并在候选列表中选择一个相查看其晶体结构。",
+            )
+            return
+        entry_id = candidates[0].entry.entry_id
+        dialog = StructureViewDialog(self)
+        dialog.load_entry(entry_id)  # friendly empty page if CIF missing
+        dialog.setWindowTitle(f"3D 结构视图 — {entry_id}")
+        dialog.exec()
+
+    def _open_about(self) -> None:
+        """Show the About box; version read dynamically from xinmatch.__version__."""
+        version = xinmatch.__version__
+        QtWidgets.QMessageBox.about(
+            self,
+            "关于 XinMatch",
+            (
+                "<h3>XinMatch</h3>"
+                f"<p>版本 <b>{version}</b></p>"
+                "<p>开源粉末 XRD 物相分析平台 —— Match! 的净室开源替代。</p>"
+                f"<p>3Dmol.js {THREEMOL_VERSION}</p>"
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Placeholder handler

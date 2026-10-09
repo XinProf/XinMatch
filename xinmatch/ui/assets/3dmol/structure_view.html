@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>XinMatch 3D 结构视图</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; }
+  #viewer { width: 100%; height: 100%; }
+  #empty {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    font-family: "Microsoft YaHei", sans-serif; color: #888; font-size: 15px;
+  }
+</style>
+</head>
+<body>
+<div id="viewer"></div>
+<div id="empty"></div>
+<script src="3Dmol-min.js"></script>
+<script>
+  // Injected by xinmatch.ui.structure_view.render_html().
+  const INITIAL = __XINMATCH_STRUCTURE_JSON__;
+
+  function showMessage(text) {
+    const box = document.getElementById('empty');
+    box.style.display = 'flex';
+    box.textContent = text;
+    document.getElementById('viewer').style.display = 'none';
+  }
+
+  function loadStructure(data) {
+    if (!data || data.empty || !data.cif_text) {
+      showMessage(data && data.message ? data.message : '未加载结构。');
+      return;
+    }
+    const viewer = 3Dmol.createViewer(
+      document.getElementById('viewer'), { backgroundColor: 'white' }
+    );
+    viewer.addModel(data.cif_text, 'cif');
+    viewer.setStyle({}, {
+      stick: { radius: 0.12 },
+      sphere: { scale: 0.22 }
+    });
+    viewer.addUnitCell();
+    viewer.zoomTo();
+    viewer.render();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    try {
+      loadStructure(INITIAL);
+    } catch (err) {
+      showMessage('结构渲染失败：' + err);
+    }
+  });
+</script>
+</body>
+</html>
