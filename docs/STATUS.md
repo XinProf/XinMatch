@@ -10,8 +10,8 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T0.1 | Extract official doc library (169 topics) | ✅ |
 | T0.2 | Re-extract against latest Match!, diff versions | ⬜ |
-| T0.3 | Build standard sample set (20–30 samples) | ⬜ |
-| T0.4 | Run Match! baseline on the sample set | ⬜ |
+| T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 Match! 操作步骤 + 13→20–30 缺口清单：建议 IUCr CPD-1a/1b/1d/1e/1f/1g/1h、CPD-4、csuHJW data002/033/038/020/036）；样品采集本身只能人工在 Match! 中执行，尚未跑) |
+| T0.4 | Run Match! baseline on the sample set | 🟡 (转换链就绪：Match! 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；等待人工跑完 20–30 样品后导入) |
 | T0.5 | Terminology mapping table | ⬜ |
 | T0.6 | Project skeleton + CI (pytest, ruff, mypy) | 🟡 |
 | T0.7 | Cross-platform conventions | ✅ |
@@ -100,7 +100,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T8.1 | RIR quantitative (adiabatic + reference-ratio) | ✅ |
 | T8.2 | Internal standard method | ✅ (IUCr CPD-1c CaF₂ err < 0.12 wt%) |
-| T8.3 | Rietveld quantitative (depends on Phase 10) | ✅ (`core/quant/rietveld_quant.py` 委托 GSAS-II 闭环：build→run→parse→wt%，误差表见模块 docstring。CPD-1c 与 test_xrd 3-1 端到端 Rwp≈14–15%、GoF≈2.3；微量相 CaF₂ 误差 +2.3 wt%（<3 wt% 达标）；主相 ZnO/Al₂O₃ 误差 ~9–12 wt% 未达 Phase 8 <3 wt%——归因：ZnO 择优取向未有效建模（CPD 轮测文献已知难点，T8.2 内标法同标 xfail）+ 手写 CIF 原子坐标 + 通用仪器参数文件与实际衍射仪不匹配；降至 <3 wt% 需 COD 标准 CIF + 实测仪器参数文件) |
+| T8.3 | Rietveld quantitative (depends on Phase 10) | ✅ (`core/quant/rietveld_quant.py` 委托 GSAS-II 闭环：build→run→parse→wt%。**本轮补强（2026-10-09）**：COD 标准 CIF（COD **1000017** Al₂O₃ / **2300112** ZnO / **1000054** Brucite，fixtures 新增 `*_cod.cif`）替换手写 CIF；分阶段 March-Dollase 择优取向（移到 scale/背景/晶胞/峰形/原子收敛之后，避免 r 负值致 MD 积分 NaN）；修复 3 个真实 bug——① GSAS-II 子进程继承父进程 PYTHONPATH 污染致 pyspg/pypowder 加载失败（剖面静默关闭，Rwp 假 80%），② 二进制 fortran DLL 子目录未注册（`os.add_dll_directory`），③ 旧 `{'PO': True}` 是 GSAS-II `set_HAP_refinements` 无效键被静默忽略；仪器默认改为标准 Cu Kα 1.54056/1.54439 Å + 合理 Caglioti 起点（生产应用实测 .prm）。**结果**：主相 ZnO（~94 wt%）误差从旧偏 7–12 wt% 降至 **<1.3 wt%**（CPD-1c：ZnO −1.05 / Al₂O₃ +1.02 / CaF₂ +0.04；3-1：−1.28 / +1.27 / +0.02；4-1：ZnO +0.39 / Al₂O₃ +2.78 / CaF₂ +1.14；Rwp 16.9/23.0/17.5%）。**诚实残余**：4-1 Brucite（最大相 36.26 wt%）仍偏 **−4.31 wt%**——对照实验（无 PO −4.49% vs 有 PO −4.31%）证明单参数 MD [001] 几乎不动 r，归因层状织构需球谐模型 + 轻/重相微吸收衬度 + 无实测仪器 .prm；测试对 ZnO/Al₂O₃/CaF₂ 门 <3 wt%、Brucite 门 <6 wt% 并注明残余，未放宽断言。含 3 个新 `@pytest.mark.slow` 端到端用例) |
 | T8.4 | DOC amorphous content | ✅ (test_xrd 3-2 glass err 4.81 wt% < 7% threshold) |
 
 ## Phase 9 — Indexing (`core/index/`)
@@ -158,7 +158,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T14.1 | CLI pipeline (import → process → search → quantify → report) | ✅ |
 | T14.2 | Python API (`xinmatch/__init__.py`) | ✅ |
-| T14.3 | Batch scripting (JSON/YAML config) | ⬜ |
+| T14.3 | Batch scripting (JSON/YAML config) | ✅ (`tools/batch_runner.py`：配置驱动批量流水线 load→preprocess→search→report（复用 core API 不重写算法）；单样品错误隔离不中断；每样品 HTML/MD/TXT 报告 + 汇总 `batch_summary.md`/`.json`；相对路径相对配置目录解析；CLI `python tools/batch_runner.py config.yaml`；示例 `tools/batch_config.example.yaml`；9 个新测试含 YAML/JSON 端到端) |
 | T14.4 | Serial instrument control | ⬜ |
 
 ## Phase 13 — GUI (`ui/` · PySide6)
@@ -177,9 +177,14 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T13.5 | Dialogs (import / experiment / options) | ✅ (`ui/dialogs/`：导入选项/实验详情/13 类选项/颜色线型四对话框，统一 YAML 配置 load/save；选项与颜色对话框已接线到"设置"菜单) |
 | T13.6 | Shortcut mapping | ✅ (`ui/shortcuts.py`：67 条对照 function_keys.md 全量映射，QAction 方式已安装到主窗口并验证触发) |
 | T13.7 | Themes | ✅ (`ui/theme.py`：浅/深主题语义令牌 + QPalette/QSS，对比度断言两主题无不可读控件；图标用 Qt 标准图标；主窗口"设置"菜单可切换) |
-| **T13.8** | **Refinement wizard GUI (MAUD-style, delegates to GSAS-II)** | ✅ (`ui/refinement_wizard.py`：四步向导——选已鉴定相→背景处理→勾选 Scale/Cell/Profile/Atoms→运行→R 因子+残差谱+精修后晶胞；无 GSAS-II 时友好降级提示；计算全委托 T10.6b/T10.8/T10.9 不重写算法；结果信号 refinement_finished) |
+| **T13.8** | **Refinement wizard GUI (MAUD-style, delegates to GSAS-II)** | ✅ (`ui/refinement_wizard.py`：四步向导——选已鉴定相→背景处理→勾选 Scale/Cell/Profile/Atoms→运行→R 因子+残差谱+精修后晶胞；无 GSAS-II 时友好降级提示；计算全委托 T10.6b/T10.8/T10.9 不重写算法；结果信号 refinement_finished。**已接线主窗口**（2026-10-09）：菜单"精修(&E)"→"打开精修向导…" Ctrl+Shift+W；`set_pattern()`/`set_candidates()` 喂数，选中候选优先否则全部候选；无候选/无实验谱/无 CIF 时 QMessageBox 友好提示不崩溃；`refinement_finished→` 状态栏显示 Rwp) |
 
 ## Phases 14–16
 
-See [ROADMAP_v3.md](../ROADMAP_v3.md). Remaining: T14 CLI batch/serial,
-T15 packaging, T16 3D structure viz.
+See [ROADMAP_v3.md](../ROADMAP_v3.md).
+
+- **Phase 15 打包 ✅（2026-10-09）**：PyInstaller **onedir**（db 512 MB，onefile 解压不可接受）；`xinmatch.spec` + `tools/build_exe.ps1` + `tools/pyi_entry.py`（单入口调度器按 argv 分派 CLI/GUI——踩坑：PyInstaller 6.22 多脚本切片并不会让第二个 exe 跑第二个脚本）；PySide6 走内置 hook、pyqtgraph `collect_all`、gemmi pyd 自动收集、`data/cod_inorganics.db` 随包（exe 同级 data/）、`schema.sql` 随包（import 时 read_text）；GSAS-II 不可打包，无 GSAS-II 环境按 `GSAS2_AVAILABLE` 降级；产物 `dist/xinmatch-1.0.0/`（~1.18 GB）；构建/冒烟/限制见 [PACKAGING.md](PACKAGING.md)。
+- **Phase 16 3D 结构可视化 ✅（2026-10-09）**：`ui/structure_view.py`（QWebEngineView + **3Dmol.js 2.5.5 本地打包**，禁外部 CDN；gemmi 0.7.5 解析 CIF→JSON 纯函数 `cif_to_structure_data()`，晶胞从 CIF 标签直读剥 esd；COD ref_id→归档 CIF 路径规则实测核对）；主窗口"精修(&E)"→"3D 结构视图…" Ctrl+Shift+V，无 CIF 时空态页。精修后 CIF 接入 3D 留待后续（`Gsas2RefineOutcome` 未携带精修 CIF 路径）。
+- **About/图标**：About 对话框动态读 `xinmatch.__version__`（importlib.metadata，当前 1.0.0，不得硬编码）；主窗口图标 `assets/logo.png`（原创生成，随本版提交）。
+
+剩余：T14.4 serial instrument control、T0.3/T0.4 人工样品采集（工具已就绪）、T0.8 FoM P 值深挖。

@@ -59,6 +59,14 @@ target-version = "py310"
 select = ["E", "W", "F", "I", "N", "UP", "B", "SIM"]
 ignore = ["E501"]
 
+# Pre-existing lint issues in frozen COD-builder files (committed before 1.0.0,
+# kept untouched per project rule): BATCH const naming (N806) and an unused
+# numpy import (F401). Excluded here so `ruff check .` stays green without
+# modifying protected files.
+[tool.ruff.lint.per-file-ignores]
+"tools/build_cod_xinmatch.py" = ["N806"]
+"tests/test_build_cod_xinmatch.py" = ["F401"]
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = ["tests"]
