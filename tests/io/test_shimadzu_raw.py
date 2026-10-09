@@ -113,6 +113,43 @@ def test_truncated_file_reads_available_points(tmp_path: Path) -> None:
     assert out.metadata["npts_declared"] == 100
 
 
+@pytest.mark.parametrize("header_len", [976, 1608], ids=["h976", "h1608"])
+def test_truncated_variable_header_reads_available_points(
+    tmp_path: Path, header_len: int
+) -> None:
+    """Non-968 header subtypes truncated in the tail must keep the real
+    header offset and clamp to the points actually present.  The old
+    size-inference (``data_off = len - 4*npts``) slid the read window into
+    the header on exactly these files and returned header bytes as
+    intensity (976: 2 junk points; 1608: up to 160 junk points)."""
+    pat = synth_pattern(n=200, start=20.0, step=0.05)
+    p = tmp_path / f"x{header_len}.raw"
+    write_shimadzu_raw(p, pat, header_len=header_len)
+    data = p.read_bytes()
+    p.write_bytes(data[: len(data) - 40 * 4])   # lose 40 tail points
+    out = read_shimadzu_raw(p)
+    assert out.metadata["data_offset"] == header_len
+    assert out.metadata["truncated"] is True
+    assert out.metadata["npts_declared"] == 200
+    assert len(out) == 160
+    # every retained point is real data — exact match, no header bytes
+    assert np.array_equal(out.intensity, np.round(pat.intensity[:160]))
+    assert out.two_theta[0] == pytest.approx(20.0, abs=1e-4)
+
+
+@pytest.mark.parametrize("header_len", [976, 1608], ids=["h976", "h1608"])
+def test_variable_header_subtypes_round_trip(tmp_path: Path, header_len: int) -> None:
+    """Non-truncated 976/1608-header files read from the declared offset."""
+    pat = synth_pattern(n=60, start=20.0, step=0.05)
+    p = tmp_path / f"x{header_len}.raw"
+    write_shimadzu_raw(p, pat, header_len=header_len)
+    out = read_shimadzu_raw(p)
+    assert out.metadata["data_offset"] == header_len
+    assert out.metadata["truncated"] is False
+    assert np.array_equal(out.intensity, np.round(pat.intensity))
+    assert out.two_theta[-1] == pytest.approx(pat.two_theta[-1], abs=1e-3)
+
+
 def test_too_short_raises(tmp_path: Path) -> None:
     p = tmp_path / "x.raw"
     p.write_bytes(b"Shimadzu XRD" + b"\x00" * 100)

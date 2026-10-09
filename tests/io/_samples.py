@@ -272,26 +272,30 @@ def write_gdf(path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Shimadzu binary .raw
 # ---------------------------------------------------------------------------
-def write_shimadzu_raw(path: Path, pat: Pattern) -> None:
+def write_shimadzu_raw(path: Path, pat: Pattern, header_len: int = 968) -> None:
     """Write a Shimadzu XRD binary ``.raw`` file.
 
     Mirrors the layout read by
     :func:`xinmatch.core.io.shimadzu_raw.read_shimadzu_raw`: ASCII magic
-    header, int32 ×1e4 axis fields at 300/304/308, preset-time/slit floats
-    at 324/348, point count at 624, max intensity at 632, and the int32
-    intensity block from offset 968.
+    header, header base (data start = base + 56) at 0x30, declared data
+    byte count at 0x34, int32 ×1e4 axis fields at 300/304/308, preset-time/
+    slit floats at 324/348, point count at 624, max intensity at 632, and
+    the int32 intensity block from ``header_len`` (968/976/1608 subtypes,
+    matching the real collection).
     """
     start = float(pat.two_theta[0])
     step = float(pat.step) if pat.step else 0.02
     end = float(pat.two_theta[-1])
     n = len(pat)
 
-    buf = bytearray()
-    header = b"Shimadzu XRD\x00\x00\x00\x00Ver 0.00"
-    label = b"Synthetic sample          Cu"
-    buf += header.ljust(48, b"\x00")
-    buf += label.ljust(968 - len(buf), b"\x00")
-    assert len(buf) == 968
+    buf = bytearray(b"Shimadzu XRD\x00\x00\x00\x00Ver 0.00")
+    buf = buf.ljust(0x30, b"\x00")
+    buf += struct.pack("<I", header_len - 56)   # 0x30: header base -> data start
+    buf += struct.pack("<I", n * 4)             # 0x34: declared data byte count
+    buf += b"\x00" * (0x4C - len(buf))          # pad to the label offset
+    buf += b"Synthetic sample          Cu".ljust(32, b"\x00")   # 0x4C: label
+    buf = buf.ljust(header_len, b"\x00")
+    assert len(buf) == header_len
 
     def put_i32(off: int, val: int) -> None:
         buf[off : off + 4] = struct.pack("<i", val)

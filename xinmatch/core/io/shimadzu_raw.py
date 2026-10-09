@@ -18,12 +18,18 @@ offset        type     meaning
 0x278 (632)   int32    maximum intensity (mirrors data max)
 ============  =======  =============================================
 
-The intensity block is the trailing ``npts`` little-endian int32 values;
-its start offset is therefore ``file_size - 4 * npts``.  Header lengths of
-968 / 976 / 1608 bytes have all been observed across the XRData Shimadzu
-collection, so the offset is inferred from the file size rather than
-hard-coded (a fixed 968 fallback is used only when the file is
-self-inconsistent, e.g. truncated).
+The intensity block is the trailing ``npts`` little-endian int32 values.
+Its start offset is declared in the header itself: a base address (u32 at
+0x30) with the data beginning at ``base + 56`` — this reproduces all three
+header lengths observed across the XRData Shimadzu collection (968 / 976 /
+1608 bytes) without inferring anything from the file size.  Inferring the
+offset as ``file_size - 4*npts`` was deliberately removed: the accompanying
+self-consistency check ``data_off + 4*npts == file_size`` is a mathematical
+identity (``data_off`` is defined by that very equation), so a truncated
+file always looked "self-consistent" and the read window slid into the
+header, silently misreading header bytes as intensity.  With the declared
+offset a truncated file is handled defensively: the available points are
+returned and the truncation is recorded in ``metadata["truncated"]``.
 
 The 2θ grid is ``start + step * arange(npts)`` where the step is derived
 from the axis span ``(end - start) / (npts - 1)`` — this is more accurate
@@ -54,7 +60,9 @@ from xinmatch.core.model import Pattern
 # Binary layout constants
 # ---------------------------------------------------------------------------
 MAGIC = b"Shimadzu XRD"
-DATA_OFFSET = 968   # standard-subtype header length (fallback reference)
+DATA_OFFSET = 968   # smallest observed header length; fallback when the
+                    # base field at 0x30 is missing or implausible
+OFF_HDR_BASE = 48   # u32 header base address; data starts at base + 56
 
 OFF_START = 300   # int32, 2θ start × 1e4
 OFF_END = 304     # int32, 2θ end × 1e4
@@ -98,6 +106,13 @@ def _target_wavelength(header: str) -> tuple[float, str]:
 
 def _i32(raw: bytes, off: int) -> int:
     return struct.unpack_from("<i", raw, off)[0]
+
+
+def _u32(raw: bytes, off: int) -> int | None:
+    try:
+        return struct.unpack_from("<I", raw, off)[0]
+    except struct.error:
+        return None
 
 
 def _f32(raw: bytes, off: int) -> float | None:
@@ -164,18 +179,22 @@ def read_shimadzu_raw(path: str | Path, theta_mode: bool = False) -> Pattern:
             f"scan, skipping: {p}"
         )
 
-    # -- intensity block: trailing npts int32 ----------------------------
-    # Infer the data offset from the file size (variable-length header;
-    # 968 / 976 / 1608-byte headers observed).  A self-consistent size
-    # check alone is not enough: a truncated file still satisfies
-    # ``data_off + 4*npts == len(raw)`` for *any* data_off, so the offset
-    # is only trusted when it is also >= the minimum header length (968).
-    # Otherwise fall back to the standard 968 offset and read whatever
-    # points remain (defensive truncation handling).
-    data_off = len(raw) - 4 * npts
-    if data_off < DATA_OFFSET or data_off + 4 * npts != len(raw):
-        data_off = DATA_OFFSET
-    if data_off < 0 or data_off + 4 * npts > len(raw):
+    # -- intensity block: header-declared offset + truncation clamp ------
+    # Data starts at the declared header base (u32@0x30) + 56.  This handles
+    # the variable-length header (968/976/1608-byte subtypes) directly and
+    # replaces the old ``len(raw) - 4*npts`` inference, whose size
+    # self-consistency check ``data_off + 4*npts == len(raw)`` was a
+    # mathematical identity (data_off was defined by that very equation) and
+    # therefore masked truncated files: the read window slid into the header
+    # and header bytes were silently misread as intensity.
+    base = _u32(raw, OFF_HDR_BASE)
+    # base field missing/zero (not written by every writer): fall back to
+    # the smallest observed header length
+    data_off = base + 56 if base is not None and base + 56 >= DATA_OFFSET else DATA_OFFSET
+    if data_off + 4 * npts > len(raw):
+        # Truncated: the declared data region extends past EOF.  Keep the
+        # real header offset and clamp to the points actually present —
+        # never slide the read window into the header.
         avail = (len(raw) - data_off) // 4
         n_read = min(npts, max(avail, 0))
         if n_read < 2:
