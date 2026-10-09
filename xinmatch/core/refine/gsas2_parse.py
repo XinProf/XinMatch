@@ -406,6 +406,12 @@ class Gsas2RefineOutcome:
         Back-filled :class:`RefinedPhaseInfo` list.
     raw:
         The parsed :class:`LstSummary` (for diagnostics).
+    refined_cif_paths:
+        Paths of the refined phase CIFs (``*_new.cif``) parsed into
+        :attr:`refined_phases`, in the same order.  Empty when no CIFs were
+        supplied to :func:`parse_refinement`.  Downstream consumers (e.g. the
+        3D structure viewer) load these files to show the *refined* structure
+        rather than the pre-refinement COD entry.
     """
 
     r_factors: RFactorSection
@@ -415,6 +421,7 @@ class Gsas2RefineOutcome:
     residual_pattern: Pattern
     refined_phases: list[RefinedPhaseInfo]
     raw: LstSummary
+    refined_cif_paths: list[Path] = field(default_factory=list)
 
 
 def _read_text(text: str | Path) -> str:
@@ -524,6 +531,7 @@ def parse_refinement(
         residual_pattern=residual_pat,
         refined_phases=refined_phases,
         raw=summary,
+        refined_cif_paths=[Path(c) for c in cif_list],
     )
 
 

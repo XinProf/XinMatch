@@ -234,6 +234,21 @@ def test_parse_refinement_backfills_phase_from_cif(tmp_path):
     assert len(out.refined_phases[0].atoms) == 2
 
 
+def test_parse_refinement_records_refined_cif_paths(tmp_path):
+    cif = tmp_path / "Fake_new.cif"
+    cif.write_text(_SYN_CIF, encoding="utf-8")
+    out = parse_refinement(_SYN_LST, _SYN_PRF, cifs=[cif])
+    # Same order as refined_phases — the 3D viewer loads these files to show
+    # the refined structure.
+    assert out.refined_cif_paths == [cif.resolve()]
+    assert len(out.refined_cif_paths) == len(out.refined_phases)
+
+
+def test_parse_refinement_refined_cif_paths_default_empty():
+    out = parse_refinement(_SYN_LST, _SYN_PRF)
+    assert out.refined_cif_paths == []
+
+
 # ---------------------------------------------------------------------------
 # .gpx best-effort
 # ---------------------------------------------------------------------------

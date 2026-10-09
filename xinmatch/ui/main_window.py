@@ -25,6 +25,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import xinmatch
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
+from xinmatch.core.refine.cif_store import export_cifs, match_entry_cifs
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import load_config, save_config
@@ -198,6 +199,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self._open_refinement_wizard
         )
         refine_menu.addAction(self.refinement_wizard_action)
+        self.export_cifs_action = QtGui.QAction("导出所选相 CIF…", self)
+        self.export_cifs_action.setStatusTip(
+            "从 COD 归档匹配并导出所选候选相的 CIF（供 GSAS-II 等工作目录调用）"
+        )
+        self.export_cifs_action.triggered.connect(self._export_selected_cifs)
+        refine_menu.addAction(self.export_cifs_action)
+        refine_menu.addSeparator()
         self.structure_view_action = QtGui.QAction("3D 结构视图…", self)
         self.structure_view_action.setShortcut("Ctrl+Shift+V")
         self.structure_view_action.setStatusTip("以 3Dmol.js 显示当前选定相的晶体结构")
@@ -371,6 +379,49 @@ class MainWindow(QtWidgets.QMainWindow):
         dialog.load_entry(entry_id)  # friendly empty page if CIF missing
         dialog.setWindowTitle(f"3D 结构视图 — {entry_id}")
         dialog.exec()
+
+    def _export_selected_cifs(self) -> None:
+        """Export matched COD CIFs of the selected candidates to a folder.
+
+        Match! equivalent: ``docs/export_entry_data.md`` (exporting entry
+        data).  The exported CIFs live in the user's chosen directory and
+        are what a GSAS-II working folder would consume — the COD archive
+        itself is never written to.
+        """
+        candidates = self._selected_candidate_results()
+        if not candidates:
+            QtWidgets.QMessageBox.information(
+                self,
+                "无已鉴定相",
+                "当前没有候选物相。\n请先运行 Search-Match，并选择要导出 CIF 的相。",
+            )
+            return
+        entry_ids = [cand.entry.entry_id for cand in candidates]
+        matched = match_entry_cifs(entry_ids)
+        if not matched:
+            QtWidgets.QMessageBox.information(
+                self,
+                "找不到 CIF",
+                "所选相在本地 COD 归档中没有对应的 CIF 文件，无法导出。",
+            )
+            return
+        missing = [eid for eid in entry_ids if eid not in matched]
+        out_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "选择导出目录（所选相 CIF）"
+        )
+        if not out_dir:
+            return
+        exported = export_cifs(matched, out_dir)
+        note = ""
+        if missing:
+            note = "\n\n以下相无 CIF（已跳过）：" + "、".join(missing)
+        QtWidgets.QMessageBox.information(
+            self,
+            "导出完成",
+            f"已导出 {len(exported)} 个 CIF 到：\n{Path(out_dir)}\n"
+            + "\n".join(f"• {name}" for name in exported)
+            + note,
+        )
 
     def _open_about(self) -> None:
         """Show the About box; version read dynamically from xinmatch.__version__."""

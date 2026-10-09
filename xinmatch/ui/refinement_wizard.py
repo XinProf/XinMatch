@@ -249,6 +249,27 @@ class RefinementWizard(QtWidgets.QDialog):
         self._table.horizontalHeader().setStretchLastSection(True)
         v.addWidget(self._table)
 
+        # Refined-CIF actions (3D view / export) — enabled after a run that
+        # produced refined CIFs.
+        btn_row = QtWidgets.QHBoxLayout()
+        self._btn_view3d = QtWidgets.QPushButton("查看精修后 3D 结构…")
+        self._btn_view3d.setEnabled(False)
+        self._btn_view3d.setToolTip(
+            "用 3Dmol.js 显示 GSAS-II 导出的精修后晶体结构（*_new.cif）"
+        )
+        self._btn_export_cif = QtWidgets.QPushButton("导出精修 CIF…")
+        self._btn_export_cif.setEnabled(False)
+        self._btn_export_cif.setToolTip(
+            "把精修后 CIF 复制到用户选择的目录（供外部工具复用）"
+        )
+        btn_row.addWidget(self._btn_view3d)
+        btn_row.addWidget(self._btn_export_cif)
+        btn_row.addStretch()
+        v.addLayout(btn_row)
+
+        self._btn_view3d.clicked.connect(self._show_refined_3d)
+        self._btn_export_cif.clicked.connect(self._export_refined_cifs)
+
         return page
 
     # ------------------------------------------------------------------
@@ -428,8 +449,74 @@ class RefinementWizard(QtWidgets.QDialog):
             self._table.setItem(row, 2, QtWidgets.QTableWidgetItem(f"{cell.c:.4f}"))
             self._table.setItem(row, 3, QtWidgets.QTableWidgetItem(wt_pct))
 
+        # Enable refined-CIF actions when GSAS-II exported phase CIFs.
+        has_cifs = bool(getattr(outcome, "refined_cif_paths", None))
+        self._btn_view3d.setEnabled(has_cifs)
+        self._btn_export_cif.setEnabled(has_cifs)
+
         self._update_nav()
         self.refinement_finished.emit(outcome)
+
+    # ------------------------------------------------------------------
+    # Refined-CIF actions (Phase 16 integration)
+    # ------------------------------------------------------------------
+    def _refined_cif_paths(self) -> list[Path]:
+        return list(getattr(self._outcome, "refined_cif_paths", None) or [])
+
+    def _show_refined_3d(self) -> None:
+        """Open the 3D viewer on the GSAS-II refined CIF of the chosen phase."""
+        from xinmatch.ui.structure_view import StructureViewDialog
+
+        paths = self._refined_cif_paths()
+        if not paths:
+            QtWidgets.QMessageBox.information(
+                self, "无精修 CIF", "本次精修没有生成精修后 CIF。"
+            )
+            return
+        idx = 0
+        if len(paths) > 1:
+            names = [
+                (rph.phase.entry.mineral_name or rph.phase.entry.entry_id)
+                for rph in self._outcome.refined_phases
+            ]
+            names = [n if n else f"相 {i + 1}" for i, n in enumerate(names)]
+            choice, ok = QtWidgets.QInputDialog.getItem(
+                self, "选择相", "查看精修后结构的相：", names, 0, False
+            )
+            if not ok:
+                return
+            idx = names.index(choice)
+        dialog = StructureViewDialog(self)
+        dialog.load_cif(paths[idx])  # friendly page if parse fails
+        dialog.setWindowTitle(
+            f"3D 结构视图 — 精修后（{Path(paths[idx]).name}）"
+        )
+        dialog.exec()
+
+    def _export_refined_cifs(self) -> None:
+        """Copy the refined CIFs into a user-chosen directory."""
+        from xinmatch.core.refine.cif_store import export_cifs
+
+        paths = self._refined_cif_paths()
+        if not paths:
+            QtWidgets.QMessageBox.information(
+                self, "无精修 CIF", "本次精修没有生成精修后 CIF。"
+            )
+            return
+        out_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "选择导出目录（精修后 CIF）"
+        )
+        if not out_dir:
+            return
+        exported = export_cifs(
+            {f"phase{i + 1}": p for i, p in enumerate(paths)}, out_dir
+        )
+        QtWidgets.QMessageBox.information(
+            self,
+            "导出完成",
+            f"已导出 {len(exported)} 个精修后 CIF：\n{Path(out_dir)}\n"
+            + "\n".join(f"• {name}.cif" for name in exported),
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -36,6 +36,15 @@ from typing import Any
 
 from PySide6 import QtCore, QtWebEngineWidgets, QtWidgets
 
+# The id→path helpers live in core (shared with CLI / batch / GSAS-II
+# pipelines); this module re-exports them so existing imports keep working.
+from xinmatch.core.refine.cif_store import (  # noqa: E402
+    DEFAULT_COD_ROOT,
+    cod_cif_path,
+    ref_id_to_cod_id,
+    resolve_entry_cif,
+)
+
 __all__ = [
     "ASSETS_DIR",
     "DEFAULT_COD_ROOT",
@@ -52,9 +61,6 @@ __all__ = [
 #: Directory holding the bundled 3Dmol.js and the HTML template.
 ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "3dmol"
 
-#: Local COD CIF archive root (read-only; 522 K files).
-DEFAULT_COD_ROOT = Path(r"D:\Project\XRD\PolyXRD\cod\cif")
-
 #: Bundled 3Dmol.js version and the URL it was downloaded from (build-time
 #: fetch only — the HTML references the local ``3Dmol-min.js``, never a CDN).
 THREEMOL_VERSION = "2.5.5"
@@ -64,45 +70,6 @@ THREEMOL_SOURCE_URL = (
 
 # Placeholder in ``structure_view.html`` replaced by the embedded structure JSON.
 _JSON_TOKEN = "__XINMATCH_STRUCTURE_JSON__"
-
-
-# ---------------------------------------------------------------------------
-# Pure path / id helpers (GUI-free, unit-tested offscreen)
-# ---------------------------------------------------------------------------
-def ref_id_to_cod_id(ref_id: str) -> int:
-    """Convert a XinMatch entry id (PolyXRD ``ref_id``) to a numeric COD id.
-
-    ``"96-100-0005"`` → ``1000005``.  Raises :class:`ValueError` when the id
-    is not in the ``NN-NNN-NNNN`` ref_id shape.
-    """
-    parts = ref_id.strip().split("-")
-    if len(parts) != 3 or not (parts[1] + parts[2]).isdigit():
-        raise ValueError(
-            f"not a PolyXRD ref_id: {ref_id!r} (expected e.g. '96-400-1849')"
-        )
-    return int(parts[1] + parts[2])
-
-
-def cod_cif_path(cod_id: int, root: str | Path = DEFAULT_COD_ROOT) -> Path:
-    """Numeric COD id → CIF path under the archive *root*.
-
-    Layout (verified on the real archive): the 7-digit-zero-padded id is split
-    as ``{first}/{next two}/{next two}/{id:07d}.cif`` — e.g. id ``1000005``
-    → ``1/00/00/1000005.cif``.
-    """
-    s = str(int(cod_id)).zfill(7)
-    return Path(root) / s[0] / s[1:3] / s[3:5] / f"{s}.cif"
-
-
-def resolve_entry_cif(
-    entry_id: str, root: str | Path = DEFAULT_COD_ROOT
-) -> Path | None:
-    """Resolve a XinMatch entry id to an existing COD CIF, or ``None``."""
-    try:
-        path = cod_cif_path(ref_id_to_cod_id(entry_id), root)
-    except ValueError:
-        return None
-    return path if path.is_file() else None
 
 
 # ---------------------------------------------------------------------------

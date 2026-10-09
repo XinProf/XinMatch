@@ -49,7 +49,9 @@ def _pattern() -> Pattern:
     return Pattern(two_theta=x, intensity=y, wavelength=1.5406, step=0.14)
 
 
-def _fake_outcome() -> Gsas2RefineOutcome:
+def _fake_outcome(
+    refined_cif_paths: list[Path] | None = None,
+) -> Gsas2RefineOutcome:
     """Build a synthetic outcome for wizard testing."""
     from xinmatch.core.refine.gsas2_parse import RefinedPhaseInfo
     from xinmatch.core.report.report_model import RFactorSection
@@ -76,6 +78,7 @@ def _fake_outcome() -> Gsas2RefineOutcome:
         residual_pattern=resid,
         refined_phases=refined,
         raw=None,  # type: ignore[arg-type]
+        refined_cif_paths=refined_cif_paths or [],
     )
 
 
@@ -154,6 +157,55 @@ class TestRefinementWizard:
         assert wizard._table.rowCount() == 3
         # R-factor label visible
         assert "Rwp" in wizard._lbl_rfactors.text()
+        # No refined CIFs -> 3D/export actions stay disabled
+        assert wizard._btn_view3d.isEnabled() is False
+        assert wizard._btn_export_cif.isEnabled() is False
+        wizard.close()
+
+    def test_refined_cif_actions_enabled_when_paths_present(self, qapp, tmp_path):
+        """With refined_cif_paths on the outcome, 3D / export buttons enable."""
+        cif = tmp_path / "ZnO_new.cif"
+        cif.write_text("data_ZnO_new\n", encoding="utf-8")
+
+        def fake_driver(pattern, phases, cif_paths, options, work_dir=None):
+            return _fake_outcome(refined_cif_paths=[cif])
+
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=fake_driver,
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+        wizard._run_refinement()
+
+        assert wizard._btn_view3d.isEnabled() is True
+        assert wizard._btn_export_cif.isEnabled() is True
+        # Refined CIF paths surfaced in same order as refined phases
+        assert wizard._outcome.refined_cif_paths == [cif.resolve()]
+        wizard.close()
+
+    def test_refined_3d_without_paths_shows_info(self, qapp):
+        """3D button without refined CIFs informs the user instead of crashing."""
+        from unittest.mock import patch
+
+        def fake_driver(pattern, phases, cif_paths, options, work_dir=None):
+            return _fake_outcome()  # no refined_cif_paths
+
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=fake_driver,
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+        wizard._run_refinement()
+
+        with patch(
+            "PySide6.QtWidgets.QMessageBox.information"
+        ) as mock_info:
+            wizard._show_refined_3d()
+            mock_info.assert_called_once()
         wizard.close()
 
     def test_options_collected(self, qapp):
