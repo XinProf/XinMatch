@@ -7,7 +7,7 @@ observed and the calculated powder patterns; peaks in it indicate
 reflections that were not accounted for by the model (extra phases, missing
 Bragg reflections, or wrong peak-shape parameters).
 
-Corresponds to Match!'s *Peak residuals* view (``docs/Rietveld.md``):
+Corresponds to the reference software's *Peak residuals* view (``docs/Rietveld.md``):
 the lower difference plot shown during a Rietveld refinement and the
 ``Tools → Peak residuals`` analysis command.
 
@@ -210,7 +210,7 @@ def residual_analysis(
     min_intensity_factor:
         Threshold (in noise σ units) above which a residual peak is
         considered an *unfitted* Bragg reflection.  Defaults to 5σ,
-        matching the convention used by Match!'s *Peak residuals* dialog.
+        matching the convention used by the reference software's *Peak residuals* dialog.
 
     Returns
     -------

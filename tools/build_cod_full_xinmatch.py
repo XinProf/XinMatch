@@ -14,7 +14,7 @@ searchable by
 
 Entry-id convention
 -------------------
-``entry_id`` is the Match!-style ``96-XXX-XXXX`` id derived from the numeric
+``entry_id`` is the reference-software-style ``96-XXX-XXXX`` id derived from the numeric
 COD id, so that :func:`xinmatch.core.refine.cif_store.ref_id_to_cod_id`
 round-trips and the CIF archive keeps resolving.  E.g. COD ``5000035`` →
 ``"96-500-0035"``.
@@ -158,7 +158,7 @@ def compute_peaks_from_cif(
 # Row -> Entry
 # ---------------------------------------------------------------------------
 def _entry_id_for_cod(cod_id: int) -> str:
-    """Numeric COD id → Match!-style ``96-XXX-XXXX`` entry id."""
+    """Numeric COD id → reference-software-style ``96-XXX-XXXX`` entry id."""
     s = str(int(cod_id)).zfill(7)
     return f"96-{s[:3]}-{s[3:]}"
 

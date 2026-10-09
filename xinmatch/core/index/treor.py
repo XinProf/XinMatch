@@ -32,7 +32,7 @@ The implementation here is **simplified**:
   (assume the first 1-2 peaks are axis-aligned low-index base lines).
 * Monoclinic / triclinic raise ``NotImplementedError``.
 
-Match! feature: *Tools → Indexing → Treor90* (``docs/indexing_treor.md``).
+The reference software feature: *Tools → Indexing → Treor90* (``docs/indexing_treor.md``).
 """
 
 from __future__ import annotations
@@ -586,7 +586,7 @@ def index_treor(
 ) -> list[LatticeSolution]:
     """Treor-style trial-and-error indexing.
 
-    Match! feature: *Tools → Indexing → Treor90*
+    The reference software feature: *Tools → Indexing → Treor90*
     (``docs/indexing_treor.md``).
 
     Parameters
@@ -603,7 +603,7 @@ def index_treor(
         Maximum trial base-line assignments per crystal system.
     tolerance:
         Maximum allowed ``|Δ2θ|`` in degrees between an observed peak
-        and its assigned calculated peak (Match! default = 0.05°).
+        and its assigned calculated peak (the reference software default = 0.05°).
     wavelength:
         Wavelength in Å used to convert *d* → 2θ for the tolerance
         check.  Defaults to Cu Kα1 = 1.5406 Å.

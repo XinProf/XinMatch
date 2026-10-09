@@ -64,7 +64,7 @@ __all__ = [
 def load_pattern(path: str | Path) -> Pattern:
     """Auto-detect format and load a diffraction pattern.
 
-    Implements Match!'s "All files (automatic detection)" import.
+    Implements the reference software's "All files (automatic detection)" import.
 
     Parameters
     ----------

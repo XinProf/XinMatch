@@ -1,6 +1,6 @@
 """Micro-strain analysis via the Williamson-Hall method (T11.2).
 
-Implements Match!'s *Crystallite size estimation* (Williamson-Hall tab),
+Implements the reference software's *Crystallite size estimation* (Williamson-Hall tab),
 see ``docs/crystallite_size.md``.  The Williamson-Hall (WH) method [1, 2]
 separates the two dominant sources of peak broadening — finite crystallite
 size (D) and lattice micro-strain (ε) — by linearising their angular
@@ -37,7 +37,7 @@ Linear regression of ``y = β cos θ / λ`` versus ``x = 4 sin θ / λ``:
 Instrumental-broadening correction
 ---------------------------------
 Before the WH fit, the instrumental contribution to the peak width must be
-removed.  Following Match! and the Caglioti framework, the variances add
+removed.  Following the reference software and the Caglioti framework, the variances add
 quadratically (Gaussian profile assumption)::
 
     β_sample² = β_observed² − β_instrumental²

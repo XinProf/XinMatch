@@ -1,7 +1,7 @@
 """Peak profile (shape) functions.
 
-Implements the analytical peak shapes used by Match!'s profile fitting
-(*Profile Fitting* dialog).  Match! uses the *Intermediate Lorentzian* (IL)
+Implements the analytical peak shapes used by the reference software's profile fitting
+(*Profile Fitting* dialog).  the reference software uses the *Intermediate Lorentzian* (IL)
 profile; here we provide the standard building blocks from which IL and
 pseudo-Voigt are composed:
 

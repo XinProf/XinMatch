@@ -8,7 +8,7 @@ top-level keys mirror the Options-dialog pages listed in
 processing / indexing / quantitative analysis / Rietveld / batch) plus a
 ``colors`` section for :class:`~xinmatch.ui.dialogs.colors_dialog.ColorsDialog`.
 
-Storage location follows Match!'s "personal settings" idea but uses a
+Storage location follows the reference software's "personal settings" idea but uses a
 portable file instead of the Windows registry:
 
 * prefer :attr:`QStandardPaths.AppConfigLocation` (per-user, e.g.

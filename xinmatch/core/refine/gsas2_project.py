@@ -5,19 +5,19 @@ selected :class:`~xinmatch.core.model.phase.Phase` (each backed by a CIF) and
 a :class:`~xinmatch.core.refine.gsas2_adapter.RefineOptions` into a project that
 GSAS-II can run end-to-end.
 
-Match! functionality mapping
+The reference software functionality mapping
 -----------------------------
-* Match! *Quantify -> Rietveld* (``docs/Rietveld.md``) is the GUI equivalent:
-  a full-pattern least-squares fit of observed vs. calculated profile.  Match!
+* the reference software *Quantify -> Rietveld* (``docs/Rietveld.md``) is the GUI equivalent:
+  a full-pattern least-squares fit of observed vs. calculated profile.  the reference software
   drives FullProf/GSAS-II as an external engine; XinMatch instead emits a
   self-contained GSAS-II project (``.gpx``) plus a standalone driver script.
-* Match! *Rietveld parameter turn-on* (``docs/Rietveld_ParTurnOn.md``,
+* the reference software *Rietveld parameter turn-on* (``docs/Rietveld_ParTurnOn.md``,
   ``docs/Rietveld_Auto_Par.md``) decides *which* parameters are refined in
   which order.  The staged protocol here (scale -> background -> cell ->
-  zero-shift -> optional atoms) mirrors Match!'s "auto parameter" sequence and
+  zero-shift -> optional atoms) mirrors the reference software's "auto parameter" sequence and
   FullProf's default turn-on (``docs/refinements_FullProf.md``).
 * The background model is a Chebyshev polynomial, exactly as in GSAS-II and
-  Match!'s Rietveld dialog.
+  The reference software's Rietveld dialog.
 
 Algorithm / format sources
 --------------------------
@@ -438,7 +438,7 @@ def main() -> int:
     gpx.set_Controls("cycles", max(cycles // 2, 5))
     gpx.refine(makeBack=True)
 
-    # Staged turn-on (mirrors Match! auto parameters / FullProf default):
+    # Staged turn-on (mirrors the reference software auto parameters / FullProf default):
     #   scale -> background -> cell -> profile(U/V/W) -> atoms(XU) -> zero-shift.
     if opts.get("refine_background", True):
         hist.set_refinements({"Background": {"no. coeffs": 8, "refine": True}})
@@ -548,7 +548,7 @@ def build_gsas2_project(
 ) -> Gsas2Project:
     """Construct (and optionally run) a GSAS-II Rietveld project.
 
-    Match! equivalent: *Quantify -> Rietveld* with auto parameter turn-on
+    The reference software equivalent: *Quantify -> Rietveld* with auto parameter turn-on
     (``docs/Rietveld.md``, ``docs/Rietveld_Auto_Par.md``,
     ``docs/refinements_FullProf.md``).
 

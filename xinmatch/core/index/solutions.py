@@ -1,6 +1,6 @@
 """Solution ranking, deduplication, and figure-of-merit (T9.4).
 
-Implements the solution post-processing used by Match!'s indexing
+Implements the solution post-processing used by the reference software's indexing
 results dialog (``docs/indexing_solutions.md``):
 
 * :func:`rank_solutions` — sort candidate unit cells by FOM (best
@@ -329,7 +329,7 @@ def smith_snyder_fom(
 def rank_solutions(solutions: list[LatticeSolution]) -> list[LatticeSolution]:
     """Sort candidate solutions by FOM (best first).
 
-    Match! feature: *solution list ordering*
+    The reference software feature: *solution list ordering*
     (``docs/indexing_solutions.md``, FoM column).  The best solution is
     at index 0.
 

@@ -35,7 +35,7 @@ The implementation here is **simplified**:
   the other).
 * Monoclinic / triclinic / trigonal raise ``NotImplementedError``.
 
-Match! feature: *Tools → Indexing → Dicvol06*
+The reference software feature: *Tools → Indexing → Dicvol06*
 (``docs/indexing_dicvol.md``).
 """
 
@@ -579,7 +579,7 @@ def index_dicvol(
 ) -> list[LatticeSolution]:
     """Dicvol-style successive-dichotomy indexing.
 
-    Match! feature: *Tools → Indexing → Dicvol06*
+    The reference software feature: *Tools → Indexing → Dicvol06*
     (``docs/indexing_dicvol.md``).
 
     Parameters
@@ -593,7 +593,7 @@ def index_dicvol(
         high symmetry first, per the Dicvol documentation
         recommendation to start by excluding monoclinic and triclinic.
     tolerance:
-        Maximum allowed ``|Δ2θ|`` in degrees (Match! default = 0.05°;
+        Maximum allowed ``|Δ2θ|`` in degrees (the reference software default = 0.05°;
         the Dicvol manual recommends 0.02° for high-resolution data).
     wavelength:
         Wavelength in Å for the d → 2θ conversion.  Defaults to Cu Kα1

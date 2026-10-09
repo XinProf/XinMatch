@@ -1,6 +1,6 @@
 """Database library management (Phase 5 / T5.7).
 
-Implements Match!'s *Reference Database* manager: list, create, and delete
+Implements the reference software's *Reference Database* manager: list, create, and delete
 reference-database files (COD library + user databases).  Multiple databases
 coexist as separate ``.db`` files under a single directory.
 """
@@ -21,7 +21,7 @@ DB_SUFFIX = ".db"
 def list_databases(db_dir: str | Path) -> list[Path]:
     """List all reference-database files in *db_dir*.
 
-    Implements Match!'s *Reference Database → Open* library listing.
+    Implements the reference software's *Reference Database → Open* library listing.
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ def list_databases(db_dir: str | Path) -> list[Path]:
 def create_database(path: str | Path) -> sqlite3.Connection:
     """Create a new reference database at *path*.
 
-    Implements Match!'s *Reference Database → Create*.  The file is created
+    Implements the reference software's *Reference Database → Create*.  The file is created
     with the full schema and WAL mode enabled.  If a file already exists it is
     opened (tables are created with ``IF NOT EXISTS``).
 
@@ -70,7 +70,7 @@ def create_database(path: str | Path) -> sqlite3.Connection:
 def delete_database(path: str | Path) -> bool:
     """Delete a reference-database file.
 
-    Implements Match!'s *Reference Database → Delete*.
+    Implements the reference software's *Reference Database → Delete*.
 
     Parameters
     ----------

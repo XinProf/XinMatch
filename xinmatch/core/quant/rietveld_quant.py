@@ -4,7 +4,7 @@
 公式见 Hill & Howard (1987)，GSAS-II 内部已自动计算（.lst 中
 ``Weight fraction`` 行）。
 
-Match! 对应功能
+参考软件 对应功能
 ----------------
 * *Quantify -> Rietveld*（``docs/Rietveld.md``、
   ``docs/quant_analysis_Rietveld.md``）：全谱最小二乘拟合，收敛后各相

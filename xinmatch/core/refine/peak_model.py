@@ -1,6 +1,6 @@
 """Peak-shape model for Le Bail / Rietveld refinement (T10.1).
 
-Implements the three ingredients Match!/FullProf use to describe a powder
+Implements the three ingredients the reference software / FullProf use to describe a powder
 peak profile:
 
 1. **Caglioti width model** — the FWHM as a function of 2θ follows
@@ -10,7 +10,7 @@ peak profile:
 3. **Asymmetry** — low-2θ axial-divergence asymmetry implemented as
    different left/right half-widths.
 
-These mirror the parameters turned on in Match!'s *Parameter Turn-On*
+These mirror the parameters turned on in the reference software's *Parameter Turn-On*
 dialog (``docs/Rietveld_ParTurnOn.md``): U, V, W, ``η`` (``X1``/``X2``)
 and the asymmetry coefficients.
 
@@ -40,7 +40,7 @@ def caglioti_fwhm(two_theta_deg: float, u: float, v: float, w: float) -> float:
         H(2\\theta)^2 = U\\,\\tan^2\\theta + V\\,\\tan\\theta + W
 
     where :math:`\\theta = 2\\theta / 2`.  ``U``, ``V``, ``W`` are the
-    Caglioti half-width parameters (Match!/FullProf *U, V, W*).
+    Caglioti half-width parameters (the reference software / FullProf *U, V, W*).
 
     Parameters
     ----------
@@ -130,7 +130,7 @@ def asymmetric_pseudo_voigt(
 class PeakModel:
     """Container describing the peak profile for a refinement.
 
-    Mirrors the peak-shape settings in Match!'s Rietveld options
+    Mirrors the peak-shape settings in the reference software's Rietveld options
     (``docs/options_Rietveld.md``).
 
     Attributes

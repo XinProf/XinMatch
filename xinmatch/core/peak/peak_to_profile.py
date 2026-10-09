@@ -1,6 +1,6 @@
 """Convert a list of peaks back to a diffraction profile.
 
-Implements Match!'s *Calculate profile from peak data* concept (used for
+Implements the reference software's *Calculate profile from peak data* concept (used for
 displaying the calculated profile and for residual-peak analysis).  Each
 peak is rendered with its shape function and integrated intensity (area),
 and the contributions are summed.
@@ -22,7 +22,7 @@ def peaks_to_profile(
 ) -> np.ndarray:
     """Sum peak shapes into a calculated diffraction profile.
 
-    Match! feature: profile calculation from the peak list (displayed as
+    The reference software feature: profile calculation from the peak list (displayed as
     the *calculated profile* curve).
 
     Parameters

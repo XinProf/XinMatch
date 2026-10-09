@@ -1,6 +1,6 @@
 """Diffraction data file format auto-detection.
 
-Implements the *automatic format detection* used by Match!'s
+Implements the *automatic format detection* used by the reference software's
 "All files (automatic detection)" import mode.
 
 Detection combines three signals, in order:
@@ -70,7 +70,7 @@ _EXTENSION_MAP: dict[str, str] = {
 def detect_format(path: str | Path) -> str:
     """Detect the diffraction-data format of *path*.
 
-    Implements Match!'s automatic file-format identification.
+    Implements the reference software's automatic file-format identification.
 
     Parameters
     ----------

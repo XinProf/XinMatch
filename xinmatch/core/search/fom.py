@@ -7,9 +7,9 @@ operation: given the experimental peaks and a *pruned* list of candidate
 after the d-value / restraint pre-filter steps), it computes the FoM for
 each, sorts the results by descending FoM, and offers a Top-N selection.
 
-Match! feature: the ranked *candidate list* displayed in the bottom-left of
-the Match! GUI is the output of this batch scoring step.  The Top-N cutoff
-mirrors Match!'s "minimum FoM" filter and the practical limit on what the
+The reference software feature: the ranked *candidate list* displayed in the bottom-left of
+The reference software GUI is the output of this batch scoring step.  The Top-N cutoff
+mirrors the reference software's "minimum FoM" filter and the practical limit on what the
 user can reasonably inspect (default 20).
 
 The :class:`CandidateResult` dataclass also carries the per-criterion P
@@ -47,7 +47,7 @@ __all__ = [
 class CandidateResult:
     """FoM scoring result for a single candidate reference entry.
 
-    Match! feature: one row in the candidate list (peak-based
+    The reference software feature: one row in the candidate list (peak-based
     search-match, Phase 6 / T6.3).
 
     Attributes
@@ -56,7 +56,7 @@ class CandidateResult:
         The reference-database entry that was scored.
     fom:
         Figure-of-merit (descending sort key).  Not clamped — may drift
-        slightly outside ``[0, 1]`` in degenerate cases (mirrors Match!'s
+        slightly outside ``[0, 1]`` in degenerate cases (mirrors the reference software's
         raw FoM).
     p_values:
         Per-criterion agreement values ``{peakpos, intensity, npeaks,
@@ -113,7 +113,7 @@ def rank_candidates(
 ) -> list[CandidateResult]:
     """Score every candidate entry and return results sorted by FoM desc.
 
-    Implements Match!'s *ranked candidate list* calculation (Phase 6 /
+    Implements the reference software's *ranked candidate list* calculation (Phase 6 /
     T6.3): for each candidate reference entry, correlate its (d, I) peak
     table with the experimental peaks, compute the five FoM agreement
     criteria, assemble the FoM, and sort the result list by descending
@@ -133,10 +133,10 @@ def rank_candidates(
         correlation step).
     weights:
         Optional :class:`~xinmatch.core.search.fom_criteria.FomWeights`
-        override.  ``None`` uses the default Match! 4.3 weights.
+        override.  ``None`` uses the default the reference software weights.
     window_deg:
         Full width of the peak-correlation window in degrees 2θ
-        (default 0.3° — the Match! default).
+        (default 0.3° — the reference software default).
 
     Returns
     -------
@@ -190,9 +190,9 @@ def select_top_n(
 ) -> list[CandidateResult]:
     """Return the first *n* entries of a ranked candidate list.
 
-    Implements Match!'s practical Top-N display limit (Phase 6 / T6.3).
+    Implements the reference software's practical Top-N display limit (Phase 6 / T6.3).
     The default ``n=20`` matches the number of candidate-list rows
-    typically shown in the Match! GUI without scrolling.
+    typically shown in the reference software GUI without scrolling.
 
     Parameters
     ----------

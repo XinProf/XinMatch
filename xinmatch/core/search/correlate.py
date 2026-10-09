@@ -1,7 +1,7 @@
 """Peak correlation: pair experimental peaks with reference peaks (T6.1).
 
-Implements Match!'s *peak correlation* step that runs as part of the
-peak-based search-match (Match! user manual, *Search-Match Basics* /
+Implements the reference software's *peak correlation* step that runs as part of the
+peak-based search-match (the reference software user manual, *Search-Match Basics* /
 *Figure-of-Merit Calculation* chapters).
 
 Given a list of experimental peaks and a reference peak table
@@ -13,7 +13,7 @@ strategies are provided:
   experimental peak, scan the reference peaks whose 2θ falls within
   ``±window/2`` of the experimental 2θ and pick the unmatched reference
   peak of **highest intensity**.  The "prefer strongest reference peak"
-  rule mirrors the behaviour described in the Match! reference manual:
+  rule mirrors the behaviour described in the reference software reference manual:
   when several database peaks fall inside the correlation window, the
   most intense one is taken as the corresponding peak of the unknown
   pattern.
@@ -26,7 +26,7 @@ strategies are provided:
 Both strategies return ``[(exp_idx, ref_idx), ...]`` with no exp or ref
 index appearing twice.
 
-Algorithm source: Match! 4.x user manual (*Peak correlation*,
+Algorithm source: the reference software user manual (*Peak correlation*,
 *Figure-of-Merit Calculation*).  The greedy heuristic is the documented
 default; the Hungarian option is a XinMatch extension for robustness.
 """
@@ -89,7 +89,7 @@ def correlate(
 ) -> list[tuple[int, int]]:
     """Correlate experimental peaks with reference ``(2θ, intensity)`` pairs.
 
-    Match! feature: *peak correlation* step of the peak-based
+    The reference software feature: *peak correlation* step of the peak-based
     search-match (T6.1).
 
     Parameters
@@ -102,7 +102,7 @@ def correlate(
         Full width of the correlation window in degrees 2θ.  A reference
         peak is a candidate for an experimental peak if
         ``|2θ_ref − 2θ_exp| ≤ window_deg / 2``.  Default 0.3°
-        (Match! default).
+        (the reference software default).
     method:
         ``'greedy'`` (default) or ``'hungarian'``.
 

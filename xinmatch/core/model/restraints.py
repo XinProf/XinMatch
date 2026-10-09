@@ -1,13 +1,13 @@
 """Search-match restraints data model.
 
 Implements :class:`Restraints`, the filter conditions applied before / during
-search-match.  Element composition uses Match!'s three-state colour coding:
+search-match.  Element composition uses the reference software's three-state colour coding:
 
 * 🔴 **red**    — element must be **absent** (exclude entries containing it)
 * 🟡 **yellow** — element is **optional** (no filtering effect)
 * 🟢 **green**  — element must be **present** (require entries containing it)
 
-Corresponds to the *Restraints* tab / periodic table in Match!.
+Corresponds to the *Restraints* tab / periodic table in the reference software.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from typing import Any
 
 
 class ElementState(str, Enum):
-    """Three-state element restraint (Match! colour coding)."""
+    """Three-state element restraint (the reference software colour coding)."""
 
     EXCLUDE = "red"      # must be absent
     OPTIONAL = "yellow"  # no effect

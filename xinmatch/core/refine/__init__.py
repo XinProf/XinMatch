@@ -1,8 +1,8 @@
 """Profile / structure refinement engine (Phase 10 / T10.1-T10.4).
 
-GUI-free implementation of Match!'s *Tools → Pattern decomposition (Le Bail)*
+GUI-free implementation of the reference software's *Tools → Pattern decomposition (Le Bail)*
 and *Quantify → Rietveld (FullProf)* commands
-(``docs/LeBail.md``, ``docs/Rietveld.md``).  Unlike Match!, which shells out
+(``docs/LeBail.md``, ``docs/Rietveld.md``).  Unlike the reference software, which shells out
 to FullProf, XinMatch ships a self-contained implementation built on
 :mod:`scipy.optimize`.
 

@@ -1,11 +1,11 @@
-"""Convert human-exported Match! candidate-list CSVs into the canonical
+"""Convert human-exported reference-software candidate-list CSVs into the canonical
 baseline layout (T0.3 / T0.4).
 
 Background
 ----------
 The L3 golden baseline needs 20-30 standard samples.  The candidate lists
 themselves **must** be produced by a human running Search-Match inside
-Match! (this script never fabricates them).  What it does is normalise the
+The reference software (this script never fabricates them).  What it does is normalise the
 raw exports so that :func:`tools.match_baseline.load_match_csv` can read
 every sample the same way:
 
@@ -81,7 +81,7 @@ CANONICAL_HEADER: tuple[str, ...] = (
     "FoM",
 )
 
-#: Tolerated aliases for raw headers (Match! version/export-option drift).
+#: Tolerated aliases for raw headers (the reference software version/export-option drift).
 _HEADER_ALIASES: dict[str, str] = {
     "entry": "Entry",
     "qual": "Qual.",
@@ -180,7 +180,7 @@ def _norm_numeric(cell: str) -> str:
 
 
 def _parse_raw(path: Path) -> tuple[list[dict[str, str]], list[RowRejection], str]:
-    """Parse a raw Match! export into canonical-column dicts.
+    """Parse a raw reference-software export into canonical-column dicts.
 
     Returns
     -------
@@ -268,12 +268,12 @@ def convert_file(
     *,
     sample_id: str | None = None,
 ) -> ConversionResult:
-    """Convert one raw Match! candidate CSV into the canonical layout.
+    """Convert one raw reference-software candidate CSV into the canonical layout.
 
     Parameters
     ----------
     in_path:
-        Raw CSV exported by Match!.
+        Raw CSV exported by the reference software.
     out_path:
         Destination file.  Defaults to
         ``tests/baseline/match/<stem>.csv`` relative to the current
@@ -340,11 +340,11 @@ def convert_dir(
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point: ``python tools/import_match_baseline.py <csv-or-dir>``."""
     parser = argparse.ArgumentParser(
-        description="Normalise Match! candidate-list exports into tests/baseline/match/.",
+        description="Normalise the reference software candidate-list exports into tests/baseline/match/.",
     )
     parser.add_argument(
         "input",
-        help="Raw Match! candidate-list CSV, or a directory of such CSVs.",
+        help="Raw reference-software candidate-list CSV, or a directory of such CSVs.",
     )
     parser.add_argument(
         "-o", "--output-dir",

@@ -1,8 +1,8 @@
 """Automatic raw-data processing pipeline.
 
-Implements Match!'s *Automatic raw data processing* (run on pattern import
+Implements the reference software's *Automatic raw data processing* (run on pattern import
 and via the corresponding options dialog).  The pipeline chains the
-preprocessing steps in the order recommended by Match!:
+preprocessing steps in the order recommended by the reference software:
 
     smoothing → background estimation → background subtraction →
     Kα2 stripping → peak search
@@ -53,7 +53,7 @@ def auto_process(
 ) -> tuple[Pattern, list[Peak]]:
     """Run the full automatic raw-data processing pipeline.
 
-    Match! feature: *Automatic raw data processing* (on import).  Order:
+    The reference software feature: *Automatic raw data processing* (on import).  Order:
     smoothing → background → subtract → Kα2 stripping → peak search.
 
     Parameters

@@ -6,9 +6,9 @@ Runs the XinMatch peak-based search-match pipeline on the 13-sample
 1. **Known-phase hit rate** (the classic proxy): for each sample, every
    ground-truth phase must appear in the XinMatch Top-10 candidate list.
 2. **Golden-baseline agreement** (L3 upgrade, ``--baseline-dir``): when
-   Match! candidate-list CSVs are available (e.g. the 13 exports under
+   The reference software candidate-list CSVs are available (e.g. the 13 exports under
    ``D:\\Project\\XRD\\test_xrd\\match-candidate list-jingzhun\\``), each
-   sample's Top-1 candidate is checked for agreement with Match!'s Top-1
+   sample's Top-1 candidate is checked for agreement with the reference software's Top-1
    (threshold ≥ 80 %) and its Top-5 overlap is measured (threshold ≥ 60 %)
    — see ``tools/match_baseline.py``.
 
@@ -19,7 +19,7 @@ containing representative d–I tables for the minerals of interest plus
 a handful of decoy entries.  Pass ``--cod-db`` (built by
 ``tools/build_cod_xinmatch.py`` from the real COD inorganic archive) to
 search against **real COD entries** — the golden-baseline comparison
-then matches on exact entry_id (COD ref_id, same format as Match!'s
+then matches on exact entry_id (COD ref_id, same format as the reference software's
 CSVs).  The hit-rate report flags any phase whose reference entry is
 absent as ``"DB 缺失"`` (database missing) — this is **not** an
 algorithm failure.
@@ -98,7 +98,7 @@ DEFAULT_TOP_N = 10
 DEFAULT_MIN_HITS = 9
 
 # Golden-baseline thresholds (ROADMAP_v3.md §L3 upgrade, HANDOVER §5.2):
-# Top-1 agreement with Match! ≥ 80 %; Top-5 overlap ≥ 60 %.
+# Top-1 agreement with the reference software ≥ 80 %; Top-5 overlap ≥ 60 %.
 DEFAULT_TOP1_MIN_RATE = 0.80
 DEFAULT_TOP5_MIN_OVERLAP = 0.60
 
@@ -157,7 +157,7 @@ def _entry(
     cell: CellParams | None = None,
 ) -> Entry:
     """Build an Entry from (2θ, intensity) peak pairs."""
-    # Sort by intensity desc (Match! convention).
+    # Sort by intensity desc (the reference software convention).
     order = sorted(range(len(peaks_2t_i)), key=lambda i: -peaks_2t_i[i][1])
     ds = [_d(peaks_2t_i[i][0]) for i in order]
     ints = [peaks_2t_i[i][1] for i in order]
@@ -403,10 +403,10 @@ class SampleResult:
 
 @dataclass
 class BaselineComparison:
-    """Golden-baseline comparison of one sample against the Match! export.
+    """Golden-baseline comparison of one sample against the reference software export.
 
     ``match_top1_ok`` and ``match_top5_overlap`` are ``None`` when no
-    Match! baseline exists for the sample (e.g. ``--baseline-dir`` was
+    The reference software baseline exists for the sample (e.g. ``--baseline-dir`` was
     not given or the CSV failed to parse).
     """
 
@@ -431,7 +431,7 @@ class AcceptanceReport:
     passed: bool = False
     failed_samples: list[str] = field(default_factory=list)
     db_missing_samples: list[str] = field(default_factory=list)
-    # Golden-baseline (Match! CSV) metrics — None when no baseline loaded.
+    # Golden-baseline (the reference software CSV) metrics — None when no baseline loaded.
     baseline: list[BaselineComparison] = field(default_factory=list)
     match_top1_rate: float | None = None
     match_top5_overlap_mean: float | None = None
@@ -591,7 +591,7 @@ def _baseline_comparison(
     xinmatch_results: list,
     baselines: dict[str, MatchBaseline],
 ) -> BaselineComparison:
-    """Compare one sample's XinMatch candidates against the Match! baseline.
+    """Compare one sample's XinMatch candidates against the reference software baseline.
 
     Returns a :class:`BaselineComparison` whose metrics are ``None`` when
     no baseline exists for the sample.
@@ -713,9 +713,9 @@ def run_acceptance(
         peaks from the curated DB (fast / CI-friendly).  Real-file mode
         is the default when *sample_dir* is available.
     baseline_dir:
-        Optional directory of Match! candidate-list CSVs
+        Optional directory of the reference software candidate-list CSVs
         (``match-candidate list-jingzhun``).  When given, each sample is
-        additionally compared against the Match! golden baseline:
+        additionally compared against the reference software golden baseline:
         Top-1 agreement and Top-5 overlap.
     cod_db:
         Optional path to a real-COD reference SQLite built by
@@ -726,10 +726,10 @@ def run_acceptance(
         Defaults to the embedded curated synthetic DB.
     top1_min_rate:
         Minimum fraction of samples (with a baseline) whose Top-1
-        candidate agrees with Match! for the golden-baseline check to
+        candidate agrees with the reference software for the golden-baseline check to
         pass (default 0.80).
     top5_min_overlap:
-        Minimum mean Top-5 overlap against Match! (default 0.60).
+        Minimum mean Top-5 overlap against the reference software (default 0.60).
 
     Returns
     -------
@@ -753,7 +753,7 @@ def run_acceptance(
         baselines = load_match_baseline_dir(baseline_dir)
         if not baselines:
             logger.warning(
-                "baseline_dir %s: no Match! CSVs loaded — golden-baseline "
+                "baseline_dir %s: no reference-software CSVs loaded — golden-baseline "
                 "metrics will be empty", baseline_dir,
             )
 
@@ -908,7 +908,7 @@ def _format_report(report: AcceptanceReport) -> str:
     )
     if report.match_top1_rate is not None:
         lines.append("")
-        lines.append("Golden baseline vs Match! (L3 upgrade):")
+        lines.append("Golden baseline vs the reference software (L3 upgrade):")
         lines.append(
             f"  Top-1 agreement: {report.match_top1_rate:.1%} "
             f"({'PASS' if report.match_top1_passed else 'FAIL'}, "
@@ -937,7 +937,7 @@ def _format_report(report: AcceptanceReport) -> str:
         lines.append("Golden-baseline per-sample:")
         for b in report.baseline:
             if b.match_top1_ok is None:
-                lines.append(f"  [--] {b.sample_id}: no Match! baseline")
+                lines.append(f"  [--] {b.sample_id}: no reference-software baseline")
                 continue
             ok = "✓" if b.match_top1_ok else "✗"
             lines.append(
@@ -973,7 +973,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--baseline-dir", type=Path, default=None,
-        help="Directory of Match! candidate-list CSVs "
+        help="Directory of the reference software candidate-list CSVs "
              "(e.g. 'D:\\Project\\XRD\\test_xrd\\match-candidate list-jingzhun') "
              "to enable the golden-baseline Top-1 / Top-5 comparison.",
     )

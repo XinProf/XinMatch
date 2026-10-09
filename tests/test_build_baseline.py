@@ -1,8 +1,8 @@
 """Tests for the FoM P-value reverse-engineering framework (T0.8).
 
 These tests verify the parsing and reverse-engineering pipeline of
-``tools/build_baseline.py`` using a **synthetic** Match! candidate-list
-CSV (5 fake candidates).  They do NOT attempt to reproduce real Match!
+``tools/build_baseline.py`` using a **synthetic** reference-software candidate-list
+CSV (5 fake candidates).  They do NOT attempt to reproduce real reference-software
 P values — the goal is to verify the pipeline plumbing so that when
 real CSV files are placed under ``tests/baseline/`` the framework
 works correctly.
@@ -16,13 +16,13 @@ from pathlib import Path
 import pytest
 
 from tools.build_baseline import (
-    MATCH4_CSV_HEADER,
+    CANDIDATE_CSV_HEADER,
     P_KEY_MAP,
     KernelFit,
     ReverseEngineerReport,
     build_baseline,
     main,
-    parse_match4_csv,
+    parse_candidate_csv,
     reverse_engineer_p_defs,
 )
 
@@ -50,24 +50,24 @@ def synth_csv_path(tmp_path: Path) -> Path:
 
 
 # --------------------------------------------------------------------- #
-# parse_match4_csv
+# parse_candidate_csv
 # --------------------------------------------------------------------- #
 
 
-def test_parse_match4_csv_returns_one_dict_per_row(synth_csv_path: Path):
-    rows = parse_match4_csv(synth_csv_path)
+def test_parse_candidate_csv_returns_one_dict_per_row(synth_csv_path: Path):
+    rows = parse_candidate_csv(synth_csv_path)
     assert len(rows) == 5
 
 
-def test_parse_match4_csv_header_keys_present(synth_csv_path: Path):
-    rows = parse_match4_csv(synth_csv_path)
+def test_parse_candidate_csv_header_keys_present(synth_csv_path: Path):
+    rows = parse_candidate_csv(synth_csv_path)
     for row in rows:
-        for col in MATCH4_CSV_HEADER:
+        for col in CANDIDATE_CSV_HEADER:
             assert col in row, f"missing column {col!r}"
 
 
-def test_parse_match4_csv_numeric_types(synth_csv_path: Path):
-    rows = parse_match4_csv(synth_csv_path)
+def test_parse_candidate_csv_numeric_types(synth_csv_path: Path):
+    rows = parse_candidate_csv(synth_csv_path)
     first = rows[0]
     # LaB6 row: known values.
     assert isinstance(first["P(peakpos.)"], float)
@@ -84,8 +84,8 @@ def test_parse_match4_csv_numeric_types(synth_csv_path: Path):
     assert first["FoM"] == pytest.approx(0.9979)
 
 
-def test_parse_match4_csv_text_fields(synth_csv_path: Path):
-    rows = parse_match4_csv(synth_csv_path)
+def test_parse_candidate_csv_text_fields(synth_csv_path: Path):
+    rows = parse_candidate_csv(synth_csv_path)
     first = rows[0]
     assert first["Entry"] == "96-152-5699"
     assert first["Qual."] == "C"
@@ -93,7 +93,7 @@ def test_parse_match4_csv_text_fields(synth_csv_path: Path):
     assert first["Name"] == "La0.987 B6"
 
 
-def test_parse_match4_csv_handles_european_decimal(tmp_path: Path):
+def test_parse_candidate_csv_handles_european_decimal(tmp_path: Path):
     """Comma decimal separators must be parsed as floats."""
     csv_content = (
         "Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);"
@@ -102,35 +102,35 @@ def test_parse_match4_csv_handles_european_decimal(tmp_path: Path):
     )
     p = tmp_path / "eu.csv"
     p.write_text(csv_content, encoding="utf-8")
-    rows = parse_match4_csv(p)
+    rows = parse_candidate_csv(p)
     assert rows[0]["P(peakpos.)"] == pytest.approx(0.5)
     assert rows[0]["I scale fct."] == pytest.approx(1.5)
 
 
-def test_parse_match4_csv_missing_file_raises(tmp_path: Path):
+def test_parse_candidate_csv_missing_file_raises(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
-        parse_match4_csv(tmp_path / "does_not_exist.csv")
+        parse_candidate_csv(tmp_path / "does_not_exist.csv")
 
 
-def test_parse_match4_csv_bad_header_raises(tmp_path: Path):
+def test_parse_candidate_csv_bad_header_raises(tmp_path: Path):
     p = tmp_path / "bad.csv"
     p.write_text("a;b;c\n1;2;3\n", encoding="utf-8")
     with pytest.raises(ValueError, match="header"):
-        parse_match4_csv(p)
+        parse_candidate_csv(p)
 
 
-def test_parse_match4_csv_blank_lines_skipped(tmp_path: Path):
+def test_parse_candidate_csv_blank_lines_skipped(tmp_path: Path):
     csv_content = SYNTHETIC_CSV.replace(
         "96-100-0051;C;C Ca O3;Calcite;0.8500;0.7800;0.7000;0.9000;1.2000;0.7800\n",
         "96-100-0051;C;C Ca O3;Calcite;0.8500;0.7800;0.7000;0.9000;1.2000;0.7800\n\n\n",
     )
     p = tmp_path / "blanks.csv"
     p.write_text(csv_content, encoding="utf-8")
-    rows = parse_match4_csv(p)
+    rows = parse_candidate_csv(p)
     assert len(rows) == 5
 
 
-def test_parse_match4_csv_trailing_semicolon_tolerated(tmp_path: Path):
+def test_parse_candidate_csv_trailing_semicolon_tolerated(tmp_path: Path):
     """A trailing ``;`` adds an extra empty field — must not break parsing."""
     csv_content = SYNTHETIC_CSV.replace(
         "96-152-5699;C;B6 La0.987;La0.987 B6;0.9968;0.9963;0.9961;1.0000;1.0348;0.9979\n",
@@ -138,7 +138,7 @@ def test_parse_match4_csv_trailing_semicolon_tolerated(tmp_path: Path):
     )
     p = tmp_path / "trail.csv"
     p.write_text(csv_content, encoding="utf-8")
-    rows = parse_match4_csv(p)
+    rows = parse_candidate_csv(p)
     assert len(rows) == 5
     assert rows[0]["FoM"] == pytest.approx(0.9979)
 
@@ -186,7 +186,7 @@ def _synth_our_p_values() -> list[dict]:
 
 
 def test_reverse_engineer_p_defs_returns_one_report_per_p(synth_csv_path: Path):
-    samples = parse_match4_csv(synth_csv_path)
+    samples = parse_candidate_csv(synth_csv_path)
     our = _synth_our_p_values()
     reports = reverse_engineer_p_defs(samples, our)
     assert set(reports.keys()) == {"peakpos", "intensity", "npeaks", "ncorr", "i_scale"}
@@ -198,7 +198,7 @@ def test_reverse_engineer_p_defs_best_kernel_is_gaussian_for_constructed_data(
     synth_csv_path: Path,
 ):
     """Data was constructed so Gaussian should reproduce P_peakpos exactly."""
-    samples = parse_match4_csv(synth_csv_path)
+    samples = parse_candidate_csv(synth_csv_path)
     our = _synth_our_p_values()
     reports = reverse_engineer_p_defs(samples, our)
     peakpos_report = reports["peakpos"]
@@ -210,7 +210,7 @@ def test_reverse_engineer_p_defs_best_kernel_is_gaussian_for_constructed_data(
 
 
 def test_reverse_engineer_p_defs_n_samples_set(synth_csv_path: Path):
-    samples = parse_match4_csv(synth_csv_path)
+    samples = parse_candidate_csv(synth_csv_path)
     our = _synth_our_p_values()
     reports = reverse_engineer_p_defs(samples, our)
     for r in reports.values():
@@ -218,7 +218,7 @@ def test_reverse_engineer_p_defs_n_samples_set(synth_csv_path: Path):
 
 
 def test_reverse_engineer_p_defs_all_kernels_populated(synth_csv_path: Path):
-    samples = parse_match4_csv(synth_csv_path)
+    samples = parse_candidate_csv(synth_csv_path)
     our = _synth_our_p_values()
     reports = reverse_engineer_p_defs(samples, our)
     for r in reports.values():
@@ -230,14 +230,14 @@ def test_reverse_engineer_p_defs_all_kernels_populated(synth_csv_path: Path):
 
 
 def test_reverse_engineer_p_defs_length_mismatch_raises(synth_csv_path: Path):
-    samples = parse_match4_csv(synth_csv_path)
+    samples = parse_candidate_csv(synth_csv_path)
     with pytest.raises(ValueError, match="length"):
         reverse_engineer_p_defs(samples, [{}])  # only 1 vs 5
 
 
 def test_reverse_engineer_p_defs_i_scale_uses_log_delta(synth_csv_path: Path):
     """I_scale target = exp(-|ln(I_scale)|), kernel must reproduce it."""
-    samples = parse_match4_csv(synth_csv_path)
+    samples = parse_candidate_csv(synth_csv_path)
     our = _synth_our_p_values()
     reports = reverse_engineer_p_defs(samples, our)
     iscale = reports["i_scale"]
@@ -302,7 +302,7 @@ def test_build_baseline_finds_csvs(tmp_path: Path):
 
 
 def test_build_baseline_skips_bad_csv(tmp_path: Path):
-    """A non-Match!-format CSV is silently skipped."""
+    """A non-reference-software-format CSV is silently skipped."""
     bad = tmp_path / "bad.csv"
     bad.write_text("a;b;c\n1;2;3\n", encoding="utf-8")
     good = tmp_path / "good.csv"
@@ -323,7 +323,7 @@ def test_main_no_csvs_returns_zero(tmp_path, monkeypatch, capsys):
     rc = main([])
     assert rc == 0
     captured = capsys.readouterr()
-    assert "No Match!" in captured.out or "candidate-list" in captured.out
+    assert "No reference-software" in captured.out or "candidate-list" in captured.out
 
 
 def test_main_with_csvs_returns_zero(tmp_path, monkeypatch, capsys):
@@ -344,8 +344,8 @@ def test_main_with_csvs_returns_zero(tmp_path, monkeypatch, capsys):
 # --------------------------------------------------------------------- #
 
 
-def test_match4_csv_header_has_10_columns():
-    assert len(MATCH4_CSV_HEADER) == 10
+def test_candidate_csv_header_has_10_columns():
+    assert len(CANDIDATE_CSV_HEADER) == 10
 
 
 def test_p_key_map_covers_all_p_columns():

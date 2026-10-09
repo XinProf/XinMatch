@@ -33,7 +33,7 @@ Mapping decisions (verified against the real 163,834-row dump)
   rows carry ``mineral="Quartz"``; organics carry ``name="Sodium hippurate"``).
 * Peaks: ``peaks_d`` / ``peaks_i`` are comma-separated float strings; rows
   with d <= 0 or non-finite values are dropped, the strongest ``--max-peaks``
-  (default 100) reflections are kept, sorted by descending intensity (Match!
+  (default 100) reflections are kept, sorted by descending intensity (the reference software
   reference-table convention).
 * The number reported to the GUI is the sidecar's ``entries`` count
   (== number of phases that had a usable peak table).  The source

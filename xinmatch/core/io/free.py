@@ -1,7 +1,7 @@
 """Readers for the "free" (vendor-neutral) diffraction data formats.
 
-These are the ASCII formats Match! can import regardless of instrument
-vendor, documented in Match!'s *Diffraction Data File Formats* help page.
+These are the ASCII formats the reference software can import regardless of instrument
+vendor, documented in the reference software's *Diffraction Data File Formats* help page.
 
 Implemented readers:
 
@@ -79,7 +79,7 @@ def _build_two_theta(start: float, step: float, n: int) -> np.ndarray:
 def read_dbws(path: str | Path) -> Pattern:
     """Read a DBWS raw-data file (``*.rfl``, ``*.dat``).
 
-    Match! DBWS format: the first line holds ``2theta_start, step,
+    The reference software DBWS format: the first line holds ``2theta_start, step,
     2theta_end`` and an optional title.  Subsequent lines contain intensity
     values in Fortran ``8F7.0`` style (8 values per line, 7-char fields).
 

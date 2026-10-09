@@ -56,7 +56,7 @@ def export_pattern_png(
 ) -> None:
     """Render a single diffraction pattern to a PNG file.
 
-    Corresponds to Match!'s *Export → Pattern graphics → PNG* command
+    Corresponds to the reference software's *Export → Pattern graphics → PNG* command
     (see ``docs/export_pattern-graphics.md``).
 
     Parameters
@@ -67,7 +67,7 @@ def export_pattern_png(
         Destination PNG file path.  The file extension is not changed
         automatically — pass a path ending in ``.png``.
     dpi:
-        Resolution in dots per inch (Match! default ≈ 300).
+        Resolution in dots per inch (the reference software default ≈ 300).
     title:
         Optional plot title.  ``None`` for no title.
     """
@@ -93,7 +93,7 @@ def export_pattern_svg(
 ) -> None:
     """Render a single diffraction pattern to an SVG vector file.
 
-    SVG matches Match!'s recommended vector format for transferring
+    SVG matches the reference software's recommended vector format for transferring
     plots to word processors (see ``docs/export_pattern-graphics.md``).
 
     Parameters
@@ -130,7 +130,7 @@ def export_multi_pattern_png(
     """Render multiple diffraction patterns to a single stacked PNG.
 
     Patterns are offset vertically so that overlapping peaks can be
-    compared visually (Match! *stacked plot* style).
+    compared visually (the reference software *stacked plot* style).
 
     Parameters
     ----------
@@ -202,7 +202,7 @@ def export_peaks_png(
     Pattern intensity is plotted as a continuous line; each peak is
     annotated with a vertical stem and tick at its 2θ position.
 
-    Corresponds to Match!'s on-screen pattern graphics with the peak
+    Corresponds to the reference software's on-screen pattern graphics with the peak
     list overlaid (see ``docs/report_basics.md`` — *Peak list* chapter
     + pattern graphics export).
 

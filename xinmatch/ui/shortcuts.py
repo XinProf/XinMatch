@@ -45,7 +45,7 @@ class Shortcut(NamedTuple):
         name: 短横线小写下的稳定标识（dict key / 测试引用）。
         sequence: ``QKeySequence`` 可解析的键序列字符串，如 ``"Ctrl+M"``。
         description: 功能中文简述（取自文档 Effect 列）。
-        menu: 对应 Match! 菜单命令路径（取自文档 Menu command 列）。
+        menu: 对应参考软件菜单命令路径（取自文档 Menu command 列）。
         module_id: 关联的 ``main_window.MODULES`` 模块 id；``""`` 表示
             全局/视图/编辑类命令，无对应模块动作。
     """

@@ -199,7 +199,7 @@ def search_match(
 ) -> list[CandidateResult]:
     """Run a full peak-based search-match (Phase 6 / T6.4).
 
-    Implements Match!'s *Search → Search-Match* (``Ctrl+M``) command:
+    Implements the reference software's *Search → Search-Match* (``Ctrl+M``) command:
     compare the experimental peak list to every candidate reference
     pattern, compute the FoM for each, and return a ranked candidate
     list (Top-N).
@@ -237,7 +237,7 @@ def search_match(
         Optional :class:`FomWeights` override for the FoM calculation.
     window_deg:
         Full width of the peak-correlation window in degrees 2θ
-        (default 0.3° — Match! default).
+        (default 0.3° — the reference software default).
     top_n:
         Maximum number of ranked candidates to return (default 20).
     pre_filter:
@@ -250,7 +250,7 @@ def search_match(
         used for candidate recall via the d-value search.  The full peak
         set is still used for FoM scoring.  Bounding recall keeps the
         d-value query fast on full COD-scale databases; strong peaks are
-        the most discriminating ones (Match! behaves similarly).
+        the most discriminating ones (the reference software behaves similarly).
     recall_min_matches:
         Minimum number of distinct recall peaks an entry must match to
         enter the FoM scoring stage.
@@ -335,10 +335,10 @@ def search_marked_peaks(
 ) -> list[CandidateResult]:
     """Run search-match restricted to a subset of *marked* peaks (T6.5).
 
-    Implements Match!'s *Search → Search-Match (marked peaks only)*
+    Implements the reference software's *Search → Search-Match (marked peaks only)*
     command (``Ctrl+Shift+M``): the user marks one or more experimental
     peaks (e.g. peaks not yet explained by the selected phases) and the
-    search is rerun using only those peaks.  Match! notes that when
+    search is rerun using only those peaks.  the reference software notes that when
     multiple peaks are marked, the candidate ids are unioned (logical
     OR) because the user cannot yet know whether they belong to the
     same phase.

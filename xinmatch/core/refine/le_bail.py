@@ -5,7 +5,7 @@ integrated reflection intensities ``I(hkl)`` from a powder pattern when
 only the unit-cell parameters and peak-shape model are known — *no*
 atomic coordinates required.
 
-This is Match!'s *Tools → Pattern decomposition (Le Bail fit) using
+This is the reference software's *Tools → Pattern decomposition (Le Bail fit) using
 FullProf* command (``docs/LeBail.md``), reimplemented natively on top of
 :mod:`scipy` rather than shelling out to FullProf.
 

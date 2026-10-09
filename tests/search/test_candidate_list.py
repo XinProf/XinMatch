@@ -32,7 +32,7 @@ def _entry(
 ) -> Entry:
     """Build a minimal entry with the given peak 2θ positions / intensities.
 
-    Peaks are sorted by descending intensity (Match! convention) so the
+    Peaks are sorted by descending intensity (the reference software convention) so the
     round-trip through ``get_entry_peaks`` preserves the ordering.
     """
     tt = list(two_thetas)

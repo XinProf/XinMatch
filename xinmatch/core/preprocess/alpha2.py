@@ -1,6 +1,6 @@
 """Kα2 stripping (Rachinger method).
 
-Implements Match!'s *Strip K-alpha2* command (Pattern menu).
+Implements the reference software's *Strip K-alpha2* command (Pattern menu).
 
 The measured intensity is the sum of the Kα1 and Kα2 contributions:
 
@@ -72,7 +72,7 @@ def strip_alpha2(
 ) -> np.ndarray:
     """Strip the Kα2 contribution from a powder diffraction pattern.
 
-    Match! feature: *Strip K-alpha2* (Pattern menu).  Match! uses the
+    The reference software feature: *Strip K-alpha2* (Pattern menu).  the reference software uses the
     Ladell--Zagofsky--Pearlman algorithm; here we implement the classical
     Rachinger iterative stripping.
 

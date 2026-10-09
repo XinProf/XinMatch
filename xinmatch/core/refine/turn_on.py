@@ -1,10 +1,10 @@
 """Parameter Turn-On refinement strategy (T10.7).
 
-Implements Match!'s *Parameter Turn-On* dialog
+Implements the reference software's *Parameter Turn-On* dialog
 (``docs/Rietveld_ParTurnOn.md``): progressively enable refinement of
 parameter *groups* in a fixed order, monitoring the weighted profile
 R-factor at each stage.  If a stage does not improve Rwp its parameter
-changes are rolled back, exactly as in Match!'s interactive dialog.
+changes are rolled back, exactly as in the reference software's interactive dialog.
 
 The default five-stage sequence is::
 
@@ -18,7 +18,7 @@ Stages 2 and 5 are placeholders: the in-tree
 :class:`~xinmatch.core.refine.rietveld.RietveldRefinement` does not yet
 model a background polynomial or refine atomic coordinates, so these
 stages are no-ops.  They are kept in the schedule because the user-facing
-strategy should match Match!'s 5-stage dialog regardless of which
+strategy should match the reference software's 5-stage dialog regardless of which
 backend engine is plugged in.
 
 References
@@ -55,7 +55,7 @@ _PARAM_NAMES: tuple[str, ...] = (
 )
 
 
-# Default 5-stage strategy from Match!'s Parameter Turn-On dialog.
+# Default 5-stage strategy from the reference software's Parameter Turn-On dialog.
 DEFAULT_STAGES: tuple[tuple[str, tuple[int, ...]], ...] = (
     ("scale", (0,)),
     ("background", ()),       # local refiner has no background parameter
@@ -225,7 +225,7 @@ class TurnOnStrategy:
     ----------
     stages:
         Optional list of ``(stage_name, parameter_indices)`` tuples.  If
-        ``None``, :data:`DEFAULT_STAGES` is used (Match!'s 5-stage
+        ``None``, :data:`DEFAULT_STAGES` is used (the reference software's 5-stage
         schedule).
     """
 

@@ -136,7 +136,7 @@ class PatternView(pg.PlotWidget):
         """Overlay *pattern*; returns a handle used by :meth:`remove_pattern`.
 
         Multiple patterns are stacked on top of each other exactly like in
-        the reference software (``diffpattern_basics.md``, "Multiple
+        The reference software (``diffpattern_basics.md``, "Multiple
         diffraction patterns").  Each curve uses ``autoDownsample`` +
         ``clipToView`` so that a 50 000-point trace stays responsive.
         """

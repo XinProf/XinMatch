@@ -11,8 +11,8 @@ At query time the experimental pattern's strongest lines are quantised
 the same way and matched against the index (with adjacent-bin neighbours
 to absorb small *d*-spacing errors).
 
-Match! feature: the "pre-filter" step that runs before the full FoM
-calculation.  Match! itself uses element restraints and d-value search
+The reference software feature: the "pre-filter" step that runs before the full FoM
+calculation.  the reference software itself uses element restraints and d-value search
 by default; the Hanawalt/Fink indexes are the textbook ICDD PDF search
 methods (Hanawalt 1938, Fink 1970) implemented here as a fast first-pass
 pruner suitable for 500k-entry databases.
@@ -93,7 +93,7 @@ def hanawalt_index(entry: Entry) -> tuple[float, float, float]:
     intensity order.  If the entry has fewer than three peaks the
     missing positions are padded with ``0.0``.
 
-    Match! feature: corresponds to the "three strongest lines" used by
+    The reference software feature: corresponds to the "three strongest lines" used by
     the Hanawalt manual search method.
 
     Parameters
@@ -123,7 +123,7 @@ def fink_index(entry: Entry) -> tuple[float, ...]:
     makes the index less sensitive to intensity errors (e.g. from
     preferred orientation) than the Hanawalt index.
 
-    Match! feature: corresponds to the Fink "eight selected lines"
+    The reference software feature: corresponds to the Fink "eight selected lines"
     search method.
 
     Parameters
@@ -161,7 +161,7 @@ def make_hanawalt_key(
     *d*-spacings (in intensity order).  Adjacent-bin lookups are
     performed by the caller.
 
-    Match! feature: key format mirrors the ICDD Hanawalt index grouping.
+    The reference software feature: key format mirrors the ICDD Hanawalt index grouping.
 
     Parameters
     ----------
@@ -195,7 +195,7 @@ def build_hanawalt_lookup(
     strict top-3) makes the index robust to intensity reordering caused
     by preferred orientation, so the true phase is still found.
 
-    Match! feature: Hanawalt index lookup phase of the coarse
+    The reference software feature: Hanawalt index lookup phase of the coarse
     pre-filter (T6.0).
 
     Parameters
@@ -244,7 +244,7 @@ def build_fink_lookup(
     lines fall into the same bins as an entry gives a robust match
     score without the combinatorial explosion of 8-line keys.
 
-    Match! feature: Fink eight-line index lookup phase of the coarse
+    The reference software feature: Fink eight-line index lookup phase of the coarse
     pre-filter (T6.0).
 
     Parameters
@@ -296,7 +296,7 @@ def pre_filter_hanawalt(
     combinations of the ``n_pool`` strongest, plus ±1-bin neighbours)
     and returns the ``top_k`` entry ids ranked by hit count.
 
-    Match! feature: Hanawalt coarse pre-filter (T6.0).
+    The reference software feature: Hanawalt coarse pre-filter (T6.0).
 
     Parameters
     ----------
@@ -353,7 +353,7 @@ def pre_filter_fink(
     experimental pattern's strongest lines (each line ±1 bin), counts
     shared bins per entry, and returns the ``top_k`` entry ids.
 
-    Match! feature: Fink coarse pre-filter (T6.0).
+    The reference software feature: Fink coarse pre-filter (T6.0).
 
     Parameters
     ----------
@@ -401,7 +401,7 @@ def pre_filter(
     Dispatches to :func:`pre_filter_hanawalt`, :func:`pre_filter_fink`,
     or both (union of candidate id sets).
 
-    Match! feature: coarse pre-filter before full FoM (T6.0).
+    The reference software feature: coarse pre-filter before full FoM (T6.0).
 
     Parameters
     ----------

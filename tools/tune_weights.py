@@ -1,7 +1,7 @@
 """FoM weight tuning tool (Phase 6 / T6.10).
 
 Refines the FoM weights documented in ``FOM_MODEL.md`` (R² = 0.9913,
-Kendall τ = 0.9105, reverse-engineered from 3640 Match! 4.3 candidate
+Kendall τ = 0.9105, reverse-engineered from 3640 the reference software candidate
 rows) by running a non-negative least-squares (NNLS) refit and a small
 grid-search refinement on the baseline data.
 
@@ -19,7 +19,7 @@ Inputs
 ------
 The tool loads candidate P values + FoM from
 ``tests/baseline/baseline.json``.  When that file is absent (the
-Match! baseline CSVs have not been imported yet), the tool falls back
+The reference software baseline CSVs have not been imported yet), the tool falls back
 to a **synthetic baseline** generated from the published weights with
 small Gaussian noise (σ=0.005) so the tuning pipeline is exercisable
 end-to-end.  The synthetic baseline has the same 3-sample / 3640-
@@ -157,7 +157,7 @@ def generate_synthetic_baseline(
     """Generate a synthetic baseline mirroring FOM_MODEL.md §6.
 
     The synthetic baseline has the same 3-sample / 3640-candidate
-    structure as the published Match! baseline.  P values are drawn
+    structure as the published reference baseline.  P values are drawn
     from realistic distributions (most candidates have moderate P
     values; a few are near 1.0), FoM is computed from the published
     weights, and small Gaussian noise is added to simulate the model
@@ -496,7 +496,7 @@ def run_tuning(
         report.notes.append(
             "WARNING: baseline.json not found; results are from a "
             "synthetic baseline generated from the published weights. "
-            "Place real Match! CSV exports in tests/baseline/ and "
+            "Place real reference-software CSV exports in tests/baseline/ and "
             "re-run for a meaningful tuning."
         )
 
@@ -539,7 +539,7 @@ def _format_report(report: TuneReport) -> str:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point: ``python -m tools.tune_weights``."""
     parser = argparse.ArgumentParser(
-        description="Tune FoM weights against the Match! baseline (T6.10)."
+        description="Tune FoM weights against the reference software baseline (T6.10)."
     )
     parser.add_argument(
         "--baseline", type=Path, default=None,

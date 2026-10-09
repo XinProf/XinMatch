@@ -488,7 +488,7 @@ class LatticeSolution:
     Used as the standard carrier throughout :mod:`xinmatch.core.index.treor`,
     :mod:`xinmatch.core.index.dicvol` and
     :mod:`xinmatch.core.index.solutions`.  Matches the *solution list*
-    row in Match!'s indexing results dialog (``docs/indexing_solutions.md``).
+    row in the reference software's indexing results dialog (``docs/indexing_solutions.md``).
 
     Attributes
     ----------

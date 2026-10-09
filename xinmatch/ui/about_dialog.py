@@ -80,7 +80,7 @@ class AboutDialog(QtWidgets.QDialog):
 
         # --- 简介 -------------------------------------------------------
         intro = QtWidgets.QLabel(
-            "开源粉末 XRD 物相分析平台 —— Match! 的净室开源替代。"
+            "开源粉末 XRD 物相分析平台 —— 经典商业 XRD 软件的净室开源替代。"
         )
         intro.setWordWrap(True)
         intro.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)

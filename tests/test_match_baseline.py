@@ -1,4 +1,4 @@
-"""Tests for the Match! golden-baseline loader and L3 metrics (T6.9 upgrade).
+"""Tests for the reference software golden-baseline loader and L3 metrics (T6.9 upgrade).
 
 Verifies:
 
@@ -175,7 +175,7 @@ def test_top5_overlap_full():
 
 
 def test_top5_overlap_partial():
-    """Match!'s Top-5 are 5 distinct phases; XinMatch found only 2 of them."""
+    """the reference software's Top-5 are 5 distinct phases; XinMatch found only 2 of them."""
     match5 = [
         MatchCandidate(entry_id=f"96-{i}", formula_sum=f, fom=1.0 - i * 0.01)
         for i, f in enumerate(

@@ -52,11 +52,11 @@ def _entry_from_two_theta(
 ) -> Entry:
     """Build an :class:`Entry` whose (d, I) table lands at the given 2θ positions.
 
-    The peaks are sorted by descending intensity (Match! convention) so
+    The peaks are sorted by descending intensity (the reference software convention) so
     the round-trip through ``get_entry_peaks`` (which orders by intensity
     DESC) preserves the input ordering.
     """
-    # Sort by intensity desc to match Match! convention.
+    # Sort by intensity desc to match the reference software convention.
     order = sorted(range(len(two_thetas)), key=lambda i: -intensities[i])
     ds = [_d_from_two_theta(two_thetas[i]) for i in order]
     ints = [intensities[i] for i in order]

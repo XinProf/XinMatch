@@ -1,6 +1,6 @@
 """Degree of Crystallinity (DOC) / amorphous-content analysis (T8.4).
 
-Implements Match!'s *Degree of Crystallinity* (Quantify menu), see
+Implements the reference software's *Degree of Crystallinity* (Quantify menu), see
 ``docs/doc.md``.  The method separates the total scattered intensity into
 a crystalline part (sharp Bragg peaks) and an amorphous part (broad halo)
 and reports the weight fraction of the amorphous phase.

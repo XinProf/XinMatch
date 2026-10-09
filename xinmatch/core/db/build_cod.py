@@ -1,6 +1,6 @@
 """Insert reference-database entries into SQLite (Phase 5 / T5.1, T5.6).
 
-Implements the "add entry to reference database" workflow used by Match!'s
+Implements the "add entry to reference database" workflow used by the reference software's
 *Reference Database → Create User Database* and COD import.  An
 :class:`~xinmatch.core.model.Entry` is written to three tables:
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Crystal-system derivation
 # ---------------------------------------------------------------------------
-# Match! exposes "crystal system" as a searchable field.  COD entries usually
+# the reference software exposes "crystal system" as a searchable field.  COD entries usually
 # carry a space-group number; from the number (1-230) the crystal system is
 # unambiguously defined by these ranges.
 _SG_NUMBER_TO_SYSTEM: list[tuple[int, int, str]] = [
@@ -227,7 +227,7 @@ def _cell_volume(cell: CellParams) -> float:
 def insert_entry(conn: sqlite3.Connection, entry: Entry) -> None:
     """Insert a single :class:`Entry` into the database.
 
-    Implements Match!'s *Reference Database → Create User Database*
+    Implements the reference software's *Reference Database → Create User Database*
     single-entry insertion (Phase 5 / T5.1).  Writes the ``entries``,
     ``peaks``, and ``elements`` tables atomically within one transaction.
 

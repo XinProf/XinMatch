@@ -1,7 +1,7 @@
 """Report renderers (T12.2).
 
 Converts a :class:`~xinmatch.core.report.report_model.Report` into the
-formats supported by Match! (see ``docs/export_report.md`` and
+formats supported by the reference software (see ``docs/export_report.md`` and
 ``docs/report_print.md``):
 
 * :func:`render_html`     — single-file HTML string (CSS inlined).

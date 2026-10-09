@@ -1,6 +1,6 @@
 """Indexing engine (Phase 9 / T9.1-T9.4).
 
-GUI-free implementation of Match!'s *Tools → Indexing* command
+GUI-free implementation of the reference software's *Tools → Indexing* command
 (``docs/indexing.md``).  Given a set of experimental peak d-spacings,
 the engine derives candidate unit-cell parameters and Miller indices
 for each peak by either trial-and-error (Treor) or successive

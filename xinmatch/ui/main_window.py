@@ -2,7 +2,7 @@
 
 T13.1 — Main window skeleton (menu / toolbar / status bar / dock panels).
 
-Layout follows Match!'s "working area" (``docs/working_area.md``):
+Layout follows the reference software's "working area" (``docs/working_area.md``):
 upper-left graphics (the :class:`~xinmatch.ui.pattern_view.PatternView`,
 central widget), candidate list dock at the bottom, tabbed
 restraints / peak-list / data-sheet dock upper-right, and the match list
@@ -12,7 +12,7 @@ at the bottom mirror ``docs/working_area.md`` and ``docs/function_keys.md``.
 Every one of the 15 functional modules in ``FUNCTION_MAP.md`` has exactly
 one placeholder QAction here; the action merely announces itself in the
 status bar until the real workflow dialogs land in T13.3+.  Icons are
-Qt built-in standard pixmaps only — no Match! icons or visual assets are
+Qt built-in standard pixmaps only — no reference-software icons or visual assets are
 reused.
 """
 
@@ -77,7 +77,7 @@ def _asset_path(name: str) -> Path:
     return Path(__file__).resolve().parents[2] / "assets" / name
 
 # 15 functional modules (FUNCTION_MAP.md sections 1–15).
-# (module id, label, Match! help anchor this module maps to)
+# (module id, label, the reference software help anchor this module maps to)
 MODULES: tuple[tuple[str, str, str], ...] = (
     ("data_import", "数据导入", "import_diffraction-data"),
     ("data_export", "数据导出", "export"),
@@ -308,7 +308,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pattern_view.cursor_moved.connect(self._cursor_label.setText)
 
     def _build_docks(self) -> None:
-        """Dock panels mirroring the Match! working area."""
+        """Dock panels mirroring the reference software working area."""
         # Bottom: candidate list (working_area.md).  T13.3 候选列表表格挂载。
         self.candidate_table = CandidateListTable()
         cand = QtWidgets.QDockWidget("候选列表 Candidate List", self)
@@ -341,7 +341,7 @@ class MainWindow(QtWidgets.QMainWindow):
     # T13.5 / T13.6 / T13.7 integration
     # ------------------------------------------------------------------
     def _install_shortcuts(self) -> None:
-        """Register the full Match!-style shortcut map (T13.6)."""
+        """Register the full reference-software-style shortcut map (T13.6)."""
         self.shortcuts = install_shortcuts(self)
 
     def _open_options_dialog(self) -> None:
@@ -520,7 +520,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _export_selected_cifs(self) -> None:
         """Export matched COD CIFs of the selected candidates to a folder.
 
-        Match! equivalent: ``docs/export_entry_data.md`` (exporting entry
+        The reference software equivalent: ``docs/export_entry_data.md`` (exporting entry
         data).  The exported CIFs live in the user's chosen directory and
         are what a GSAS-II working folder would consume — the COD archive
         itself is never written to.

@@ -1,6 +1,6 @@
 """Multi-field search filters for the reference database (Phase 5 / T5.5).
 
-Implements Match!'s *Search/Match → Restraints* panel: element
+Implements the reference software's *Search/Match → Restraints* panel: element
 (required / excluded), crystal system, space group, year range, and
 arbitrary combinations thereof.  Each filter returns a set of entry ids;
 :func:`search_combined` intersects them.
@@ -23,7 +23,7 @@ def search_by_elements(
     """Return entry ids whose element set includes all *required* elements
     and none of the *excluded* elements.
 
-    Implements Match!'s *Restraints → Composition* element filter
+    Implements the reference software's *Restraints → Composition* element filter
     (Phase 5 / T5.5).  Uses the ``elements`` inverted-index table.
 
     Parameters
@@ -76,7 +76,7 @@ def search_by_elements(
 def search_by_crystal_system(conn: sqlite3.Connection, system: str) -> list[str]:
     """Return entry ids with the given crystal system.
 
-    Implements Match!'s *Restraints → Crystallography → Crystal system*.
+    Implements the reference software's *Restraints → Crystallography → Crystal system*.
 
     Parameters
     ----------
@@ -100,7 +100,7 @@ def search_by_crystal_system(conn: sqlite3.Connection, system: str) -> list[str]
 def search_by_space_group(conn: sqlite3.Connection, sg: str) -> list[str]:
     """Return entry ids with the given space-group symbol.
 
-    Implements Match!'s *Restraints → Crystallography → Space group*.
+    Implements the reference software's *Restraints → Crystallography → Space group*.
 
     Parameters
     ----------
@@ -128,7 +128,7 @@ def search_by_year(
 ) -> list[str]:
     """Return entry ids whose publication year is within ``[year_min, year_max]``.
 
-    Implements Match!'s *Restraints → Bibliography → Year*.
+    Implements the reference software's *Restraints → Bibliography → Year*.
 
     Parameters
     ----------
@@ -207,7 +207,7 @@ def search_by_formula(conn: sqlite3.Connection, formula: str) -> list[str]:
 def search_combined(conn: sqlite3.Connection, **filters: Any) -> list[str]:
     """Combine multiple search filters (intersection of entry-id sets).
 
-    Implements Match!'s combined restraints query (Phase 5 / T5.5).  Accepted
+    Implements the reference software's combined restraints query (Phase 5 / T5.5).  Accepted
     keyword filters:
 
     * ``elements`` / ``required``: ``set[str]`` of required elements

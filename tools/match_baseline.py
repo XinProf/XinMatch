@@ -1,23 +1,23 @@
-"""Match! golden-baseline loader and L3 agreement metrics (T6.9 upgrade).
+"""the reference software golden-baseline loader and L3 agreement metrics (T6.9 upgrade).
 
-Loads the candidate-list CSVs that Match! exports for the 13-sample
+Loads the candidate-list CSVs that the reference software exports for the 13-sample
 ``test_xrd`` set and compares XinMatch's Top-N candidate lists against
 them — replacing the previous *proxy* acceptance (known-phase hit rate)
-with a true golden-baseline comparison against Match! itself.
+with a true golden-baseline comparison against the reference software itself.
 
-Match! candidate CSV format (semicolon separated)::
+The reference software candidate CSV format (semicolon separated)::
 
     Candidate list of sample 1-1
     Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct.;FoM
     96-400-1849;C;Fe Li O4 P;;n.a.;n.a.;0.0000;n.a.;0.7083;1.0000
 
-Match! runs Search-Match in SMPF (Search-Match using Profile Fitting)
+The reference software runs Search-Match in SMPF (Search-Match using Profile Fitting)
 mode for these exports, so ``P(#peaks)`` is always 0.0000 and several P
 columns are ``n.a.`` — the comparison therefore keys on the **FoM
 ordering** (the ``FoM`` column), exactly as the L3 spec of
 ROADMAP_v3.md requires.
 
-Phase identity between Match! entries (COD ids like ``96-400-1849``) and
+Phase identity between the reference software entries (COD ids like ``96-400-1849``) and
 XinMatch entries is established by two keys:
 
 1. ``entry_id`` equality — the natural key when XinMatch runs against a
@@ -31,8 +31,8 @@ XinMatch entries is established by two keys:
 Metrics (declared thresholds in ROADMAP_v3.md §L3):
 
 * ``top1_agreement`` — is XinMatch's #1 candidate the same phase as
-  Match!'s #1?  Aggregate target ≥ 80 % of samples.
-* ``top5_overlap`` — how many of Match!'s Top-5 appear in XinMatch's
+  The reference software's #1?  Aggregate target ≥ 80 % of samples.
+* ``top5_overlap`` — how many of the reference software's Top-5 appear in XinMatch's
   Top-5?  Aggregate target ≥ 60 % (3/5) on average.
 """
 
@@ -58,7 +58,7 @@ __all__ = [
 # --------------------------------------------------------------------------- #
 @dataclass
 class MatchCandidate:
-    """One row of a Match! candidate-list export."""
+    """One row of a reference-software candidate-list export."""
 
     entry_id: str
     quality: str | None = None
@@ -74,7 +74,7 @@ class MatchCandidate:
 
 @dataclass
 class MatchBaseline:
-    """A parsed Match! candidate-list export (one sample)."""
+    """A parsed the reference software candidate-list export (one sample)."""
 
     sample_id: str
     candidates: list[MatchCandidate] = field(default_factory=list)
@@ -98,7 +98,7 @@ _ELEMENT_RE = re.compile(r"([A-Z][a-z]?)([0-9.]*)")
 def parse_formula(formula: str | None) -> dict[str, float]:
     """Parse a chemical formula into ``{symbol: count}``.
 
-    Handles Match! ``Formula sum`` strings such as ``Fe Li O4 P``,
+    Handles the reference software ``Formula sum`` strings such as ``Fe Li O4 P``,
     ``Fe3.74 Li3.88 O16 P4`` and XinMatch ``Entry.formula`` strings such
     as ``Fe Li O4 P`` / ``B6 La0.987``.  Counts are kept as floats
     (fractional stoichiometry is preserved, not rounded away).
@@ -167,7 +167,7 @@ def same_phase(
     xinmatch_entry_id: str,
     xinmatch_formula: str | None,
 ) -> bool:
-    """True when a Match! candidate and a XinMatch entry denote the same phase.
+    """True when a reference-software candidate and a XinMatch entry denote the same phase.
 
     Two independent keys, either of which suffices:
 
@@ -192,10 +192,10 @@ def top1_agreement(
     xinmatch_top1_id: str | None,
     xinmatch_top1_formula: str | None,
 ) -> bool:
-    """True when XinMatch's #1 candidate matches Match!'s #1.
+    """True when XinMatch's #1 candidate matches the reference software's #1.
 
     A missing XinMatch candidate (empty result) never agrees; a missing
-    Match! Top-1 (empty export) is treated as agreement-by-vacuum only
+    The reference software Top-1 (empty export) is treated as agreement-by-vacuum only
     when XinMatch is also empty — which the caller should normally avoid
     by skipping DB-missing samples.
     """
@@ -210,12 +210,12 @@ def top5_overlap(
     match_top5: list[MatchCandidate],
     xinmatch_candidates: list[tuple[str, str | None]],
 ) -> float:
-    """Fraction of Match!'s Top-5 that appear in XinMatch's candidate list.
+    """Fraction of the reference software's Top-5 that appear in XinMatch's candidate list.
 
     Parameters
     ----------
     match_top5:
-        Match!'s top-5 candidates (in FoM order).
+        The reference software's top-5 candidates (in FoM order).
     xinmatch_candidates:
         XinMatch's candidate list as ``(entry_id, formula)`` pairs — the
         list is searched in full (not just Top-5) so that a phase ranked
@@ -254,7 +254,7 @@ def _parse_float(value: str) -> float | None:
 
 
 def load_match_csv(path: Path) -> MatchBaseline:
-    """Parse one Match! candidate-list CSV file.
+    """Parse one reference-software candidate-list CSV file.
 
     Skips the leading ``Candidate list of sample ...`` banner line, uses
     the ``Entry;Qual.;...;FoM`` header line, and reads the data rows.
@@ -274,7 +274,7 @@ def load_match_csv(path: Path) -> MatchBaseline:
             header_idx = i
             break
     if header_idx is None:
-        raise ValueError(f"{path}: no Match! header row found")
+        raise ValueError(f"{path}: no reference-software header row found")
 
     header = [c.strip() for c in rows[header_idx]]
     try:
@@ -327,7 +327,7 @@ def load_match_csv(path: Path) -> MatchBaseline:
 def load_match_baseline_dir(dir_path: Path) -> dict[str, MatchBaseline]:
     """Load every ``*.csv`` in *dir_path* into ``{sample_id: baseline}``.
 
-    A CSV that fails to parse (e.g. a non-Match! file) is skipped with a
+    A CSV that fails to parse (e.g. a non-baseline file) is skipped with a
     warning — the returned dict only contains successfully loaded
     samples.
     """

@@ -1,6 +1,6 @@
 """Crystallite size estimation via the Scherrer equation.
 
-Implements Match!'s *Crystallite size estimation* command (Quantify menu),
+Implements the reference software's *Crystallite size estimation* command (Quantify menu),
 see ``docs/crystallite_size.md``.
 
 The Scherrer equation [1, 2] relates peak width (FWHM) to the average
@@ -9,7 +9,7 @@ crystallite size:
 .. math::
     D = K\\,\\lambda / (\\beta\\,\\cos\\theta)
 
-where ``K`` is the Scherrer constant (Match! default = 0.94 for FWHM of
+where ``K`` is the Scherrer constant (the reference software default = 0.94 for FWHM of
 spherical crystals with cubic symmetry; here we default to ``0.9`` to
 match the most common textbook convention), ``λ`` is the wavelength, ``β``
 is the FWHM (in *radians*), and ``θ`` is the Bragg angle (half the

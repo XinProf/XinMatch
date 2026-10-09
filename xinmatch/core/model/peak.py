@@ -4,7 +4,7 @@ Implements :class:`Peak`, a single diffraction peak with position, intensity,
 FWHM, optional d-spacing and Miller indices, and bookkeeping flags used by the
 search-match correlation engine.
 
-Corresponds to a row in Match!'s *peak list* (2θ / intensity / FWHM columns).
+Corresponds to a row in the reference software's *peak list* (2θ / intensity / FWHM columns).
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ class Peak:
         Peak position in degrees 2θ.
     intensity:
         Peak intensity.  Normally the **integrated** intensity (area), not
-        the height — see Match!'s peak list documentation.
+        the height — see the reference software's peak list documentation.
     fwhm:
         Full width at half maximum in degrees 2θ.  ``None`` if not fitted.
     d:

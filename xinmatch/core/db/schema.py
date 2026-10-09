@@ -1,6 +1,6 @@
 """Database schema for the XinMatch reference database (Phase 5).
 
-Implements the SQLite table layout that covers Match!'s 28 search fields
+Implements the SQLite table layout that covers the reference software's 28 search fields
 (elements, cell parameters, d-spacings, formula, mineral name, author,
 journal, year, space group, crystal system, color, density, ...).
 
@@ -22,7 +22,7 @@ SCHEMA_SQL: str = _SCHEMA_PATH.read_text(encoding="utf-8")
 def create_tables(conn: sqlite3.Connection) -> None:
     """Create all reference-database tables and indexes on *conn*.
 
-    Implements Match!'s reference-database storage (Phase 5 / T5.2).
+    Implements the reference software's reference-database storage (Phase 5 / T5.2).
     Idempotent: every statement uses ``IF NOT EXISTS``.
 
     Parameters

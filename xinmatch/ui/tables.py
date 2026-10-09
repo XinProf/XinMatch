@@ -1,6 +1,6 @@
 """Sortable table views for the three main list panels (T13.3).
 
-Implements the three table widgets that back the Match! "working area"
+Implements the three table widgets that back the reference software "working area"
 panels (see ``docs/working_area.md``):
 
 * :class:`PeakListTable`     — the *peak list*  (``docs/peaklist_basics.md``,
@@ -8,7 +8,7 @@ panels (see ``docs/working_area.md``):
   hkl and the correlation / mark / exclude flags.
 * :class:`CandidateListTable` — the *candidate list*
   (``docs/candidate_list_basics.md``, ``docs/candidate_list_entry-selection.md``).
-  Columns mirror the Match! layout: colour swatch, quality mark, entry id,
+  Columns mirror the reference software layout: colour swatch, quality mark, entry id,
   formula, crystal system, phase name, P(2θ), P(I/I₀), I scale factor, FoM.
 * :class:`MatchListTable`     — the *match list* (``docs/match_list_basics.md``).
   One row per selected :class:`~xinmatch.core.model.phase.Phase`.
@@ -52,7 +52,7 @@ _SORT_ROLE = QtCore.Qt.ItemDataRole.UserRole
 def _crystal_system_letter(cell: CellParams | None) -> str:
     """Return the single-letter crystal system code for *cell* (GUI-side).
 
-    Match! uses one-letter codes in the "Cryst." column (see
+    The reference software uses one-letter codes in the "Cryst." column (see
     ``docs/candidate_list_basics.md``).  We derive it from the unit-cell
     parameters here so the GUI layer does not depend on the indexed SQL
     query helpers in :mod:`xinmatch.core.db`.  Returns ``"X"`` when the cell
@@ -322,7 +322,7 @@ class CandidateListTable(QtWidgets.QTableView):
     Signals
     -------
     candidate_activated(str):
-        Double-click; carries the entry id (Match! "select as matching").
+        Double-click; carries the entry id (the reference software "select as matching").
     view_entry(str):
         Context-menu "查看条目".
     toggle_selection(str):
@@ -344,7 +344,7 @@ class CandidateListTable(QtWidgets.QTableView):
         self._proxy.setSortRole(_SORT_ROLE)
         self.setModel(self._proxy)
         self.setSortingEnabled(True)
-        # Default: FoM descending (Match! default candidate order).
+        # Default: FoM descending (the reference software default candidate order).
         self.sortByColumn(9, QtCore.Qt.SortOrder.DescendingOrder)
         self.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
@@ -454,7 +454,7 @@ class MatchListTable(QtWidgets.QTableView):
     Signals
     -------
     phase_activated(str):
-        Double-click; Match! un-selects the phase back to the candidate
+        Double-click; the reference software un-selects the phase back to the candidate
         list (``docs/match_list_basics.md``).  Carries the entry id.
     remove_phase(str):
         Context-menu "从匹配列表移除".

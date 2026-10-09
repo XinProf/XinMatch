@@ -7,7 +7,7 @@ are **not** refined in this skeleton; if the :class:`Entry` carries atoms
 the structure factor is evaluated, otherwise the entry's tabulated
 ``d_spacings``/``intensities`` are used as fixed Bragg intensities.
 
-This corresponds to the first few cycles of Match!'s Rietveld run
+This corresponds to the first few cycles of the reference software's Rietveld run
 (``docs/Rietveld.md``, ``docs/Rietveld_Auto_Par.md``): zero point → cell
 → U/V/W, before turning on atomic parameters.
 

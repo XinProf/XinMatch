@@ -35,7 +35,7 @@ def test_scherrer_single_peak_basic():
 
 
 def test_scherrer_with_k_094_match_default():
-    """K=0.94 (Match! default per docs) → D scales linearly with K."""
+    """K=0.94 (the reference software default per docs) → D scales linearly with K."""
     d1 = scherrer(0.1, 30.0, 1.5406, k=0.9)
     d2 = scherrer(0.1, 30.0, 1.5406, k=0.94)
     assert abs(d2 / d1 - 0.94 / 0.9) < 1e-9

@@ -5,7 +5,7 @@ selected as present in the sample, together with a scale factor, an optional
 2θ offset, and the peak-correlation table linking experimental peaks to the
 entry's reference peaks.
 
-Corresponds to a row in Match!'s *match list*.
+Corresponds to a row in the reference software's *match list*.
 """
 
 from __future__ import annotations

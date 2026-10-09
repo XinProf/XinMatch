@@ -1,6 +1,6 @@
 """d-spacing (peak-based) search-match (Phase 5 / T5.4) ⭐ core.
 
-Implements Match!'s *Search/Match → Peak-based search*: given a list of
+Implements the reference software's *Search/Match → Peak-based search*: given a list of
 experimental d-spacings, rank reference entries by how many of their
 calculated peaks fall within a tolerance window of the experimental peaks.
 
@@ -31,7 +31,7 @@ def search_by_d(
 ) -> list[tuple[str, float]]:
     """Search reference entries by experimental d-spacings.
 
-    Implements Match!'s peak-based search-match (Phase 5 / T5.4).
+    Implements the reference software's peak-based search-match (Phase 5 / T5.4).
 
     For every experimental d-spacing *d*, the database peaks within the
     matching window are collected; an entry scores one point per
@@ -68,7 +68,7 @@ def search_by_d(
         Wavelength in Å.  When given, windows are derived from a
         constant 2θ window instead of *tolerance*.
     window_deg:
-        Full width of the 2θ window in degrees (default 0.3 — the Match!
+        Full width of the 2θ window in degrees (default 0.3 — the reference software
         default, same as the FoM correlation window).  Only used when
         *wavelength* is given.
     min_matches:
@@ -153,7 +153,7 @@ def search_by_d_with_intensity(
     intensities: list[float] | None = None,
     tolerance: float = 0.02,
 ) -> list[tuple[str, float]]:
-    """Intensity-weighted d-spacing search (Match! FoM-style scoring).
+    """Intensity-weighted d-spacing search (the reference software FoM-style scoring).
 
     Like :func:`search_by_d` but each matched peak contributes the
     experimental intensity instead of 1, producing a figure-of-merit score.

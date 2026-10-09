@@ -1,6 +1,6 @@
 """Zero-point (2θ offset) correction.
 
-Implements Match!'s *Correct zero point* command (Pattern menu).
+Implements the reference software's *Correct zero point* command (Pattern menu).
 
 A constant zero-point shift :math:`\\Delta(2\\theta)` is added to (or
 subtracted from) the whole 2θ axis to align experimental peaks with
@@ -8,7 +8,7 @@ reference positions.  :func:`correct_zero_point` applies the shift;
 :func:`find_shift` estimates it from a set of experimental peak positions
 and their known standard positions by robust (median) pair-difference.
 
-Match! determines the shift automatically by analysing d-value quotients of
+The reference software determines the shift automatically by analysing d-value quotients of
 peak pairs (e.g. d(100) = 2·d(200)); here we accept an explicit list of
 standard peak positions, which is the common case when an internal standard
 or known reference pattern is available.
@@ -25,7 +25,7 @@ def correct_zero_point(
 ) -> np.ndarray:
     """Apply a constant 2θ zero-point shift.
 
-    Match! feature: *Correct zero point* (Pattern menu).  The shift is
+    The reference software feature: *Correct zero point* (Pattern menu).  The shift is
     *subtracted* from the data to remove the error:
     ``corrected = two_theta - shift``.
 

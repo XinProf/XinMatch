@@ -33,7 +33,7 @@ def _element_set_hash(elements: list[str]) -> str:
 def build_element_index(conn: sqlite3.Connection) -> int:
     """Rebuild the ``element_combo`` inverted index from the ``elements`` table.
 
-    Implements Match!'s element-set search acceleration (Phase 5 / T5.3).
+    Implements the reference software's element-set search acceleration (Phase 5 / T5.3).
     For each unique element set found across all entries, a row is written
     to ``element_combo`` mapping the set hash to the newline-joined entry ids.
 
@@ -74,7 +74,7 @@ def build_element_index(conn: sqlite3.Connection) -> int:
 def build_d_index(conn: sqlite3.Connection) -> None:
     """Ensure the d-spacing range index exists and statistics are fresh.
 
-    Implements Match!'s d-value search acceleration (Phase 5 / T5.3).  The
+    Implements the reference software's d-value search acceleration (Phase 5 / T5.3).  The
     B-tree index ``idx_peaks_d`` already exists in the schema; this function
     guarantees it and runs ``ANALYZE`` so the query planner uses it for
     ``WHERE d BETWEEN ? AND ?``.

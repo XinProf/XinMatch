@@ -1,7 +1,7 @@
 """Report data model for XinMatch (T12.1).
 
 Defines the structured data containers that mirror the chapters of a
-Match! phase-analysis report (see ``docs/report_basics.md`` and
+The reference software phase-analysis report (see ``docs/report_basics.md`` and
 ``docs/report_options.md``):
 
 * :class:`SampleInfo`           — sample / instrument metadata header
@@ -36,7 +36,7 @@ from xinmatch.core.model import Peak, Phase
 # ---------------------------------------------------------------------------
 @dataclass
 class SampleInfo:
-    """Sample / instrument metadata header (Match! *Sample data* chapter).
+    """Sample / instrument metadata header (the reference software *Sample data* chapter).
 
     Parameters
     ----------
@@ -97,7 +97,7 @@ class CandidateEntry:
     name:
         Mineral / trivial name.
     fom:
-        Figure of merit (any of the Match! FoM variants — single scalar).
+        Figure of merit (any of the reference software FoM variants — single scalar).
     p_values:
         Per-peak P-values (length = number of correlated peaks).  Empty
         list when not applicable.

@@ -1,20 +1,20 @@
 """Profile-fitting search-match (PFSM) FoM (Phase 6 / T6.6).
 
-PFSM is Match!'s full-spectrum alternative to peak-based search-match
-(available since Match! 4).  Instead of correlating individual peaks,
+PFSM is the reference software's full-spectrum alternative to peak-based search-match
+(available since the reference software).  Instead of correlating individual peaks,
 PFSM calculates a full diffraction profile for each candidate entry,
 fits an intensity scale factor and a global 2θ shift against the
 experimental profile, and ranks candidates by the resulting goodness of
 fit (Rwp reduction).
 
-The background is **not** refined (Match! requires it to be set
+The background is **not** refined (the reference software requires it to be set
 correctly beforehand), and no structural parameters are touched — this
 is profile fitting, not Rietveld refinement.
 
-Match! feature: *Search → Profile-fitting search-match*.  See
-``docs/searchmatch_PFSM_details.md`` for the full Match! specification.
+The reference software feature: *Search → Profile-fitting search-match*.  See
+``docs/searchmatch_PFSM_details.md`` for the full the reference software specification.
 
-Algorithm source: Match! 4 PFSM documentation (profile fitting of each
+Algorithm source: the reference software PFSM documentation (profile fitting of each
 candidate's calculated pattern to the experimental profile, ranking by
 Rwp reduction).  The Rwp goodness-of-fit metric is the standard
 Rietveld / full-pattern fit criterion (Young, ``The Rietveld Method``,
@@ -57,8 +57,8 @@ def compute_reference_pattern(
     entry's relative intensity, so the integrated intensity of each
     reflection is preserved.
 
-    Match! feature: the "profile calculated from reference database
-    entries" used by PFSM.  Match! uses the IL (Intermediate
+    The reference software feature: the "profile calculated from reference database
+    entries" used by PFSM.  the reference software uses the IL (Intermediate
     Lorentzian) profile internally; pseudo-Voigt is used here as the
     standard analytical approximation available in
     :mod:`xinmatch.core.peak.shapes`.
@@ -124,7 +124,7 @@ def fit_scale_shift(
     profile onto the shifted grid; points outside the reference support
     are filled with zero.
 
-    Match! feature: PFSM refines "the intensity scale factor as well as
+    The reference software feature: PFSM refines "the intensity scale factor as well as
     the 2theta shift" for each candidate (see
     ``docs/searchmatch_PFSM_details.md``).
 
@@ -200,7 +200,7 @@ def compute_rwp(
     weight would be infinite and they carry no signal).  If no positive
     points remain, ``inf`` is returned.
 
-    Match! feature: the Rwp value whose *reduction* drives PFSM ranking.
+    The reference software feature: the Rwp value whose *reduction* drives PFSM ranking.
 
     Parameters
     ----------
@@ -246,7 +246,7 @@ def pfsm_score(
     3. Compute Rwp between the experiment and the fitted reference.
     4. Map Rwp → FoM (lower Rwp ⇒ higher FoM).
 
-    Match! feature: PFSM per-candidate calculation.  Note that Match!
+    The reference software feature: PFSM per-candidate calculation.  Note that the reference software
     ranks by *Rwp reduction* taking already-selected phases into
     account; here we score each entry independently (single-phase
     PFSM).  The ``window_deg`` parameter bounds the allowed 2θ shift.
@@ -259,7 +259,7 @@ def pfsm_score(
         Candidate reference entry.
     window_deg:
         Maximum allowed 2θ shift in degrees (also used as the shift
-        bound during fitting).  Default 0.3°, the Match! peak-
+        bound during fitting).  Default 0.3°, the reference software peak-
         correlation window.
 
     Returns
@@ -321,7 +321,7 @@ def pfsm_rank(
 ) -> list[tuple[Entry, dict[str, float]]]:
     """Run PFSM over *entries* and return the top-N by FoM.
 
-    Match! feature: ranked PFSM candidate list.
+    The reference software feature: ranked PFSM candidate list.
 
     Parameters
     ----------

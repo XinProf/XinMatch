@@ -37,7 +37,7 @@ Default-library path resolution
   because the onedir bundle ships the DB at ``<exe-dir>/data/`` (verified on
   ``dist/xinmatch-1.0.0/``).
 
-Match! packaged libraries (``D:\\Project\\XRD\\Match-COD\\*.mti`` ...) are
+The reference software packaged libraries (``D:\\Project\\XRD\\Match-COD\\*.mti`` ...) are
 **not** mounted: they are proprietary binary indexes with no CIFs and no
 SQLite, and the clean-room constraint forbids reverse-engineering them.  They
 are intentionally absent from the registry.

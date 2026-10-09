@@ -8,17 +8,17 @@ schema (``entries`` / ``peaks`` / ``elements``).
 
 Key design decision — **entry_id = COD ref_id**.  PolyXRD stores each
 phase with a ``ref_id`` such as ``96-400-1849``, the same id format that
-Match! writes into its candidate-list CSVs.  Using it as the XinMatch
+The reference software writes into its candidate-list CSVs.  Using it as the XinMatch
 ``entry_id`` means the L3 golden-baseline comparison
 (``tools/match_baseline.py``) can match on **exact entry_id equality**
 instead of composition-normalised formulas.
 
-Peak-table conventions (Match! / XinMatch):
+Peak-table conventions (the reference software / XinMatch):
 
-* peaks are ordered by **descending intensity** (Match! reference-table
+* peaks are ordered by **descending intensity** (the reference software reference-table
   convention; PolyXRD's CSV is d-descending, so we re-sort);
 * only the strongest ``--max-peaks`` (default 100) reflections are kept
-  per entry — the same order of magnitude as Match!'s reference tables
+  per entry — the same order of magnitude as the reference software's reference tables
   and enough for d-window search-match (``search_by_d``);
 * d ≤ 0 or intensity < 0 rows are dropped.
 

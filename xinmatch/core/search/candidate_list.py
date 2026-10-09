@@ -1,7 +1,7 @@
 """Candidate list container for search-match results (Phase 6 / T6.7).
 
 Implements :class:`CandidateList`, the ordered container of FoM-ranked
-candidates that backs the Match! *candidate list* GUI panel.  The container
+candidates that backs the reference software *candidate list* GUI panel.  The container
 keeps the ranked results, tracks which entries the user has accepted as
 "matching" phases, and answers the introspection queries the GUI needs
 (sort by column, filter by min FoM, find a candidate by entry id, list
@@ -23,8 +23,8 @@ from xinmatch.core.search.fom import CandidateResult
 __all__ = ["CandidateList"]
 
 
-# Sortable column names exposed by Match!'s candidate list.  "fom" is the
-# default; the others correspond to the visible columns in Match!'s GUI
+# Sortable column names exposed by the reference software's candidate list.  "fom" is the
+# default; the others correspond to the visible columns in the reference software's GUI
 # (entry id, formula, mineral name, FoM, I scale).
 _SORT_KEYS: set[str] = {"fom", "entry_id", "formula", "mineral_name", "i_scale"}
 
@@ -33,7 +33,7 @@ _SORT_KEYS: set[str] = {"fom", "entry_id", "formula", "mineral_name", "i_scale"}
 class CandidateList:
     """Ordered, mutable list of search-match candidates.
 
-    Match! feature: the *candidate list* panel (bottom-left of the Match!
+    The reference software feature: the *candidate list* panel (bottom-left of the reference software
     GUI) holds the ranked reference entries produced by a search-match
     run.  This container wraps that list plus the "selected phases" set
     (entries the user has double-clicked as matching).
@@ -46,7 +46,7 @@ class CandidateList:
         and :meth:`sort_by`.
     selected_ids:
         Set of entry ids the user has accepted as matching phases
-        (double-click action in Match!).  Tracked separately from the
+        (double-click action in the reference software).  Tracked separately from the
         ranking so that re-sorting / re-running search-match preserves
         the selection.
     n_exp_peaks:
@@ -77,7 +77,7 @@ class CandidateList:
     def sort_by_fom(self) -> None:
         """Re-sort the candidate list by descending FoM (in place).
 
-        Match! feature: clicking the "FoM" column header in the
+        The reference software feature: clicking the "FoM" column header in the
         candidate list.  Stable sort — ties preserve the current order.
         """
         self.candidates.sort(key=lambda r: r.fom, reverse=True)
@@ -85,7 +85,7 @@ class CandidateList:
     def sort_by(self, name: str) -> None:
         """Sort by a named column (in place).
 
-        Match! feature: clicking any column header in the candidate
+        The reference software feature: clicking any column header in the candidate
         list.  Supported keys: ``fom``, ``entry_id``, ``formula``,
         ``mineral_name``, ``i_scale``.
 
@@ -120,7 +120,7 @@ class CandidateList:
     def filter(self, min_fom: float = 0.0) -> CandidateList:
         """Return a new list keeping only candidates with ``fom >= min_fom``.
 
-        Match! feature: the *Min. FoM* search-match option (default 0.6)
+        The reference software feature: the *Min. FoM* search-match option (default 0.6)
         restricts the candidate list to entries above a threshold.
 
         The selection state is preserved: any selected entry that fails
@@ -159,7 +159,7 @@ class CandidateList:
     def select(self, entry_id: str) -> bool:
         """Mark *entry_id* as a selected (matching) phase.
 
-        Match! feature: double-clicking a candidate row in the candidate
+        The reference software feature: double-clicking a candidate row in the candidate
         list to accept it as a matching phase.
 
         Returns
@@ -177,7 +177,7 @@ class CandidateList:
     def unselect(self, entry_id: str) -> bool:
         """Remove *entry_id* from the selected-phase set.
 
-        Match! feature: right-click → "Remove from selection" in the
+        The reference software feature: right-click → "Remove from selection" in the
         candidate list.
 
         Returns
@@ -194,7 +194,7 @@ class CandidateList:
     def get_selected(self) -> list[CandidateResult]:
         """Return all currently-selected candidates in candidate-list order.
 
-        Match! feature: the "selected phases" subset shown highlighted
+        The reference software feature: the "selected phases" subset shown highlighted
         in the candidate list and feeding into quantitative analysis
         (Phase 8) and Rietveld refinement (Phase 10).
         """
@@ -206,7 +206,7 @@ class CandidateList:
     def show_unassociated_peaks(self, entry_id: str) -> list[int]:
         """Return experimental peak indices not associated with *entry_id*.
 
-        Match! feature: the *Show uncorrelated peaks* option
+        The reference software feature: the *Show uncorrelated peaks* option
         (``Ctrl+Shift+K``) highlights experimental peaks that have not
         been correlated to the candidate's reference pattern.  This
         method returns the integer indices into the original

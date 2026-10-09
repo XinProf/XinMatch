@@ -10,7 +10,7 @@ directory so that:
 
 1. ``build_gsas2_project`` can be called with an explicit
    ``entry_id -> CIF path`` mapping;
-2. the exported CIFs are user-visible artefacts (Match! equivalent:
+2. the exported CIFs are user-visible artefacts (the reference software equivalent:
    ``docs/import_udb_entry_cif.md`` — importing structure data from CIF;
    ``docs/export_entry_data.md`` — exporting entry data for reuse);
 3. after a refinement, the refined CIFs written by GSAS-II
@@ -119,7 +119,7 @@ def match_entry_cifs(
     dict
         ``entry_id -> CIF path`` for every id that resolved to an existing
         file.  Ids without a CIF in the archive are simply absent (callers
-        report them as "no CIF found", the way Match! reports a missing
+        report them as "no CIF found", the way the reference software reports a missing
         database entry).
     """
     out: dict[str, Path] = {}

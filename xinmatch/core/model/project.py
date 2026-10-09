@@ -4,7 +4,7 @@ Implements :class:`Project`, the top-level container holding all the state of
 an analysis session: diffraction patterns, peak list, candidate list, selected
 phases, restraints, parameters, and an undo/redo stack.
 
-Corresponds to a Match! project file.
+Corresponds to a reference-software project file.
 """
 
 from __future__ import annotations

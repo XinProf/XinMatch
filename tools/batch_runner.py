@@ -42,7 +42,7 @@ Configuration schema
       top_n: 20
       window_deg: 0.3
       # FoM weights override (all keys optional — missing keys keep the
-      # Match! 4.3 defaults).
+      # the reference software defaults).
       weights:
         peakpos: 0.2275
         intensity: 0.1112

@@ -1,12 +1,12 @@
 """Multi-peak profile fitting.
 
-Implements Match!'s *Profile fitting* command (Pattern → Profile fitting,
-F5).  Match! optimises 2θ, intensity and FWHM of all peaks by constrained
+Implements the reference software's *Profile fitting* command (Pattern → Profile fitting,
+F5).  the reference software optimises 2θ, intensity and FWHM of all peaks by constrained
 least squares using the *Intermediate Lorentzian* (IL) profile.  Here we
 fit a sum of Gaussian / Lorentzian / pseudo-Voigt / Pearson VII peaks with
 :func:`scipy.optimize.least_squares`.
 
-The weighted profile R-factor (``Rwp``) is reported, matching Match!'s
+The weighted profile R-factor (``Rwp``) is reported, matching the reference software's
 status-bar output:
 
 .. math::
@@ -83,7 +83,7 @@ def fit_profile(
 ) -> FitResult:
     """Fit a multi-peak profile to experimental data.
 
-    Match! feature: *Profile fitting* (F5).  Algorithm: non-linear least
+    The reference software feature: *Profile fitting* (F5).  Algorithm: non-linear least
     squares (Levenberg--Marquardt / Trust Region Reflective) over the sum
     of peak-shape functions.
 

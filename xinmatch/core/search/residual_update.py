@@ -1,12 +1,12 @@
 """Residual-driven FoM recompute after phase selection (Phase 6 / T6.8).
 
 When the user accepts a candidate as a *matching phase* (double-click in
-Match!'s candidate list), the peaks that this phase explains must be
+The reference software's candidate list), the peaks that this phase explains must be
 removed from the experimental peak list before the remaining candidates
 are re-scored.  Otherwise the FoM of unrelated candidates is unfairly
 penalised for peaks that have already been explained.
 
-Match! feature: *auto-recompute FoM on phase selection* — the candidate
+The reference software feature: *auto-recompute FoM on phase selection* — the candidate
 list is refreshed after every "select as matching" action so that the
 next-best phase surfaces to the top.  This module mirrors that workflow
 without touching the GUI: it takes a :class:`~xinmatch.core.model.Project`
@@ -58,7 +58,7 @@ __all__ = [
 
 # Default: a peak whose residual intensity is below 1 % of the
 # experimental max intensity is considered fully explained by the
-# selected phase and removed from the residual list.  Match! uses a
+# selected phase and removed from the residual list.  the reference software uses a
 # similar "min intensity" cutoff when refreshing the candidate list.
 EXPLAINED_THRESHOLD: float = 0.01
 
@@ -80,7 +80,7 @@ def build_residual_peaks(
     intensity.  Experimental peaks not correlated to the selected phase
     are returned unchanged.
 
-    Match! feature: *subtract selected phase contribution* step of the
+    The reference software feature: *subtract selected phase contribution* step of the
     auto-recompute-FoM workflow.
 
     Parameters
@@ -173,7 +173,7 @@ def recompute_fom_after_selection(
     project's current candidate entries against it using
     :func:`~xinmatch.core.search.fom.rank_candidates`.
 
-    Match! feature: *auto-recompute FoM on matching-phase selection*.
+    The reference software feature: *auto-recompute FoM on matching-phase selection*.
     After the user accepts a candidate as a matching phase, the
     candidate list is refreshed so that the next-best phase rises to
     the top.  This function is GUI-free; the caller writes the
@@ -197,7 +197,7 @@ def recompute_fom_after_selection(
         patterns, Cu Kα (1.5406 Å) is used.
     weights:
         Optional :class:`FomWeights` override for the recompute.
-        ``None`` uses the default Match! 4.3 weights.
+        ``None`` uses the default the reference software weights.
     window_deg:
         Peak-correlation window width in degrees 2θ (default 0.3).
     explained_threshold:
@@ -224,7 +224,7 @@ def recompute_fom_after_selection(
     elif project.patterns:
         wl = float(project.patterns[0].wavelength)
     else:
-        wl = 1.5406  # Cu Kα fallback (Match! default for most labs).
+        wl = 1.5406  # Cu Kα fallback (the reference software default for most labs).
 
     # Build the residual peak list.
     residual_peaks = build_residual_peaks(

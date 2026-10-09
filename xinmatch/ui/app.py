@@ -5,7 +5,7 @@ entry point for every executable run of the XinMatch GUI.  ``create_app()``
 is a testable factory so that offscreen pytest runs and the real program
 share exactly the same QApplication setup.
 
-Match! reference: ``docs/working_area.md`` — the program window has a menu
+The reference software reference: ``docs/working_area.md`` — the program window has a menu
 at the top, a toolbar below it, and a status bar at the bottom; this module
 only performs the bootstrap that happens before the window itself is built.
 

@@ -1,14 +1,14 @@
 """Raw data smoothing.
 
-Implements Match!'s *Smooth raw data* command (Pattern menu / Ctrl+F4).
+Implements the reference software's *Smooth raw data* command (Pattern menu / Ctrl+F4).
 
 Two algorithms are provided:
 
 * ``'moving_average'`` — a simple box-car (uniform) moving average.
-* ``'savgol'`` — Savitzky--Golay smoothing, the algorithm used by Match!
+* ``'savgol'`` — Savitzky--Golay smoothing, the algorithm used by the reference software
   (A. Savitzky and M.J.E. Golay, *Analyt. Chem.* **36**, 1627 (1964);
   corrected by Steinier, Termonia and Deltour, *Analyt. Chem.* **44**, 1906
-  (1972)).  Match! defaults to a polynomial order of 2 and an
+  (1972)).  the reference software defaults to a polynomial order of 2 and an
   automatically-determined window width (roughly the number of points in
   the FWHM of the peaks).
 
@@ -30,7 +30,7 @@ def smooth(
 ) -> np.ndarray:
     """Smooth a 1-D diffraction intensity vector.
 
-    Match! feature: *Smooth raw data* (Pattern menu, Ctrl+F4).
+    The reference software feature: *Smooth raw data* (Pattern menu, Ctrl+F4).
     Algorithm: Savitzky--Golay (default) or moving average.
 
     Parameters
@@ -42,11 +42,11 @@ def smooth(
         ``'moving_average'``.
     window:
         Window width in data points.  Must be a positive odd integer for
-        Savitzky--Golay.  Match! uses a window roughly equal to the number
+        Savitzky--Golay.  the reference software uses a window roughly equal to the number
         of points in the FWHM of the peaks (or up to 20 % larger).
     polyorder:
         Polynomial order for the Savitzky--Golay filter (ignored for the
-        moving-average method).  Match! defaults to 2.
+        moving-average method).  the reference software defaults to 2.
 
     Returns
     -------

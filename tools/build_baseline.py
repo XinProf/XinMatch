@@ -1,4 +1,4 @@
-"""Reverse-engineering framework for the Match! FoM P-value definitions (T0.8).
+"""Reverse-engineering framework for the reference software FoM P-value definitions (T0.8).
 
 The FoM *weights* have already been reverse-engineered (see
 ``FOM_MODEL.md`` §2, R² = 0.9913) but the **definition of each individual
@@ -6,22 +6,22 @@ P value** (peakpos / intensity / npeaks / ncorr) and the *I_scale*
 normalisation is still the "working" placeholder in
 :mod:`xinmatch.core.search.fom_criteria`.
 
-This module provides a reusable pipeline that consumes Match!'s exported
+This module provides a reusable pipeline that consumes the reference software's exported
 candidate-list CSV (semicolon-delimited, European format) and pairs each
 candidate row with our own re-computed P values, then sweeps a set of
 candidate P-value definitions (Gaussian / Lorentzian / Linear / Cosine
-penalty kernels) to find the one that best reproduces Match!'s value.
+penalty kernels) to find the one that best reproduces the reference software's value.
 
 Usage
 -----
-Place one or more Match! candidate-list exports under
+Place one or more the reference software candidate-list exports under
 ``tests/baseline/`` (one ``*.csv`` per sample) and run::
 
     python -m tools.build_baseline
 
 The script will:
 
-1. Parse every CSV (see :func:`parse_match4_csv`).
+1. Parse every CSV (see :func:`parse_candidate_csv`).
 2. Re-compute our P values for each candidate row using the
    XinMatch pipeline (the caller must supply a ``.our_p_values``
    side-channel per row, see :func:`reverse_engineer_p_defs`).
@@ -29,9 +29,9 @@ The script will:
    best-fitting one (R²).  Return a structured report.
 
 The framework is designed to be data-driven: as the user exports more
-CSV files from Match!, the reverse-engineering becomes statistically
+CSV files from the reference software, the reverse-engineering becomes statistically
 meaningful.  With only a single row (the lab6 / LaB6 sample shipped
-with Match!) no firm conclusion can be drawn — see the Part-1 report
+with the reference software) no firm conclusion can be drawn — see the Part-1 report
 in the T0.8 task description.
 
 This module is intentionally pure-Python and side-effect-free; **no
@@ -51,9 +51,9 @@ from pathlib import Path
 # Constants
 # --------------------------------------------------------------------- #
 
-# Header used by Match! 4.3 Build 360 when exporting the candidate list
+# Header used by the reference software (build 360) when exporting the candidate list
 # via ``export_candidatelist(..., CSV)`` (European CSV format: ``;``-sep).
-MATCH4_CSV_HEADER: tuple[str, ...] = (
+CANDIDATE_CSV_HEADER: tuple[str, ...] = (
     "Entry",
     "Qual.",
     "Formula sum",
@@ -66,7 +66,7 @@ MATCH4_CSV_HEADER: tuple[str, ...] = (
     "FoM",
 )
 
-# Map Match! column names to the keys used by ``compute_p_values``.
+# Map the reference software column names to the keys used by ``compute_p_values``.
 P_KEY_MAP: dict[str, str] = {
     "P(peakpos.)": "peakpos",
     "P(I/I0)": "intensity",
@@ -81,11 +81,11 @@ P_KEY_MAP: dict[str, str] = {
 # --------------------------------------------------------------------- #
 
 
-def parse_match4_csv(csv_path: str | Path) -> list[dict[str, str | float]]:
-    """Parse a Match!-exported candidate-list CSV.
+def parse_candidate_csv(csv_path: str | Path) -> list[dict[str, str | float]]:
+    """Parse a reference-software-exported candidate-list CSV.
 
     The file is semicolon-separated (European CSV convention) with the
-    fixed header :data:`MATCH4_CSV_HEADER`.  Numeric fields are cast to
+    fixed header :data:`CANDIDATE_CSV_HEADER`.  Numeric fields are cast to
     ``float``; text fields (Entry / Qual. / Formula sum / Name) are kept
     as ``str``.
 
@@ -106,14 +106,14 @@ def parse_match4_csv(csv_path: str | Path) -> list[dict[str, str | float]]:
     FileNotFoundError
         If *csv_path* does not exist.
     ValueError
-        If the file does not look like a Match! candidate-list CSV
+        If the file does not look like a reference-software candidate-list CSV
         (header mismatch).
     """
     p = Path(csv_path)
     if not p.exists():
         raise FileNotFoundError(p)
 
-    # Match! CSV is European format: ``;``-sep, ``,`` decimal point.
+    # the reference software CSV is European format: ``;``-sep, ``,`` decimal point.
     with p.open(encoding="utf-8", newline="") as f:
         reader = csv.reader(f, delimiter=";")
         rows = list(reader)
@@ -124,10 +124,10 @@ def parse_match4_csv(csv_path: str | Path) -> list[dict[str, str | float]]:
     # Validate header — every required column must be present (extra
     # trailing columns are tolerated, e.g. a stray empty field from a
     # trailing ``;``).
-    missing = [c for c in MATCH4_CSV_HEADER if c not in header]
+    missing = [c for c in CANDIDATE_CSV_HEADER if c not in header]
     if missing:
         raise ValueError(
-            f"CSV {p} header does not match Match! candidate-list "
+            f"CSV {p} header does not match the reference software candidate-list "
             f"format. Missing columns: {missing}. Found: {header}"
         )
 
@@ -178,7 +178,7 @@ class KernelFit:
     name: str           # kernel family name (gaussian/lorentzian/...)
     formula: str       # human-readable formula
     best_param: float  # best-fit kernel parameter (sigma / width / etc.)
-    r_squared: float   # coefficient of determination vs Match! P
+    r_squared: float   # coefficient of determination vs the reference software P
     rmse: float        # root-mean-square error
     n: int             # number of data points used
 
@@ -188,7 +188,7 @@ class ReverseEngineerReport:
     """Structured report for one P value across all candidates."""
 
     p_key: str               # "peakpos" / "intensity" / ...
-    csv_key: str             # original Match! column name
+    csv_key: str             # original reference-software column name
     best_kernel: KernelFit
     all_kernels: list[KernelFit] = field(default_factory=list)
     n_samples: int = 0
@@ -198,7 +198,7 @@ class ReverseEngineerReport:
 # Candidate P-value kernels
 # --------------------------------------------------------------------- #
 # Each kernel takes a *mismatch* array and a *param* (sigma/width/etc.)
-# and returns a value in [0, 1] that should reproduce Match!'s P value.
+# and returns a value in [0, 1] that should reproduce the reference software's P value.
 # The mismatch is the underlying "error" metric (e.g. mean Δ2θ² for
 # peakpos, mean ΔI² for intensity, n_unmatched/n_total for npeaks, etc).
 # The kernel is fit by sweeping ``param`` over a grid and picking the
@@ -299,14 +299,14 @@ def reverse_engineer_p_defs(
 
     For each P value (peakpos / intensity / npeaks / ncorr / i_scale),
     the function tries multiple kernel families (Gaussian, Lorentzian,
-    Linear, Cosine) and picks the one whose R² against Match!'s exported
+    Linear, Cosine) and picks the one whose R² against the reference software's exported
     P value is highest.
 
     Parameters
     ----------
     samples:
-        Output of :func:`parse_match4_csv` — one dict per candidate row,
-        with keys from :data:`MATCH4_CSV_HEADER`.
+        Output of :func:`parse_candidate_csv` — one dict per candidate row,
+        with keys from :data:`CANDIDATE_CSV_HEADER`.
     our_p_values:
         Parallel list of dicts with the **mismatch metrics** that our
         P-value computation produces *before* applying any kernel.
@@ -455,8 +455,8 @@ def compute_lab6_reference_table(
 
     and merges reflections sharing the same 2θ (e.g. (3,0,0) and
     (2,2,1), both with h²+k²+l²=9 in cubic).  The output is normalised
-    to max = 100 — the convention Match! uses for the ``I/I₀`` column
-    of the candidate-list CSV — and sorted by *d descending* (Match!
+    to max = 100 — the convention the reference software uses for the ``I/I₀`` column
+    of the candidate-list CSV — and sorted by *d descending* (the reference software
     reference-peak-table convention).
 
     Used by T0.8 (1-row rough pass) to provide the reference table that
@@ -574,7 +574,7 @@ def compute_lab6_reference_table(
     if max_i <= 0.0:
         return out
     normalised = [(d, i / max_i * 100.0) for d, i in out]
-    # Match! reference-peak table is sorted by descending intensity;
+    # the reference software reference-peak table is sorted by descending intensity;
     # for FoM computation the order does not matter — both correlate
     # by 2θ-window matching — but we follow the convention.
     normalised.sort(key=lambda r: -r[1])
@@ -677,12 +677,12 @@ def compute_our_p_mismatches(
 # --------------------------------------------------------------------- #
 
 
-# Match! 4.3 Build 360 exported P values for the LaB6 Top1 candidate of
+# the reference software (build 360) exported P values for the LaB6 Top1 candidate of
 # the lab6 sample (FOM_MODEL.md §1).  These are the **ground truth** we
 # are reverse-engineering against.  Source: ``export_candidatelist(...,
 # CSV)`` on the lab6 sample loaded from
-# ``C:\Program Files\Match4\Tutorial\LaB6_Cu_Ka1.dat``.
-LAB6_MATCH4_P_VALUES: dict[str, float] = {
+# ``C:\Program Files\<reference-software>\Tutorial\LaB6_Cu_Ka1.dat``.
+LAB6_REF_P_VALUES: dict[str, float] = {
     "peakpos": 0.9968,
     "intensity": 0.9963,
     "npeaks": 0.9961,
@@ -709,14 +709,14 @@ class Lab6VerificationResult:
     our_p:
         The five P values produced by our
         :func:`~xinmatch.core.search.fom_criteria.compute_p_values`.
-    match4_p:
-        The five P values exported by Match! 4.3 (see
-        :data:`LAB6_MATCH4_P_VALUES`).
+    ref_p:
+        The five P values exported by the reference software (see
+        :data:`LAB6_REF_P_VALUES`).
     delta:
-        ``our_p[k] - match4_p[k]`` for each key.  Positive = our value
-        overestimates Match!'s.
+        ``our_p[k] - ref_p[k]`` for each key.  Positive = our value
+        overestimates the reference software's.
     relative_delta_pct:
-        ``(our_p[k] - match4_p[k]) / match4_p[k] × 100``.  For ``i_scale``
+        ``(our_p[k] - ref_p[k]) / ref_p[k] × 100``.  For ``i_scale``
         and FoM a multiplicative deviation is more meaningful than an
         additive one.
     """
@@ -725,7 +725,7 @@ class Lab6VerificationResult:
     n_ref_peaks: int
     n_pairs: int
     our_p: dict[str, float]
-    match4_p: dict[str, float]
+    ref_p: dict[str, float]
     delta: dict[str, float]
     relative_delta_pct: dict[str, float]
 
@@ -739,26 +739,26 @@ def verify_lab6_p_values(
     sigma_intensity: float = 10.0,
     sensitivity: str = "medium",
 ) -> Lab6VerificationResult:
-    """Run the XinMatch pipeline on the lab6 sample and compare to Match!.
+    """Run the XinMatch pipeline on the lab6 sample and compare to the reference software.
 
     Loads the lab6 ``.dat`` file (the LaB6 standard sample shipped with
-    the Match! tutorial), runs the automatic preprocessing + peak-search
+    The reference software tutorial), runs the automatic preprocessing + peak-search
     pipeline, scores the result against the LaB6 reference d-I table
     built by :func:`compute_lab6_reference_table`, and compares the
-    resulting five P values against Match!'s exported Top1 row
-    (:data:`LAB6_MATCH4_P_VALUES`).
+    resulting five P values against the reference software's exported Top1 row
+    (:data:`LAB6_REF_P_VALUES`).
 
     This is the T0.8 **1-row rough pass**: with only one sample the
     comparison cannot pin down a kernel family, but it can verify that
     our P-value definitions are in the right ballpark (within a few
-    percent of Match!'s values) and surface any sign errors or
+    percent of the reference software's values) and surface any sign errors or
     normalisation mistakes.
 
     Parameters
     ----------
     dat_path:
-        Path to the lab6 ``.dat`` file shipped with Match! 4
-        (typically ``C:\\Program Files\\Match4\\Tutorial\\LaB6_Cu_Ka1.dat``
+        Path to the lab6 ``.dat`` file shipped with the reference software
+        (typically ``C:\\Program Files\\<reference-software>\\Tutorial\\LaB6_Cu_Ka1.dat``
         or a copy of it under ``tests/baseline/fixtures/``).
     wavelength, window_deg, sigma_pos, sigma_intensity:
         Pipeline parameters forwarded to the FoM computation.
@@ -805,11 +805,11 @@ def verify_lab6_p_values(
     p_with_fom = dict(p)
     p_with_fom["fom"] = fom
 
-    delta = {k: p_with_fom.get(k, 0.0) - LAB6_MATCH4_P_VALUES.get(k, 0.0)
-             for k in LAB6_MATCH4_P_VALUES}
+    delta = {k: p_with_fom.get(k, 0.0) - LAB6_REF_P_VALUES.get(k, 0.0)
+             for k in LAB6_REF_P_VALUES}
     rel = {}
-    for k in LAB6_MATCH4_P_VALUES:
-        ref = LAB6_MATCH4_P_VALUES[k]
+    for k in LAB6_REF_P_VALUES:
+        ref = LAB6_REF_P_VALUES[k]
         if abs(ref) > 1e-12:
             rel[k] = (p_with_fom.get(k, 0.0) - ref) / ref * 100.0
         else:
@@ -820,7 +820,7 @@ def verify_lab6_p_values(
         n_ref_peaks=len(ref_table),
         n_pairs=len(pairs),
         our_p=p_with_fom,
-        match4_p=dict(LAB6_MATCH4_P_VALUES),
+        ref_p=dict(LAB6_REF_P_VALUES),
         delta=delta,
         relative_delta_pct=rel,
     )
@@ -832,13 +832,13 @@ def verify_lab6_p_values(
 
 
 def build_baseline(csv_dir: Path = Path("tests/baseline")) -> dict:
-    """Scan a directory for Match! candidate-list CSVs and reverse-engineer.
+    """Scan a directory for the reference software candidate-list CSVs and reverse-engineer.
 
     Parameters
     ----------
     csv_dir:
         Directory containing one or more ``*.csv`` files exported by
-        Match!'s ``export_candidatelist(..., CSV)`` function.  Defaults
+        The reference software's ``export_candidatelist(..., CSV)`` function.  Defaults
         to ``tests/baseline``.
 
     Returns
@@ -876,7 +876,7 @@ def build_baseline(csv_dir: Path = Path("tests/baseline")) -> dict:
     out["csv_files"] = [str(p.name) for p in csv_files]
     for p in csv_files:
         try:
-            candidates = parse_match4_csv(p)
+            candidates = parse_candidate_csv(p)
         except (FileNotFoundError, ValueError):
             continue
         out["per_file"].append({
@@ -906,7 +906,7 @@ def _format_report(report: ReverseEngineerReport) -> str:
 def main(argv: Iterable[str] | None = None) -> int:
     """CLI entry point: ``python -m tools.build_baseline``.
 
-    Scans ``tests/baseline/`` for Match! CSV exports and prints a
+    Scans ``tests/baseline/`` for the reference software CSV exports and prints a
     summary.  If no CSV files are found, prints a hint and exits 0.
     """
     _ = list(argv) if argv is not None else sys.argv[1:]
@@ -915,8 +915,8 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     if not baseline["csv_files"]:
         print(
-            f"No Match! candidate-list CSVs found in {csv_dir}/.\n"
-            "Export candidate lists from Match! 4.x via "
+            f"No reference-software candidate-list CSVs found in {csv_dir}/.\n"
+            "Export candidate lists from the reference software via "
             "'File → Export → candidate list (CSV)' and place them "
             "in that directory, then re-run."
         )

@@ -1,6 +1,6 @@
 """User-database (UDB) helpers (Phase 5 / T5.6).
 
-Match! allows users to maintain their own reference databases ("user
+The reference software allows users to maintain their own reference databases ("user
 databases") alongside the COD library.  This module wraps the low-level
 insert functions in :mod:`build_cod` and provides UDB-specific operations:
 creating a fresh UDB file, adding / removing entries, and listing contents.
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def create_user_database(path: str | Path) -> sqlite3.Connection:
     """Create (or open) a user-database SQLite file at *path*.
 
-    Implements Match!'s *Reference Database → Create User Database*.
+    Implements the reference software's *Reference Database → Create User Database*.
 
     Parameters
     ----------
@@ -81,7 +81,7 @@ def add_entries(conn: sqlite3.Connection, entries: Iterable[Entry]) -> int:
 def remove_entry(conn: sqlite3.Connection, entry_id: str) -> bool:
     """Remove an entry (and its peaks / element rows) from the database.
 
-    Implements Match!'s *Reference Database → Delete Entry*.
+    Implements the reference software's *Reference Database → Delete Entry*.
 
     Parameters
     ----------

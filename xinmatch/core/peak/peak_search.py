@@ -1,9 +1,9 @@
 """Peak searching.
 
-Implements Match!'s *Peak search* command (Pattern menu) and the automatic
+Implements the reference software's *Peak search* command (Pattern menu) and the automatic
 peak search during raw-data processing.
 
-Match! uses the first- (and optionally second-) derivative method.  Here we
+The reference software uses the first- (and optionally second-) derivative method.  Here we
 detect local maxima via the first derivative (sign change from positive to
 negative) and accept a candidate only if its height exceeds a local
 signal-to-noise ratio (SNR) threshold derived from the median absolute
@@ -49,7 +49,7 @@ def find_peaks(
 ) -> list[Peak]:
     """Find diffraction peaks in a 1-D pattern.
 
-    Match! feature: *Peak search* (Pattern menu, automatic in raw-data
+    The reference software feature: *Peak search* (Pattern menu, automatic in raw-data
     processing).  Algorithm: first-derivative zero-crossing with SNR and
     second-derivative (curvature) filtering.
 

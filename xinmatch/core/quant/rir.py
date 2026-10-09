@@ -1,12 +1,12 @@
 """RIR (Reference Intensity Ratio) quantitative phase analysis.
 
 Implements the algebraic core of the RIR method presented by de Wolff and
-Visser [1], as used by Match!'s (semi-)quantitative analysis when at least
+Visser [1], as used by the reference software's (semi-)quantitative analysis when at least
 two entries are selected as matching (see ``docs/quant_analysis_RIR.md``).
 
 The functions here take already-decomposed per-phase main-peak intensities
 and compute weight fractions.  The least-squares intensity scale-factor
-refinement that Match! uses to *obtain* those per-phase intensities from
+refinement that the reference software uses to *obtain* those per-phase intensities from
 overlapping peaks in the mixed pattern is part of profile fitting /
 Rietveld refinement and is out of scope for this module.
 
@@ -31,7 +31,7 @@ Two formulations are supported:
   The :math:`I_c` factors cancel, so the result is numerically identical
   to the adiabatic form when the reference phase is one of the mixture
   phases (i.e. when no external standard weight is supplied).  The
-  parameter is retained for API symmetry with Match!'s reference-method
+  parameter is retained for API symmetry with the reference software's reference-method
   option and to validate that the declared reference phase is present
   in the input.
 
@@ -180,7 +180,7 @@ def compute_rir_from_pure_pattern(
 
     Notes
     -----
-    This is the *simplified* RIR determination described in the Match!
+    This is the *simplified* RIR determination described in the reference software
     documentation.  The full method (computing I/Ic from crystal-structure
     data imported from a CIF file) is not implemented here.
     """

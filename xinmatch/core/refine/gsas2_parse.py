@@ -12,9 +12,9 @@ writes several artefacts at the end of a Rietveld / Le Bail refinement:
 * ``<project>.prf``   — residual profile (2θ / Yobs / Ycalc / residual).
 * ``<project>.gpx``   — the binary pickle project (scale / zero / cell).
 
-Correspondence with Match!
+Correspondence with the reference software
 --------------------------
-This module is the read-back half of the Rietveld loop that Match! performs
+This module is the read-back half of the Rietveld loop that the reference software performs
 through FullProf:
 
 * ``docs/Rietveld.md`` — *Results viewing*: Rwp / Rp / reduced-chi2 shown in

@@ -4,7 +4,7 @@ Implements :class:`Entry`, a single reference-database record (e.g. one COD
 entry) containing the chemical formula, crystallographic cell, space group,
 and the d–I peak table used for search-match.
 
-Corresponds to a row in Match!'s *candidate list* and the reference pattern
+Corresponds to a row in the reference software's *candidate list* and the reference pattern
 database entries.
 """
 
@@ -75,10 +75,10 @@ class Entry:
     formula:
         Chemical formula sum (e.g. ``"C Ca O3"``).
     d_spacings:
-        d-spacings in Å, sorted by **descending intensity** (Match!
+        d-spacings in Å, sorted by **descending intensity** (the reference software
         convention for the reference peak table).
     intensities:
-        Relative intensities (I/I₀, max = 1000 in Match! convention, but we
+        Relative intensities (I/I₀, max = 1000 in the reference software convention, but we
         store the raw values and normalise on demand).
     mineral_name:
         Trivial / mineral name.
@@ -124,7 +124,7 @@ class Entry:
         return float(self.intensities.max()) if self.intensities.size else 0.0
 
     def normalized_intensities(self, scale: float = 1000.0) -> np.ndarray:
-        """Return intensities normalised to *scale* (Match! uses 1000)."""
+        """Return intensities normalised to *scale* (the reference software uses 1000)."""
         if self.intensities.size == 0:
             return self.intensities.copy()
         imax = self.intensities.max()

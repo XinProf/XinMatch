@@ -1,6 +1,6 @@
 """Peak position refinement.
 
-Implements the sub-point peak-position refinement used by Match!'s peak
+Implements the sub-point peak-position refinement used by the reference software's peak
 search and profile fitting.  Three methods are provided:
 
 * ``'centroid'`` — intensity-weighted centre of gravity over a window.
@@ -27,7 +27,7 @@ def refine_peak_position(
 ) -> float:
     """Refine a peak position to sub-step accuracy.
 
-    Match! feature: sub-point peak position determination during peak
+    The reference software feature: sub-point peak position determination during peak
     search / profile fitting.
 
     Parameters

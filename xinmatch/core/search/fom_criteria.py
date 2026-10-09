@@ -6,16 +6,16 @@ Implements the FoM model documented in ``FOM_MODEL.md``::
           − w4·(1−P_ncorr) − w5·|ln(I_scale)|
 
 The default weights were obtained by non-negative least-squares fit of
-3640 candidate entries exported from Match! 4.3 Build 360 (R² = 0.9913,
+3640 candidate entries exported from the reference software (build 360) (R² = 0.9913,
 Kendall τ = 0.9105 — see ``FOM_MODEL.md`` §2).  They correspond to
-Match!'s **default** search-match options; if the user changes the
+The reference software's **default** search-match options; if the user changes the
 "2theta window for peak correlation" or related options, the internal
-weight derivation in Match! produces different values — XinMatch
+weight derivation in the reference software produces different values — XinMatch
 exposes them via :class:`FomWeights`.
 
 The five agreement criteria (the *P* values and *I_scale*) are computed
 as follows (this is the **working** definition; the precise definition
-used internally by Match! is not documented and is to be reverse-
+used internally by the reference software is not documented and is to be reverse-
 engineered in T0.8 / T6.10):
 
 ``P_peakpos`` = exp(−mean(Δ2θ²) / σ_pos²)
@@ -33,13 +33,13 @@ engineered in T0.8 / T6.10):
 ``P_npeaks``
     Fraction of experimental peaks that got correlated,
     ``n_matched_exp / n_exp_total``.  Favours entries that explain
-    *most* of the unknown pattern (single-phase bias — Match! warns
+    *most* of the unknown pattern (single-phase bias — the reference software warns
     about reducing this weight for multi-phase samples).
 
 ``P_ncorr``
     Fraction of *should-have-been-correlated* reference peaks that were
     actually correlated, ``n_matched_ref / min(n_exp, n_ref)``.  The
-    denominator follows Match!'s notion that the smaller pattern sets
+    denominator follows the reference software's notion that the smaller pattern sets
     the upper bound on possible correlations.
 
 ``I_scale``
@@ -54,17 +54,17 @@ engineered in T0.8 / T6.10):
 
 .. todo:: T0.8 粗推（lab6 / LaB6, 1 行真实数据）
 
-    Match! 4.3 导出的 lab6 LaB6 Top1 行给出 ``I_scale = 1.0348``。
+    参考软件 导出的 lab6 LaB6 Top1 行给出 ``I_scale = 1.0348``。
     用我们的 ``max=100`` LSQ 实现 + 完整 LaB6 参考表（14 个匹配峰），
     复现值 ≈ ``0.9998``（delta ``−0.035``，即 3.4 % 偏差）。  ``sum=100``
     LSQ 给出 ``1.0004``（delta ``−0.034``），与 ``max=100`` 在数据形状
     接近相同时数值几乎相同。  ``raw`` LSQ 和 ``raw`` ratio 给出 ~50 的
     量纲错误，因此 **归一化方式一定是 ``max=100`` 或 ``sum=100`` LSQ**，
     与当前的 ``max=100`` 实现一致。  偏差 −0.035 来源目前最可能的是
-    参考强度表不完整（Match! 内部 LaB6 条目含更多反射）。
+    参考强度表不完整（参考软件 内部 LaB6 条目含更多反射）。
 
     **结论**：``I_scale`` 归一化方向已确认（``max=100`` LSQ），但精确值
-    需要 N>3 个候选 CSV 才能定论。  待用户从 Match! 导出更多 CSV 后，
+    需要 N>3 个候选 CSV 才能定论。  待用户从 参考软件 导出更多 CSV 后，
     用 ``tools/build_baseline.py`` 反推后定稿。  不要根据 1 行数据修改
     ``compute_p_values`` 的算法实现。
 """
@@ -89,7 +89,7 @@ class FomWeights:
     """Weights for the five agreement criteria in the FoM formula.
 
     Defaults are the empirical values reverse-engineered from
-    Match! 4.3 (see ``FOM_MODEL.md`` §2, R² = 0.9913,
+    The reference software (see ``FOM_MODEL.md`` §2, R² = 0.9913,
     Kendall τ = 0.9105).  Override per-instance to tune the
     search-match behaviour.
 
@@ -114,7 +114,7 @@ class FomWeights:
         }
 
 
-#: Module-level instance of the default Match! 4.3 weights.
+#: Module-level instance of the default the reference software weights.
 DEFAULT_WEIGHTS = FomWeights()
 
 
@@ -281,7 +281,7 @@ def compute_fom(
     -------
     float
         The FoM value.  Not clamped — values can drift slightly below
-        0 or above 1 in degenerate cases, mirroring Match!'s raw FoM
+        0 or above 1 in degenerate cases, mirroring the reference software's raw FoM
         (its display clamps to [0, 1] but the internal value does not).
     """
     if weights is None:
@@ -324,7 +324,7 @@ def score_candidate(
 
     Convenience pipeline: correlate → compute P values → compute FoM.
 
-    Match! feature: *peak-based search-match* per-candidate scoring
+    The reference software feature: *peak-based search-match* per-candidate scoring
     (T6.1 + T6.2 combined).
 
     Parameters

@@ -4,7 +4,7 @@ Implements :class:`Pattern`, the core container for a powder diffraction
 pattern.  Supports slicing, interpolation (resampling), and unit conversion
 between 2θ (degrees), d-spacing (Å), and momentum transfer Q (Å⁻¹).
 
-Corresponds to Match!'s *diffraction pattern* object displayed in the
+Corresponds to the reference software's *diffraction pattern* object displayed in the
 upper-left graphics panel.
 """
 

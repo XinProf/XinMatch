@@ -2,7 +2,7 @@
 
 分步引导用户完成：选相 → 背景 → 参数组 → 运行 → 结果展示。
 
-参考 Match! *Quantify → Rietveld*（``docs/Rietveld.md``）和 MAUD 的
+设计参照 *Quantify → Rietveld* 工作流（``docs/Rietveld.md``）和 MAUD 的
 向导式设计。精修全部委托 GSAS-II 子进程执行，本模块只负责参数收集、
 进度显示和结果可视化。
 

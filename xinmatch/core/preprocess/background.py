@@ -1,6 +1,6 @@
 """Background determination and subtraction.
 
-Implements Match!'s background determination (*Recalculate background*,
+Implements the reference software's background determination (*Recalculate background*,
 *Set background to zero*, *Two points*) and *Subtract background* commands.
 
 Three automatic methods are provided:
@@ -14,7 +14,7 @@ Three automatic methods are provided:
   peaks (E. P. Boelens et al., and the asymmetric-least-squares idea of
   P. H. C. Eilers and H. F. M. Boelens, 2005).
 * ``'two_points'`` — a straight line connecting the left- and right-most
-  data points (Match!'s *Two points* option).
+  data points (the reference software's *Two points* option).
 
 Manual background control points can be interpolated with
 :func:`interpolate_background`.  Subtraction (with clipping to zero) is
@@ -138,8 +138,8 @@ def estimate_background(
 ) -> np.ndarray:
     """Estimate the diffraction-pattern background.
 
-    Match! feature: *Background determination* (Pattern → Background menu,
-    automatic during import).  Match! uses the Sonneveld--Visser method by
+    The reference software feature: *Background determination* (Pattern → Background menu,
+    automatic during import).  the reference software uses the Sonneveld--Visser method by
     default; here we provide SNIP and iterative asymmetric-polynomial
     estimators which are widely used and robust.
 
@@ -212,7 +212,7 @@ def interpolate_background(
 ) -> np.ndarray:
     """Interpolate a background curve from user-defined control points.
 
-    Match! feature: manual adjustment of background control points with
+    The reference software feature: manual adjustment of background control points with
     cubic-spline interpolation.
 
     Parameters
@@ -223,7 +223,7 @@ def interpolate_background(
         ``(N, 2)`` array of ``(two_theta, intensity)`` control points.
     kind:
         Interpolation kind passed to :func:`scipy.interpolate.interp1d`.
-        Defaults to ``'cubic'`` (Match! uses cubic splines).
+        Defaults to ``'cubic'`` (the reference software uses cubic splines).
 
     Returns
     -------
@@ -261,7 +261,7 @@ def subtract_background(
 ) -> np.ndarray:
     """Subtract the background, clipping negative results to zero.
 
-    Match! feature: *Subtract background* (Pattern menu).  Net intensity =
+    The reference software feature: *Subtract background* (Pattern menu).  Net intensity =
     raw − background; physically non-negative values are enforced.
 
     Parameters

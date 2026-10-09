@@ -1,6 +1,6 @@
 """Tests for :mod:`tools.import_match_baseline` (T0.3 / T0.4).
 
-The conversion is exercised against *synthetic* raw Match! exports that
+The conversion is exercised against *synthetic* raw reference-software exports that
 deliberately carry the quirks a hand-exported CSV may have:
 
 * UTF-8 BOM / European decimal commas (``0,8585``);

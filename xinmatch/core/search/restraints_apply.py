@@ -8,7 +8,7 @@ expensive FoM calculations.
 Three public functions are provided:
 
 * :func:`apply_restraints`        — query the database for entries matching all
-                                   active restraints (Match! *Restraints* tab).
+                                   active restraints (the reference software *Restraints* tab).
 * :func:`prune_candidates`        — intersect an existing candidate list with
                                    the restraints-matching set (post-search
                                    pruning).
@@ -21,18 +21,18 @@ SQL queries (element, crystal system, space group, year, mineral name) and
 applies non-indexed fields (density, color, author, inorganic/organic,
 quality flags) as Python-side post-filters.
 
-Match! compatibility notes
+The reference software compatibility notes
 --------------------------
 * Element three-state colour coding (red / yellow / green) follows the
   *Restraints → Composition* spec: red excludes, green requires, yellow is
   optional (no filtering effect, but contributes a small bonus in
   :func:`score_restraints_match`).
-* Text-field wildcards (``*``) follow Match!'s convention: without ``*``,
+* Text-field wildcards (``*``) follow the reference software's convention: without ``*``,
   exact (case-insensitive) match; with ``*``, the wildcard matches any
   sequence (e.g. ``"Aas*"`` → prefix match, ``"*doki*"`` → substring match).
 * ``inorganic_only`` strictly requires atomic coordinates to detect C-H
   bonds.  We approximate it as "formula contains neither C nor H together"
-  (see :func:`_is_inorganic`); this is conservative but matches Match!'s
+  (see :func:`_is_inorganic`); this is conservative but matches the reference software's
   documented fallback behaviour for databases without structure data.
 """
 
@@ -59,12 +59,12 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# Text-field wildcard helper (Match! '*' semantics)
+# Text-field wildcard helper (the reference software '*' semantics)
 # ---------------------------------------------------------------------------
 def _matches_text(value: str | None, pattern: str) -> bool:
-    """Match *value* against *pattern* using Match! wildcards.
+    """Match *value* against *pattern* using the reference software wildcards.
 
-    Match! uses ``'*'`` as a wildcard that matches any sequence (including
+    The reference software uses ``'*'`` as a wildcard that matches any sequence (including
     the empty string).  Without ``'*'`` in the pattern, an exact (case-
     insensitive) match is required; with one or more ``'*'``, the literal
     segments between wildcards must appear in order.
@@ -89,9 +89,9 @@ def _matches_text(value: str | None, pattern: str) -> bool:
 
 
 def _is_inorganic(formula: str | None) -> bool:
-    """Approximate Match!'s *no C-H bonds* inorganic flag.
+    """Approximate the reference software's *no C-H bonds* inorganic flag.
 
-    Match! defines an inorganic compound as one without C-H bonds, which
+    The reference software defines an inorganic compound as one without C-H bonds, which
     strictly requires atomic coordinates (only available for COD or user
     databases with full structure data).  When coordinates are unavailable,
     we approximate by:
@@ -114,8 +114,8 @@ def _is_inorganic(formula: str | None) -> bool:
 def apply_restraints(conn: sqlite3.Connection, restraints: Restraints) -> list[str]:
     """Return entry ids satisfying all *restraints*.
 
-    Implements Match!'s *Restraints* tab: the candidate list shown in the
-    bottom-left of the Match! GUI is restricted to entries that satisfy
+    Implements the reference software's *Restraints* tab: the candidate list shown in the
+    bottom-left of the reference software GUI is restricted to entries that satisfy
     every active restraint (logical AND across all subpages).
 
     Element three-state semantics:
@@ -194,8 +194,8 @@ def _post_filter(
 
     * ``density_range``    — inclusive ``[lo, hi]`` interval (entries with
       NULL density are excluded when a range is set).
-    * ``color``            — Match! wildcard text match (case-insensitive).
-    * ``author``           — Match! wildcard text match (case-insensitive).
+    * ``color``            — the reference software wildcard text match (case-insensitive).
+    * ``author``           — the reference software wildcard text match (case-insensitive).
     * ``inorganic_only``   — approximate 'no C-H bonds' check on the formula.
     * ``organic_only``     — inverse of inorganic_only.
     * ``quality_flags``    — entry's ``quality`` must be in the set.
@@ -253,7 +253,7 @@ def prune_candidates(
 ) -> list[str]:
     """Filter an existing candidate list by *restraints*.
 
-    Implements Match!'s post-search restraints pruning: after a search-match
+    Implements the reference software's post-search restraints pruning: after a search-match
     run, the candidate list is intersected with the restraints-matching set
     so that entries removed by a restraint (e.g. an excluded element) drop
     out of the candidate list as well.
@@ -335,17 +335,17 @@ def score_restraints_match(entry: Entry, restraints: Restraints) -> float:
         else:
             score -= 1.0
 
-    # Color (Match! wildcard match).
+    # Color (the reference software wildcard match).
     if restraints.color is not None:
         color = entry.literature.get("color")
         score += 1.0 if _matches_text(color, restraints.color) else -1.0
 
-    # Author (Match! wildcard match).
+    # Author (the reference software wildcard match).
     if restraints.author is not None:
         author = entry.literature.get("author")
         score += 1.0 if _matches_text(author, restraints.author) else -1.0
 
-    # Mineral name (Match! wildcard match).
+    # Mineral name (the reference software wildcard match).
     if restraints.mineral_name:
         score += 1.0 if _matches_text(entry.mineral_name, restraints.mineral_name) else -1.0
 
