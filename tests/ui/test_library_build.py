@@ -186,4 +186,7 @@ def test_cod_full_slice_is_listed_available():
     assert rec is not None
     assert rec.available, rec.unavailable_reason
     assert rec.entry_count is not None
-    assert 300 <= rec.entry_count < 100_000
+    # A real full build now registers 112,734 entries; a --limit slice registers
+    # fewer but must still be >= the slice minimum. Only the lower bound is
+    # meaningful for "the built library is registered and usable".
+    assert rec.entry_count >= 300
