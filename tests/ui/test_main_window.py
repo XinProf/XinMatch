@@ -7,7 +7,6 @@ from unittest.mock import patch
 import numpy as np
 from PySide6 import QtWidgets
 
-import xinmatch
 from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.search.fom import CandidateResult
