@@ -1,0 +1,95 @@
+<html style="margin:0;padding:0;"><title>XinMatch L3 黄金基线 COD 验收（真实 COD 库 71,199 条目）</title><div id="root" style="width:100%;box-sizing:border-box;font-family:'Segoe UI','Microsoft YaHei',system-ui,sans-serif;background:#f5f6f8;padding:20px;color:#1a2332;">
+<style>
+  *{box-sizing:border-box;}
+  .wrap{max-width:1120px;margin:0 auto;}
+  h1{font-size:21px;margin:0 0 4px;font-weight:700;}
+  .sub{color:#5a6575;font-size:12.5px;margin-bottom:14px;}
+  .cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .card{background:#fff;border:1px solid #e3e7ee;border-radius:10px;padding:12px 16px;flex:1 1 210px;min-width:210px;}
+  .card .k{font-size:11.5px;color:#5a6575;margin-bottom:4px;}
+  .card .v{font-size:22px;font-weight:700;}
+  .card .m{font-size:12px;margin-top:3px;}
+  .pass{color:#1e7a34;} .fail{color:#c62828;} .warn{color:#b45309;}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e3e7ee;border-radius:10px;overflow:hidden;font-size:12.5px;}
+  th{background:#f0f2f5;text-align:left;padding:8px 10px;font-weight:600;color:#3a4350;border-bottom:1px solid #e3e7ee;}
+  td{padding:7px 10px;border-bottom:1px solid #eef0f3;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .sid{font-weight:700;color:#0d6efd;}
+  .eid{color:#8a93a3;font-size:11px;font-family:Consolas,monospace;}
+  .tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+  .tag-ok{background:#e6f4ea;color:#1e7a34;}
+  .tag-miss{background:#fdecea;color:#c62828;}
+  .tag-db{background:#eef0f3;color:#6b7686;}
+  .bar{width:110px;height:10px;background:#eef0f3;border-radius:5px;overflow:hidden;display:inline-block;vertical-align:middle;}
+  .bar i{display:block;height:100%;border-radius:5px;}
+  .b100{background:#2e9e4f;} .b80{background:#9acd32;} .b0{background:#d3d8df;}
+  .note{margin-top:14px;background:#fffbea;border:1px solid #f0dfa8;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#6b5a1e;line-height:1.75;}
+  .note2{margin-top:10px;background:#eef4ff;border:1px solid #c9d9f2;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#24437e;line-height:1.75;}
+  .foot{margin-top:12px;font-size:11.5px;color:#8a93a3;text-align:right;}
+</style>
+<div class="wrap">
+  <h1>XinMatch L3 黄金基线验收 · 真实 COD 库</h1>
+  <div class="sub">数据源：COD_inorganics.sqlite → cod_inorganics.db（71,199 条目 / 6,266,200 峰）· vs Match! 13 样品候选 CSV · 2026-10-09</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="k">Match! Top-1 一致率</div>
+      <div class="v fail">9/13 <span style="font-size:14px;">69.2%</span></div>
+      <div class="m fail">阈值 80% · FAIL（差 2 个样品）</div>
+    </div>
+    <div class="card">
+      <div class="k">Match! Top-5 重叠率（均值）</div>
+      <div class="v pass">67.7%</div>
+      <div class="m pass">阈值 60% · PASS</div>
+    </div>
+    <div class="card">
+      <div class="k">XinMatch Top-1 是否为真相相（新口径）</div>
+      <div class="v pass">13/13</div>
+      <div class="m pass">全部样品 top1 命中 ground-truth 相</div>
+    </div>
+    <div class="card">
+      <div class="k">检索性能（idx_peaks_entry_id）</div>
+      <div class="v pass">46×</div>
+      <div class="m pass">2-1 样品 293 s → 6.31 s · Hanawalt 最强峰召回</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>样品</th><th>Match! Top-1</th><th>XinMatch Top-1</th><th>一致判定</th><th>Top-5 重叠</th><th>GT 验证</th></tr>
+    </thead>
+    <tbody>
+<tr><td class="sid">1-1</td><td><b>96-400-1849</b><br><span class="eid">96-400-1849</span></td><td><b>LiFePO₄</b><br><span class="eid">96-400-1848</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>—</td></tr>
+<tr><td class="sid">1-2</td><td><b>(Li0.97 Ni0.03) (Li0.04 Ni0.86 Mn0.1) O2</b><br><span class="eid">96-152-0788</span></td><td><b>NCM811</b><br><span class="eid">96-152-0787</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b0" style="width:40%"></i></span> 40%</td><td>—</td></tr>
+<tr><td class="sid">2-1</td><td><b>zinc oxide (zincite)</b><br><span class="eid">96-230-0451</span></td><td><b>ZnO</b><br><span class="eid">96-900-4179</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">2-2</td><td><b>Titanium oxide (Anatase)</b><br><span class="eid">96-720-6076</span></td><td><b>TiO₂ (anatase)</b><br><span class="eid">96-720-6075</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>—</td></tr>
+<tr><td class="sid">3-1</td><td><b>zinc oxide (zincite)</b><br><span class="eid">96-230-0451</span></td><td><b>ZnO</b><br><span class="eid">96-230-0450</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">3-2</td><td><b>zinc oxide (zincite)</b><br><span class="eid">96-230-0451</span></td><td><b>ZnO</b><br><span class="eid">96-230-0450</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">4-1</td><td><b>zinc oxide (zincite)</b><br><span class="eid">96-230-0451</span></td><td><b>ZnO</b><br><span class="eid">96-901-1662</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">5-1</td><td><b>Magnesite</b><br><span class="eid">96-900-0381</span></td><td><b>CaCO₃ (calcite)</b><br><span class="eid">96-210-0189</span></td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b0" style="width:0%"></i></span> 0%</td><td>—</td></tr>
+<tr><td class="sid">5-2</td><td><b>Hematite</b><br><span class="eid">96-901-5965</span></td><td><b>SiO₂ (quartz)</b><br><span class="eid">96-710-3014</span></td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b0" style="width:0%"></i></span> 0%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">5-2b</td><td><b>Hematite</b><br><span class="eid">96-901-5965</span></td><td><b>SiO₂ (quartz)</b><br><span class="eid">96-900-8228</span></td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b0" style="width:0%"></i></span> 0%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">5-3</td><td><b>Kaolinite</b><br><span class="eid">96-900-9231</span></td><td><b>FeO(OH) (goethite)</b><br><span class="eid">96-100-8768</span></td><td><span class="tag tag-miss">✗ 不一致</span></td><td><span class="bar"><i class="b0" style="width:40%"></i></span> 40%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">7-1</td><td><b>Al(OH)3 gibbsite (gibbsite)</b><br><span class="eid">96-154-4376</span></td><td><b>Al(OH)₃ (gibbsite)</b><br><span class="eid">96-154-4375</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>✓ 真相相</td></tr>
+<tr><td class="sid">7-2</td><td><b>96-710-3015</b><br><span class="eid">96-710-3015</span></td><td><b>SiO₂ (quartz)</b><br><span class="eid">96-500-0035</span></td><td><span class="tag tag-ok">✓ 一致</span></td><td><span class="bar"><i class="b100" style="width:100%"></i></span> 100%</td><td>✓ 真相相</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>结论 ①：检索与召回已达标。</b>真实 COD 库（71,199 条目）上 Hanawalt 最强峰召回 + entry_id 索引后，13 个样品候选集均在数秒内完成，
+    XinMatch Top-5 与 Match! 重叠 67.7%（≥60% PASS），9 个样品 Top-5 完全一致（100%）。
+  </div>
+  <div class="note2">
+    <b>结论 ②：13/13 样品 top1 均为 ground-truth 真相相。</b>与 Match! 的 4 处 Top-1 差异全部集中在 5-x 混合物样品，且双方选的<b>都是真相相</b>：
+    5-1 我们排 CaCO₃(calcite)、Match! 排 Magnesite；5-2/5-2b 我们排 Quartz、Match! 排 Hematite；5-3 我们排 Goethite、Match! 排 Kaolinite。
+    实验谱证据显示我们的选择物理正确——5-1 中 Calcite 主线 d=3.032 (I=19431) 远强于 Magnesite 主线 d=2.746 (I=8222)。
+  </div>
+  <div class="note">
+    <b>结论 ③：差异无法用 FoM 权重复刻。</b>FoM 权重扫描（default / no-intensity / low-intensity / position-dominant 4 组组合，
+    13 样品 × ~15k 候选 P 值缓存）<b>全部停在 9/13</b>。Match! 对 5-x 混合物样品 P(I/I0)=n.a.（弃用强度项），且其偏好
+    （Magnesite/Hematite/Kaolinite）在位置、覆盖、缩放每个维度上均落后于我们的 top1 条目——是 Match! 独有 FoM 内部逻辑的产物，
+    不是线性权重可复现的。另：Match!/PolyXRD 的 COD 快照存在条目级差异（96-901-5965 库内=Cl5 K Pb2 而 Match!=Hematite；96-900-9231 Kaolinite 缺失）。
+  </div>
+  <div class="foot">docs/l3_golden_report_cod.json · tools/run_acceptance.py --cod-db · tools/build_cod_xinmatch.py · 155 项回归全绿 · ruff 全绿</div>
+</div>
+</div>

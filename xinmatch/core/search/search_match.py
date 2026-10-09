@@ -192,6 +192,10 @@ def search_match(
     window_deg: float = 0.3,
     top_n: int = 20,
     pre_filter: Callable[[list[Peak], sqlite3.Connection], list[str]] | None = None,
+    recall_top_k: int = 20,
+    recall_min_matches: int = 2,
+    recall_max_candidates: int = 800,
+    recall_strongest_peak: bool = False,
 ) -> list[CandidateResult]:
     """Run a full peak-based search-match (Phase 6 / T6.4).
 
@@ -241,6 +245,27 @@ def search_match(
         candidate entry ids.  When given, takes precedence over
         ``restraints`` and the default d-value search.  Reserved for
         the future Hanawalt/Fink index (T6.0).
+    recall_top_k:
+        Only the *k* strongest experimental peaks (by intensity) are
+        used for candidate recall via the d-value search.  The full peak
+        set is still used for FoM scoring.  Bounding recall keeps the
+        d-value query fast on full COD-scale databases; strong peaks are
+        the most discriminating ones (Match! behaves similarly).
+    recall_min_matches:
+        Minimum number of distinct recall peaks an entry must match to
+        enter the FoM scoring stage.
+    recall_max_candidates:
+        Cap on the number of entries sent to FoM scoring (after recall
+        ranking by match count).  Bounds the per-candidate correlation
+        cost on large databases.
+    recall_strongest_peak:
+        Hanawalt-style recall (default ``False``): when ``True`` only
+        entries whose strongest reference peak falls inside an
+        experimental strong-peak window are kept.  On full COD-scale
+        databases this prunes the false positives that dominate plain
+        match counting on dense multi-phase patterns while keeping the
+        true phases.  When enabled, ``recall_max_candidates`` is
+        ignored (the Hanawalt filter itself bounds the candidate set).
 
     Returns
     -------
@@ -255,11 +280,29 @@ def search_match(
         entry_ids = apply_restraints(conn, restraints)
         logger.debug("restraints produced %d candidate ids", len(entry_ids))
     else:
-        peak_ds = _exp_d_values(exp_peaks, wavelength)
+        # Candidate recall uses the strongest experimental peaks only —
+        # fast on full COD-scale databases, and the most discriminating
+        # peaks drive the d-value window query.  FoM scoring below still
+        # uses the complete experimental peak set.
+        strong_peaks = sorted(
+            exp_peaks, key=lambda p: (p.intensity if p.intensity is not None else 0.0),
+            reverse=True,
+        )[:recall_top_k]
+        peak_ds = _exp_d_values(strong_peaks, wavelength)
         if not peak_ds:
             # No usable d-spacings → no candidates.
             return []
-        ranked_ids = search_by_d(conn, peak_ds)
+        ranked_ids = search_by_d(
+            conn,
+            peak_ds,
+            wavelength=wavelength,
+            window_deg=window_deg,
+            min_matches=min(recall_min_matches, len(peak_ds))
+            if not recall_strongest_peak
+            else 1,
+            max_candidates=None if recall_strongest_peak else recall_max_candidates,
+            strongest_peak_only=recall_strongest_peak,
+        )
         entry_ids = [eid for eid, _ in ranked_ids]
         logger.debug("search_by_d produced %d candidate ids", len(entry_ids))
 

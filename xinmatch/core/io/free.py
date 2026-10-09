@@ -223,6 +223,13 @@ def read_ascii_profile_2col(path: str | Path) -> Pattern:
     separated by spaces, commas, or tabs.  Comment lines (``#``, ``!``,
     ``;``) are ignored.
 
+    Vendor "Profile Data Ascii Dump" headers (e.g. Rigaku/Panasonic
+    exports with a ``/// Profile Data Ascii Dump`` banner, measurement
+    condition blocks and a ``<2Theta>   <I>`` column caption) are
+    handled: data rows are read from the first line after the column
+    caption, so metadata rows that happen to carry two numbers
+    (e.g. ``scan range = 5.000 - 120.000``) are not mistaken for data.
+
     By default values are interpreted as 2θ in degrees.  If the data are
     monotonically decreasing (typical of d-spacing), they are left as-is
     and the caller is responsible for unit conversion — the pattern's
@@ -240,9 +247,20 @@ def read_ascii_profile_2col(path: str | Path) -> Pattern:
         Parsed pattern.
     """
     text = _read_text(path)
+    lines = text.splitlines()
+
+    # Locate a column caption such as "<2Theta>   <I>"; data follows it.
+    data_start = 0
+    for i, ln in enumerate(lines):
+        if "<" in ln and (">" in ln) and any(
+            kw in ln.upper() for kw in ("2THETA", "THETA", "D-SPACING", "D-SPACE")
+        ):
+            data_start = i + 1
+            break
+
     two_theta: list[float] = []
     intensity: list[float] = []
-    for ln in text.splitlines():
+    for ln in lines[data_start:]:
         s = ln.strip()
         if not s or s.startswith(("#", "!", ";", "//")):
             continue

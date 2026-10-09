@@ -14,16 +14,15 @@ Runs the XinMatch peak-based search-match pipeline on the 13-sample
 
 Reference database
 ------------------
-A real COD build (~500k entries) is not yet available in this
-environment, so the runner uses a **curated synthetic reference DB**
+By default the runner uses a **curated synthetic reference DB**
 containing representative d–I tables for the minerals of interest plus
-a handful of decoy entries.  The hit-rate report flags any phase whose
-reference entry is absent from this curated DB as ``"DB 缺失"``
-(database missing) — this is **not** an algorithm failure.  When a
-real COD SQLite database becomes available, point ``--cod-db`` at it
-and the same runner will use the real entries.  The golden-baseline
-metrics use composition-normalised formula matching, so they work with
-both the curated DB and a real COD build.
+a handful of decoy entries.  Pass ``--cod-db`` (built by
+``tools/build_cod_xinmatch.py`` from the real COD inorganic archive) to
+search against **real COD entries** — the golden-baseline comparison
+then matches on exact entry_id (COD ref_id, same format as Match!'s
+CSVs).  The hit-rate report flags any phase whose reference entry is
+absent as ``"DB 缺失"`` (database missing) — this is **not** an
+algorithm failure.
 
 Reproducibility
 ---------------
@@ -63,6 +62,7 @@ import numpy as np
 
 from tools.match_baseline import (
     MatchBaseline,
+    formula_compatible,
     load_match_baseline_dir,
     top1_agreement,
     top5_overlap,
@@ -370,6 +370,14 @@ def _build_curated_entries() -> list[Entry]:
 
 CURATED_ENTRIES: list[Entry] = _build_curated_entries()
 
+# Ground-truth phase name → formula (keyed by the *curated entry_id*,
+# which is what ``_phase_to_entry_id`` maps ground-truth names to).
+# Used in real-COD mode (``--cod-db``) to verify a ground-truth phase
+# against candidate formulas via composition compatibility.
+CURATED_FORMULAS: dict[str, str] = {
+    e.entry_id: e.formula for e in CURATED_ENTRIES if e.formula
+}
+
 
 # --------------------------------------------------------------------------- #
 # Result containers
@@ -523,6 +531,8 @@ def _phase_to_entry_id(phase: str) -> str:
 def _match_top_n(
     results: list,
     ground_truth_phases: list[str],
+    *,
+    cod_formulas: dict[str, str] | None = None,
 ) -> tuple[list[str], list[str], list[str]]:
     """Partition ground-truth phases into hit / missed / DB-missing.
 
@@ -530,13 +540,23 @@ def _match_top_n(
     candidates' ``mineral_name`` OR ``entry_id``.  A phase is
     *DB-missing* when it is in :data:`DB_MISSING_PHASES`.  Otherwise it
     is a *miss*.
+
+    When *cod_formulas* is given (real-COD mode — candidates carry COD
+    entry_ids and no mineral names), a phase is a *hit* when its curated
+    formula (looked up by ground-truth name via *cod_formulas*) is
+    composition-compatible with any candidate's formula.  A ground-truth
+    phase without a curated formula cannot be verified and is reported
+    as DB-missing.
     """
     top_names: set[str] = set()
     top_ids: set[str] = set()
+    top_formulas: list[str] = []
     for r in results:
         if r.entry.mineral_name is not None:
             top_names.add(r.entry.mineral_name)
         top_ids.add(r.entry.entry_id)
+        if r.entry.formula:
+            top_formulas.append(r.entry.formula)
 
     hits: list[str] = []
     missed: list[str] = []
@@ -546,6 +566,17 @@ def _match_top_n(
             db_missing.append(phase)
             continue
         eid = _phase_to_entry_id(phase)
+        if cod_formulas is not None:
+            formula = cod_formulas.get(eid)
+            if formula is None:
+                # Not in the curated formula map → cannot verify against
+                # a real-COD candidate list; treat as DB-missing.
+                db_missing.append(phase)
+            elif any(formula_compatible(formula, tf) for tf in top_formulas):
+                hits.append(phase)
+            else:
+                missed.append(phase)
+            continue
         # Match against mineral name or entry id (some ground-truth
         # strings differ slightly from the curated entry_id).
         if phase in top_names or eid in top_ids or phase in top_ids:
@@ -658,6 +689,7 @@ def run_acceptance(
     min_hits: int = DEFAULT_MIN_HITS,
     synthetic: bool = False,
     baseline_dir: Path | None = None,
+    cod_db: Path | None = None,
     top1_min_rate: float = DEFAULT_TOP1_MIN_RATE,
     top5_min_overlap: float = DEFAULT_TOP5_MIN_OVERLAP,
 ) -> AcceptanceReport:
@@ -685,6 +717,13 @@ def run_acceptance(
         (``match-candidate list-jingzhun``).  When given, each sample is
         additionally compared against the Match! golden baseline:
         Top-1 agreement and Top-5 overlap.
+    cod_db:
+        Optional path to a real-COD reference SQLite built by
+        ``tools/build_cod_xinmatch.py``.  When given, the search runs
+        against the real COD entries (entry_ids are the COD ref_ids, so
+        the golden-baseline comparison matches on exact entry_id); the
+        known-phase proxy uses composition-compatible formula matching.
+        Defaults to the embedded curated synthetic DB.
     top1_min_rate:
         Minimum fraction of samples (with a baseline) whose Top-1
         candidate agrees with Match! for the golden-baseline check to
@@ -698,7 +737,15 @@ def run_acceptance(
         Structured report with per-sample results + hit-rate summary +
         golden-baseline metrics (when *baseline_dir* is given).
     """
-    conn = build_curated_db()
+    if cod_db is not None:
+        if not Path(cod_db).exists():
+            raise FileNotFoundError(f"cod_db not found: {cod_db}")
+        conn = sqlite3.connect(str(cod_db))
+        conn.execute("PRAGMA foreign_keys = ON")
+        cod_formulas: dict[str, str] | None = CURATED_FORMULAS
+    else:
+        conn = build_curated_db()
+        cod_formulas = None
     report = AcceptanceReport(threshold_pct=min_hits / len(GROUND_TRUTH) * 100.0)
 
     baselines: dict[str, MatchBaseline] = {}
@@ -769,14 +816,17 @@ def run_acceptance(
                             )
 
                 results = search_match(
-                    exp_peaks, conn, wavelength=WAVELENGTH, top_n=top_n
+                    exp_peaks, conn, wavelength=WAVELENGTH, top_n=top_n,
+                    recall_strongest_peak=(cod_formulas is not None),
                 )
                 top_names = [
                     (r.entry.mineral_name or r.entry.entry_id)
                     for r in results
                 ]
                 top_ids = [r.entry.entry_id for r in results]
-                hits, missed, db_missing = _match_top_n(results, ground_truth)
+                hits, missed, db_missing = _match_top_n(
+                    results, ground_truth, cod_formulas=cod_formulas,
+                )
 
                 result = SampleResult(
                     sample_id=sample_id,
@@ -928,6 +978,13 @@ def main(argv: list[str] | None = None) -> int:
              "to enable the golden-baseline Top-1 / Top-5 comparison.",
     )
     parser.add_argument(
+        "--cod-db", type=Path, default=None,
+        help="Path to a real-COD reference SQLite built by "
+             "tools/build_cod_xinmatch.py.  When given, search runs "
+             "against the real COD entries (golden-baseline then matches "
+             "on exact entry_id).",
+    )
+    parser.add_argument(
         "--json", type=Path, default=None,
         help="Write the structured report as JSON to this path.",
     )
@@ -939,6 +996,7 @@ def main(argv: list[str] | None = None) -> int:
         min_hits=args.min_hits,
         synthetic=args.synthetic,
         baseline_dir=args.baseline_dir,
+        cod_db=args.cod_db,
     )
 
     print(_format_report(report))

@@ -65,6 +65,11 @@ CREATE INDEX IF NOT EXISTS idx_elements_element_entry
     ON elements(element, entry_id);
 CREATE INDEX IF NOT EXISTS idx_peaks_d
     ON peaks(d);
+-- Entry-id lookups on the peaks table (fetch_entries_by_ids) are a
+-- full-table scan without this index; on COD-scale databases that is
+-- minutes per search-match run.
+CREATE INDEX IF NOT EXISTS idx_peaks_entry_id
+    ON peaks(entry_id);
 CREATE INDEX IF NOT EXISTS idx_entries_formula
     ON entries(formula);
 CREATE INDEX IF NOT EXISTS idx_entries_space_group

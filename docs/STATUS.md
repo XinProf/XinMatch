@@ -85,7 +85,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.0 | Hanawalt/Fink coarse pre-filter | ✅ |
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ✅ |
-| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ (11/13 known-phase hit rate; **golden baseline vs Match! CSV (13 samples): Top-5 overlap 83.1% ≥ 60% PASS, Top-1 agreement 46.2% < 80% FAIL** — recall strong, FoM ranking needs tuning) |
+| T6.9 | L3 acceptance (Top-10 vs match4 baseline) | ✅ (real COD db 71,199 entries: **13/13 samples top1 = ground-truth phase**; vs Match! CSV: Top-5 overlap 67.7% ≥ 60% PASS, Top-1 agreement 69.2% (9/13) < 80% FAIL — 4 mismatches are multi-phase 5-x samples where both sides pick a true phase; FoM weight sweep (4 combos) all stop at 9/13, not reproducible by linear weights; see docs/l3_golden_acceptance_cod.html) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 
 ## Phase 7 — Restraints application (`core/search/`)

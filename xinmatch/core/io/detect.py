@@ -254,13 +254,20 @@ def _sniff_dat(lines: list[str]) -> str | None:
 
 
 def _sniff_txt(lines: list[str]) -> str | None:
-    """Sniff a ``.txt`` file — JEOL / TXRD export or generic 2-column."""
-    data = _first_data_lines(lines, max_lines=3)
-    if not data:
-        return None
-    first_vals = _parse_numbers(data[0])
-    if first_vals and len(first_vals) >= 2:
-        return FMT_ASCII_2COL
+    """Sniff a ``.txt`` file — JEOL / TXRD export or generic 2-column.
+
+    Scans forward past header / metadata blocks (banners such as
+    "Profile Data Ascii Dump", ``Group/Data/File Name`` lines, measurement
+    conditions, column captions) until a line with at least two numeric
+    values is found — that is the first data row of a 2-column profile.
+    """
+    for ln in lines[:60]:
+        s = ln.strip()
+        if not s or s.startswith(("#", "!", ";", "//")):
+            continue
+        vals = _parse_numbers(s)
+        if len(vals) >= 2:
+            return FMT_ASCII_2COL
     return None
 
 
