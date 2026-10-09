@@ -54,7 +54,7 @@ import os
 import shutil
 import subprocess
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -220,21 +220,38 @@ def pattern_to_gss(pattern: Pattern, dest: str | Path) -> Path:
         if pattern.step is not None
         else float((tt[-1] - tt[0]) / max(npts - 1, 1)) * 100.0
     )
-    ncards = (npts * 2 + 9) // 10  # lines holding 10 int/value pairs
+    ncards = (npts + 9) // 10  # lines holding 10 ESD/value pairs (20 tokens)
 
     title = str(pattern.metadata.get("gsas_title", "XinMatch pattern"))
     lines = [f"SampleIdent {title}"]
+    # Fixed-column BANK header (80 cols) matching GSAS-II STD/ESD format.
     lines.append(
-        f"BANK    1       {npts}       {ncards} CONST        "
-        f"{tmin_cdeg:8.2f}      {step_cdeg:6.2f}     0.000     0.000"
+        "BANK"
+        + " " * 4
+        + "1"
+        + " " * 7
+        + f"{npts:>4d}"
+        + " " * 7
+        + f"{ncards:>3d}"
+        + " "
+        + "CONST"
+        + " " * 8
+        + f"{tmin_cdeg:>6.2f}"
+        + " " * 6
+        + f"{step_cdeg:>4.2f}"
+        + " " * 5
+        + "0.000"
+        + " " * 5
+        + "0.000"
     )
     # ESD multiplier 1, then intensity (rounded to integer counts).
-    pair_tokens: list[str] = []
-    for v in intensity:
-        pair_tokens.append("1")
-        pair_tokens.append(str(int(round(max(v, 0.0)))))
-    for i in range(0, len(pair_tokens), 10):
-        lines.append(" " + " ".join(pair_tokens[i : i + 10]))
+    # Each data line is 80 cols: 10 pairs of " 1<intensity:>6d>" (8 chars each).
+    for i in range(0, npts, 10):
+        chunk = []
+        for j in range(i, min(i + 10, npts)):
+            val = int(round(max(intensity[j], 0.0)))
+            chunk.append(f" 1{val:>6d}")
+        lines.append("".join(chunk))
     dest.write_text("\n".join(lines) + "\n", encoding="ascii", errors="replace")
     return dest
 
@@ -264,6 +281,10 @@ class Gsas2Project:
         Residuals after a run (``None`` if not run / not available).
     lst_path:
         GSAS-II output listing (``.lst``) after a run.
+    prf_path:
+        Residual profile (``.prf``) after a run (``None`` if not produced).
+    refined_cifs:
+        Refined CIF paths exported for each phase after a run.
     stdout_tail:
         Last lines of the driver stdout (useful for diagnostics).
     """
@@ -277,6 +298,8 @@ class Gsas2Project:
     rwp: float | None = None
     rp: float | None = None
     lst_path: Path | None = None
+    prf_path: Path | None = None
+    refined_cifs: list[Path] = field(default_factory=list)
     stdout_tail: str = ""
 
 
@@ -312,6 +335,21 @@ def main() -> int:
             gpx.add_phase(ph["cif_path"], phasename=ph["name"], histograms=[hist])
         )
 
+    # Turn on per-phase scale-factor refinement (HAP = Histogram Associated
+    # Parameters).  Without this the scale factors stay at their initial
+    # values and weight fractions are meaningless.
+    for p in phases:
+        p.set_HAP_refinements({"Scale": True})
+
+    # Optional March-Dollase preferred orientation refinement (helps ZnO
+    # and other layered/hexagonal phases with strong texture).
+    if manifest["options"].get("refine_po", False):
+        for p in phases:
+            try:
+                p.set_HAP_refinements({"PO": True})
+            except Exception:
+                pass  # not all phases support PO; ignore
+
     opts = manifest["options"]
     if opts.get("two_theta_range"):
         lo, hi = opts["two_theta_range"]
@@ -323,11 +361,17 @@ def main() -> int:
 
     cycles = max(int(opts.get("max_iter", 20)), 1)
 
+    # Stage 0: scale-only convergence (no background/cell/profile) so that
+    # weak minor phases settle before coupled parameters are turned on.
+    # This prevents CaF2-scale from diverging into unstable cell refinement.
+    gpx.set_Controls("cycles", max(cycles // 2, 5))
+    gpx.refine(makeBack=True)
+
     # Staged turn-on (mirrors Match! auto parameters / FullProf default):
-    #   scale (on by default) -> background -> cell -> zero-shift -> atoms.
+    #   scale -> background -> cell -> profile(U/V/W) -> atoms(XU) -> zero-shift.
     if opts.get("refine_background", True):
-        hist.set_refinements({"Background": {"no. coeffs": 6, "refine": True}})
-        gpx.set_Controls("cycles", max(cycles // 3, 2))
+        hist.set_refinements({"Background": {"no. coeffs": 8, "refine": True}})
+        gpx.set_Controls("cycles", max(cycles // 2, 5))
         gpx.refine(makeBack=True)
 
     for p in phases:
@@ -335,26 +379,58 @@ def main() -> int:
     gpx.set_Controls("cycles", max(cycles // 2, 2))
     gpx.refine(makeBack=True)
 
-    hist.set_refinements({"Sample Parameters": {"Shift": True}})
-    gpx.set_Controls("cycles", cycles)
-    gpx.refine(makeBack=True)
+    if opts.get("refine_profile", True):
+        hist.set_refinements({"Instrument Parameters": ["U", "V", "W"]})
+        gpx.set_Controls("cycles", max(cycles // 2, 2))
+        gpx.refine(makeBack=True)
 
     if opts.get("refine_atoms", False):
         for p in phases:
             p.set_refinements({"Atoms": {"all": "XU"}})
-        gpx.set_Controls("cycles", cycles)
+        gpx.set_Controls("cycles", max(cycles // 2, 2))
         gpx.refine(makeBack=True)
+
+    hist.set_refinements({"Sample Parameters": {"Shift": True}})
+    gpx.set_Controls("cycles", cycles)
+    gpx.refine(makeBack=True)
 
     gpx.save()
 
+    # ---- Export residual profile (.prf) for downstream parsing -----------
+    gpx_root = os.path.splitext(manifest["gpx_path"])[0]
+    prf_path = gpx_root + ".prf"
+    x_arr = hist.getdata("x")
+    yobs_arr = hist.getdata("yobs")
+    ycalc_arr = hist.getdata("ycalc")
+    resid_arr = hist.getdata("residual")
+    with open(prf_path, "w", encoding="ascii") as fh:
+        fh.write("# 2theta  Yobs  Ycalc  residual\\n")
+        for i in range(len(x_arr)):
+            fh.write(
+                f"{float(x_arr[i]):10.4f} {float(yobs_arr[i]):12.2f} "
+                f"{float(ycalc_arr[i]):12.2f} {float(resid_arr[i]):12.2f}\\n"
+            )
+
+    # ---- Export refined CIFs for each phase ------------------------------
+    cif_out_paths = []
+    for idx, p in enumerate(phases):
+        cif_out = f"{gpx_root}_phase{idx + 1}_new.cif"
+        try:
+            p.export_CIF(cif_out, quickmode=False)
+            cif_out_paths.append(cif_out)
+        except Exception:
+            pass
+
     res = hist.residuals
-    lst = os.path.splitext(manifest["gpx_path"])[0] + ".lst"
+    lst = gpx_root + ".lst"
     out = {
         "success": True,
         "rwp": float(res.get("wR", float("nan"))),
         "rp": float(res.get("R", float("nan"))),
         "gpx_path": manifest["gpx_path"],
         "lst_path": lst if os.path.exists(lst) else None,
+        "prf_path": prf_path if os.path.exists(prf_path) else None,
+        "refined_cifs": cif_out_paths,
         "n_phases": len(phases),
     }
     json.dump(out, open(manifest["output_json"], "w", encoding="utf-8"))
@@ -495,6 +571,8 @@ def build_gsas2_project(
             "max_iter": int(options.max_iter),
             "refine_atoms": bool(options.refine_atoms),
             "refine_background": bool(options.refine_background),
+            "refine_profile": bool(options.refine_profile),
+            "refine_po": bool(options.refine_po),
             "wavelength": float(options.wavelength),
             "two_theta_range": (
                 list(options.two_theta_range)
@@ -551,4 +629,9 @@ def build_gsas2_project(
         result.rp = data.get("rp")
         lst = data.get("lst_path")
         result.lst_path = Path(lst) if lst else None
+        prf = data.get("prf_path")
+        result.prf_path = Path(prf) if prf else None
+        result.refined_cifs = [
+            Path(c) for c in data.get("refined_cifs", []) if c
+        ]
     return result

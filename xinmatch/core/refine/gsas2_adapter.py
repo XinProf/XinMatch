@@ -77,6 +77,10 @@ class RefineOptions:
         Whether to refine a background model.  The local refiner does
         not model background (background is expected to be subtracted
         before refinement); the GSAS-II adapter would honour this.
+    refine_profile:
+        Whether to refine peak-profile parameters (Caglioti U/V/W).
+        The GSAS-II driver turns these on at the profile-refinement stage;
+        the local refiner ignores this flag.
     wavelength:
         Radiation wavelength in Å.
     two_theta_range:
@@ -87,6 +91,8 @@ class RefineOptions:
     max_iter: int = 50
     refine_atoms: bool = False
     refine_background: bool = True
+    refine_profile: bool = True
+    refine_po: bool = False
     wavelength: float = 1.5406
     two_theta_range: tuple[float, float] | None = None
 
