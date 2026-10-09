@@ -7,8 +7,25 @@
 > **重要事实声明**：这些候选 CSV **只能由人工在 Match! 4.x 里跑完 Search-Match
 > 后导出**。本仓库的脚本（`tools/import_match_baseline.py`）只负责把人工导出的
 > 原始 CSV **规范化**到本目录，绝不生成、伪造或估算任何候选数据。
-> 截至目前本目录尚无人工导出文件（空目录 = 尚无黄金基线），所有 Top-1 / Top-5
-> 指标在补齐人工数据前均为空。
+
+## 当前已入库基线（2026-10 人工导出）
+
+| 子目录 | 内容 | 元素限定 | 候选行数 |
+|---|---|---|---|
+| `jingzhun/` | 13 个样品（1-1…7-2） | 精准（必含元素，`元素限定-jingzhun.txt`） | 6,209 |
+| `alloption/` | 13 个样品（1-1…7-2） | 宽松（可能性元素，超轻/轻元素全选，`元素限定-alloption.txt`） | 13,778 |
+
+两套均为人工在 Match! 4.x 用 **SMPF（search-match using profile fitting，
+无寻峰、无峰形处理、直接原始谱图）** + 数据库 **COD-Inorg 2025.12.01**
+（`C:\Program Files\Match4\RefDB_COD`）导出，经
+`tools/import_match_baseline.py` 规范化（编码嗅探/欧式小数逗号/FoM 排序），
+0 行拒绝。验收时 `run_acceptance.py --baseline-dir` 需指向具体子目录
+（`tests/baseline/match/jingzhun` 或 `.../alloption`）。
+
+> 实测结论：两套基线在 Match! top1 排序上完全一致（XinMatch 真实 COD 对
+> 两套基线的 Top-1 一致率均为 69.2%），元素限定宽窄不影响 Match! top1
+> ——5-x 差异（Calcite/Quartz/Goethite vs Magnesite/Hematite/Kaolinite）
+> 属 Match! 独有 FoM 偏好，非元素限定所致。
 
 ---
 
@@ -50,8 +67,9 @@ Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct
    # 单个文件：
    & D:\Project\XRD\python310\python.exe tools\import_match_baseline.py "D:\path\to\导出\1-1.csv"
 
-   # 整个导出文件夹批量入库：
-   & D:\Project\XRD\python310\python.exe tools\import_match_baseline.py "D:\Project\XRD\test_xrd\match-candidate list-jingzhun" -o tests\baseline\match
+   # 整个导出文件夹批量入库（按基线档次分目录）：
+   & D:\Project\XRD\python310\python.exe tools\import_match_baseline.py "D:\Project\XRD\test_xrd\match-candidate list-jingzhun" -o tests\baseline\match\jingzhun
+   & D:\Project\XRD\python310\python.exe tools\import_match_baseline.py "D:\Project\XRD\test_xrd\match-candidate list-alloption" -o tests\baseline\match\alloption
    ```
 
    脚本会自动处理：UTF-8/Windows-1252 编码嗅探、欧式小数逗号（`0,7083`→`0.7083`）、
@@ -77,7 +95,7 @@ Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct
 
 ## 4. 从 13 个扩到 20–30 个的缺口清单
 
-**已有 13 个（test_xrd，已有人工导出，待入库）**：
+**已有 13 个（test_xrd，**已入库** jingzhun + alloption 两套）**：
 `1-1, 1-2, 2-1, 2-2, 3-1, 3-2, 4-1, 5-1, 5-2, 5-2b, 5-3, 7-1, 7-2`
 → 目标 20–30 个，**缺口 7–17 个**。
 
