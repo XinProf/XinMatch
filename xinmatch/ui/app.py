@@ -89,6 +89,39 @@ def _run_about_selftest(window: QtWidgets.QWidget) -> None:
     QtCore.QTimer.singleShot(800, _snap)
 
 
+def _run_libraries_selftest() -> None:
+    """Test-only hook: dump the reference-library registry as JSON, then quit.
+
+    Used by the packaging robustness suite to verify the multi-library mount
+    inside the frozen bundle (default DB present with its entry count, PDF-2
+    sidecar availability, COD-full build status) without driving the GUI.
+    """
+    import json
+    from pathlib import Path
+
+    from xinmatch.core.db.multi_db import list_libraries
+
+    out_path = (
+        os.environ.get("XINMATCH_SELFTEST_LIBS_OUT") or "libraries_selftest.json"
+    )
+    records = [
+        {
+            "id": rec.id,
+            "display_name": rec.display_name,
+            "kind": rec.kind,
+            "path": str(rec.path),
+            "entry_count": rec.entry_count,
+            "available": rec.available,
+            "unavailable_reason": rec.unavailable_reason,
+        }
+        for rec in list_libraries()
+    ]
+    Path(out_path).write_text(
+        json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    QtWidgets.QApplication.instance().quit()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """GUI entry point: build the main window and run the event loop."""
     app = create_app(argv)
@@ -103,6 +136,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if os.environ.get("XINMATCH_SELFTEST_ABOUT"):
         _run_about_selftest(window)
+    elif os.environ.get("XINMATCH_SELFTEST_LIBS"):
+        QtCore.QTimer.singleShot(0, _run_libraries_selftest)
 
     return int(app.exec())
 
