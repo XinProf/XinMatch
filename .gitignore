@@ -64,3 +64,4 @@ tests/fixtures/cod/**
 
 # ---- Build artifacts ----
 *.spec
+!xinmatch.spec   # packaging source config — tracked on purpose (Phase 15)
