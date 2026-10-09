@@ -660,7 +660,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self,
                 "无法打开衍射数据文件",
                 f"文件：{path}\n\n原因：{exc}\n\n"
-                "请确认文件存在且格式受支持（两列 ASCII / Bruker / Panalytical 等）。",
+                "请确认文件存在且格式受支持（两列 ASCII / Bruker / Panalytical / "
+                "Shimadzu .raw 等）。",
             )
             return
         self.pattern_view.clear()

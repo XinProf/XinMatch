@@ -48,6 +48,7 @@ FMT_MDI = "mdi"              # Jade/MDI (.mdi)
 FMT_ESG = "esg"              # GNR/Ital Structures (.esg)
 FMT_GDF = "gdf"              # G670 (.gdf)
 FMT_RAW = "raw"              # Generic / vendor raw (.raw)
+FMT_SHIMADZU_RAW = "shimadzu_raw"  # Shimadzu XRD binary (.raw)
 
 # Extensions that map 1:1 to a format
 _EXTENSION_MAP: dict[str, str] = {
@@ -118,6 +119,10 @@ def detect_format(path: str | Path) -> str:
                 return FMT_BRML
         except zipfile.BadZipFile:
             pass
+
+    # Shimadzu XRD binary .raw magic
+    if raw.startswith(b"Shimadzu XRD"):
+        return FMT_SHIMADZU_RAW
 
     # XML root -> XRDML
     head = raw[:512].lstrip()

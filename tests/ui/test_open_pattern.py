@@ -7,9 +7,11 @@ written to ``tmp_path``; external DB / search calls are monkeypatched.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 from PySide6 import QtWidgets
 
 from xinmatch.core.model.entry import CellParams, Entry
@@ -178,3 +180,25 @@ def test_toggle_theme_without_apply_theme_colors_does_not_crash(qapp):
     # apply_theme_colors 可能由并行任务加入（存在则调用，不存在则 getattr 回退）；
     # 两种情况下 _toggle_theme 都不应崩溃。
     win._toggle_theme()
+
+
+# ---------------------------------------------------------------------------
+# 8. 岛津二进制 .raw 经 GUI 打开（真实样品，数据缺失时跳过）
+# ---------------------------------------------------------------------------
+def test_open_shimadzu_raw_via_gui(qapp):
+    raw = Path(r"D:\Project\XRD\XRData\Shimadzu Data\Std\Si\Si.RAW")
+    if not raw.exists():
+        pytest.skip("Shimadzu 数据集不在本机")
+    win = MainWindow()
+    with patch(
+        "PySide6.QtWidgets.QFileDialog.getOpenFileName",
+        return_value=(str(raw), ""),
+    ):
+        win.open_action.trigger()
+    assert win.pattern_view.patterns(), "Shimadzu .raw 应载入 ≥1 条谱线"
+    assert win._current_pattern is not None
+    assert win._current_pattern.step == pytest.approx(0.02)
+    assert len(win._current_pattern) == 5751
+    msg = win.statusBar().currentMessage()
+    assert "已打开" in msg
+    assert "Si.RAW" in msg

@@ -8,6 +8,7 @@ detection checks.
 
 from __future__ import annotations
 
+import struct
 import zipfile
 from pathlib import Path
 
@@ -266,3 +267,44 @@ def write_gdf(path: Path) -> None:
     """Write a minimal G670 .gdf file."""
     lines = ["STOE G670 DATA", "10.0 100.0", "20.0 200.0"]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
+# ---------------------------------------------------------------------------
+# Shimadzu binary .raw
+# ---------------------------------------------------------------------------
+def write_shimadzu_raw(path: Path, pat: Pattern) -> None:
+    """Write a Shimadzu XRD binary ``.raw`` file.
+
+    Mirrors the layout read by
+    :func:`xinmatch.core.io.shimadzu_raw.read_shimadzu_raw`: ASCII magic
+    header, int32 ×1e4 axis fields at 300/304/308, preset-time/slit floats
+    at 324/348, point count at 624, max intensity at 632, and the int32
+    intensity block from offset 968.
+    """
+    start = float(pat.two_theta[0])
+    step = float(pat.step) if pat.step else 0.02
+    end = float(pat.two_theta[-1])
+    n = len(pat)
+
+    buf = bytearray()
+    header = b"Shimadzu XRD\x00\x00\x00\x00Ver 0.00"
+    label = b"Synthetic sample          Cu"
+    buf += header.ljust(48, b"\x00")
+    buf += label.ljust(968 - len(buf), b"\x00")
+    assert len(buf) == 968
+
+    def put_i32(off: int, val: int) -> None:
+        buf[off : off + 4] = struct.pack("<i", val)
+
+    def put_f32(off: int, val: float) -> None:
+        buf[off : off + 4] = struct.pack("<f", val)
+
+    put_i32(300, int(round(start * 10_000)))
+    put_i32(304, int(round(end * 10_000)))
+    put_i32(308, int(round(step * 10_000)))
+    put_f32(324, 0.6)
+    put_f32(348, 0.15)
+    put_i32(624, n)
+    put_i32(632, int(round(float(max(pat.intensity)))))
+    buf += struct.pack(f"<{n}i", *[int(round(float(v))) for v in pat.intensity])
+    path.write_bytes(bytes(buf))
