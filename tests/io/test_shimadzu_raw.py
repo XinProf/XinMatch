@@ -68,22 +68,35 @@ def test_rejects_bad_range(tmp_path: Path) -> None:
     p = tmp_path / "x.raw"
     write_shimadzu_raw(p, pat)
     raw = bytearray(p.read_bytes())
-    # corrupt start field -> end < start
+    # corrupt start field -> non-standard 2θ axis (rocking-style range)
     raw[300:304] = (9_999_999).to_bytes(4, "little", signed=True)
     p.write_bytes(bytes(raw))
-    with pytest.raises(ValueError, match="2θ range"):
+    with pytest.raises(ValueError, match="standard 2θ scan"):
         read_shimadzu_raw(p)
 
 
-def test_rejects_bad_step(tmp_path: Path) -> None:
-    pat = synth_pattern(n=30)
+def test_bad_step_field_falls_back_to_axis_derivation(tmp_path: Path) -> None:
+    """A corrupt ×1e4 step field no longer fails the read: the step is
+    derived from the axis span (more accurate for non-round sampling)."""
+    pat = synth_pattern(n=30, start=20.0, step=0.05)
     p = tmp_path / "x.raw"
     write_shimadzu_raw(p, pat)
     raw = bytearray(p.read_bytes())
-    raw[308:312] = (0).to_bytes(4, "little", signed=True)
+    raw[308:312] = (0).to_bytes(4, "little", signed=True)  # step field = 0
     p.write_bytes(bytes(raw))
-    with pytest.raises(ValueError, match="step"):
-        read_shimadzu_raw(p)
+    out = read_shimadzu_raw(p)
+    assert out.step == pytest.approx(pat.step, abs=1e-4)
+    assert out.metadata["step_header_deg"] == 0.0
+
+
+def test_theta_mode_doubles_axis(tmp_path: Path) -> None:
+    """theta_mode=True converts a θ-axis recording to 2θ (×2)."""
+    pat = synth_pattern(n=30, start=10.0, step=0.05)
+    p = tmp_path / "x.raw"
+    write_shimadzu_raw(p, pat)
+    out = read_shimadzu_raw(p, theta_mode=True)
+    assert out.two_theta[0] == pytest.approx(20.0, abs=1e-4)
+    assert out.two_theta[-1] == pytest.approx(2 * pat.two_theta[-1], abs=1e-3)
 
 
 def test_truncated_file_reads_available_points(tmp_path: Path) -> None:
@@ -177,3 +190,44 @@ def test_real_007_ferrite_peak() -> None:
     out = read_shimadzu_raw(path)
     i_max = int(np.argmax(out.intensity))
     assert abs(out.two_theta[i_max] - 44.67) < 0.6
+
+
+def test_real_976_header_subtype() -> None:
+    """116.RAW: 976-byte header subtype (n=1152, 27.947–100°, step 0.0626)."""
+    path = _XRDATA / "Austenite" / "116" / "116.RAW"
+    if not path.exists():
+        pytest.skip("Shimadzu data set not present")
+    out = read_shimadzu_raw(path)
+    assert len(out) == 1152
+    assert out.metadata["data_offset"] == 976
+    assert out.two_theta[0] == pytest.approx(27.9474, abs=1e-3)
+    assert out.two_theta[-1] == pytest.approx(100.0, abs=1e-2)
+    assert out.step == pytest.approx(0.0626, abs=1e-4)
+    assert float(out.intensity.max()) > 1000
+    assert out.metadata["truncated"] is False
+
+
+def test_real_1608_header_subtype() -> None:
+    """053.RAW: 1608-byte header subtype; the axis-derived step (0.015713)
+    is more accurate than the ×1e4 step field (0.015700)."""
+    path = _XRDATA / "ENVCAL" / "053" / "053.RAW"
+    if not path.exists():
+        pytest.skip("Shimadzu data set not present")
+    out = read_shimadzu_raw(path)
+    assert len(out) == 1210
+    assert out.metadata["data_offset"] == 1608
+    assert out.two_theta[0] == pytest.approx(25.0013, abs=1e-3)
+    assert out.two_theta[-1] == pytest.approx(43.998, abs=1e-2)
+    assert out.step == pytest.approx(0.015713, abs=2e-6)
+    assert abs(out.metadata["step_header_deg"] - 0.0157) < 1e-6
+    assert float(out.intensity.max()) > 500
+
+
+def test_real_rocking_scan_rejected() -> None:
+    """Theta.RAW (rocking θ=-1..1) is a non-powder scan and must be
+    rejected, not fed into phase analysis."""
+    path = _XRDATA / "Stress" / "Theta" / "Theta.RAW"
+    if not path.exists():
+        pytest.skip("Shimadzu data set not present")
+    with pytest.raises(ValueError, match="standard 2θ scan"):
+        read_shimadzu_raw(path)
