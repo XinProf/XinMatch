@@ -113,11 +113,35 @@ class Gsas2Runtime:
     def driver_env(self) -> dict[str, str]:
         """Environment mapping passed through to the subprocess (PATH etc.)."""
         env = dict(os.environ)
-        # Keep the GSAS-II binary dir discoverable even if launched from a
-        # stripped environment.
-        bin_dir = self.source_dir / "GSASII-bin"
-        if bin_dir.is_dir():
-            env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+        # GSAS-II's compiled pyd extensions (pyspg / pypowder / pydiffax) and
+        # their bundled Fortran/C runtime DLLs (libgfortran-5.dll,
+        # libgcc_s_seh-1.dll, ...) live in a platform/version-named
+        # subdirectory of GSASII-bin (e.g. GSASII-bin/win_64_p3.13_n2.2/).
+        # On Windows the loader resolves those dependent DLLs from PATH, so we
+        # must put *that* subdirectory on PATH -- not just the GSASII-bin
+        # parent.  Without it, GSAS-II's pathHacking._path_discovery finds the
+        # directory but pathhack_TestSPG fails to import pyspg (missing
+        # libgfortran), then reports "Unable to find GSAS-II binaries" and
+        # silently disables all profile calculations.
+        extra: list[str] = []
+        gsas_bin = self.source_dir / "GSASII-bin"
+        if gsas_bin.is_dir():
+            extra.append(str(gsas_bin))
+            for sub in sorted(gsas_bin.iterdir()):
+                if sub.is_dir() and not sub.name.startswith("."):
+                    extra.append(str(sub))
+        if extra:
+            env["PATH"] = os.pathsep.join(extra) + os.pathsep + env.get("PATH", "")
+        # Drop interpreter-specific env that would otherwise leak into the
+        # GSAS-II subprocess.  The parent (XinMatch) interpreter may carry a
+        # PYTHONPATH pointing at its own site-packages (e.g. Doubao runtime
+        # python-packages); if the GSAS-II interpreter (a different Python
+        # minor version) inherits that, it shadows its own numpy / extension
+        # modules and the compiled pyd extensions fail to load with spurious
+        # "pyspg not found" / "pypowder not available" messages.  The GSAS-II
+        # interpreter manages its own sys.path; we pass it a clean env.
+        for junk in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
+            env.pop(junk, None)
         return env
 
 
@@ -167,21 +191,30 @@ GSAS2_AVAILABLE = GSAS2_RUNTIME.available
 # ---------------------------------------------------------------------------
 # Default instrument parameter (generic Bragg-Brentano Cu Kalpha)
 # ---------------------------------------------------------------------------
-# A minimal generic X-ray instrument parameter file (Bragg-Brentano, Cu Kalpha
-# doublet 1.5405/1.5443 A).  Shipped verbatim from GSAS-II's own test fixture
-# INST_XRY.PRM so the constructor is self-contained.  Used when the caller does
-# not supply an instrument parameter file.
+# A generic Bragg-Brentano Cu Kalpha instrument parameter file, used when the
+# caller does not supply one.  Wavelengths are the standard Cu Kalpha1/Kalpha2
+# doublet (1.54056 / 1.54439 A).  The Caglioti U/V/W starting values are
+# physically reasonable for a sealed-tube Cu lab diffractometer; they (and
+# the zero-shift / sample displacement) are refined in the staged driver, so
+# these are only starting guesses.
+#
+# Known limitation (honest): the actual divergence/anti-scatter slits, sample
+# transparency and zero-offset of the IUCr CPD / test_xrd diffractometers are
+# not known locally.  Rather than ship a wrong precise instrument file, we use
+# these generic defaults and let the refinement converge U/V/W + zero-shift.
+# For a production instrument a measured ``.prm`` (divergence angle, 2theta
+# offset, axial divergence) should be passed via ``instrument_file=``.
 _DEFAULT_CU_PRM = """\
            123456789012345678901234567890123456789012345678901234567890
 INS   BANK      1
 INS   HTYPE   PXCR
 INS  1 IRAD     3
-INS  1 ICONS  1.540500  1.544300       0.0         0       0.7    0       0.5
+INS  1 ICONS  1.540560  1.544390       0.0         0       0.7    0       0.5
 INS  1I HEAD  XinMatch default Cu Kalpha instrument (Bragg-Brentano)
 INS  1I ITYP    0    0.0000  180.0000         1
 INS  1PRCF1     3    8      0.01
-INS  1PRCF11   2.000000E+00  -2.000000E+00   5.000000E+00   0.100000E+00
-INS  1PRCF12   0.000000E+00   0.000000E+00   0.150000E-01   0.150000E-01
+INS  1PRCF11   1.000000E-01  -5.000000E-02   1.000000E-02   0.000000E+00
+INS  1PRCF12   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
 """
 
 
@@ -319,7 +352,35 @@ import sys
 
 def main() -> int:
     manifest = json.load(open(sys.argv[1], "r", encoding="utf-8"))
-    sys.path.insert(0, manifest["gsas2_source_dir"])
+    # Work around the libgfortran <-> OpenBLAS load-order conflict on Windows:
+    # GSAS-II's compiled pyd extensions (pyspg / pypowder / pydiffax) link
+    # libgfortran.  If they are imported while OpenBLAS-backed numpy is still
+    # mid-initialisation, those pyd imports fail silently and GSAS-II reports
+    # "pypowder is not available - profile calcs. not allowed", silently
+    # disabling all profile calculations (Rwp then stays at ~80%).  Warming
+    # up np.linalg.inv forces OpenBLAS to finish initialising *before* we pull
+    # in GSAS-II.
+    import numpy as np
+    np.linalg.inv(np.eye(3))
+    source_dir = manifest["gsas2_source_dir"]
+    sys.path.insert(0, source_dir)
+    # On Windows (Python >= 3.8) the DLLs that extension modules depend on are
+    # not resolved from PATH reliably; explicitly register the GSAS-II binary
+    # directory (the platform/version-named subdir of GSASII-bin that holds
+    # pyspg.pyd + libgfortran-5.dll) so those pyd extensions load.  Without
+    # this, GSAS-II's pathHacking finds the directory but the pyspg import
+    # inside pathhack_TestSPG fails on the missing fortran DLL, and profile
+    # calculations are silently disabled.
+    import glob as _glob
+    for _bd in _glob.glob(os.path.join(source_dir, "GSASII-bin", "*")):
+        if os.path.isdir(_bd) and _glob.glob(os.path.join(_bd, "pyspg*")):
+            try:
+                os.add_dll_directory(_bd)
+            except (AttributeError, OSError):
+                pass
+            os.environ["PATH"] = _bd + os.pathsep + os.environ.get("PATH", "")
+            sys.path.insert(0, _bd)
+            break
     from GSASII import GSASIIscriptable as G2sc
 
     gpx = G2sc.G2Project(newgpx=manifest["gpx_path"])
@@ -341,14 +402,24 @@ def main() -> int:
     for p in phases:
         p.set_HAP_refinements({"Scale": True})
 
-    # Optional March-Dollase preferred orientation refinement (helps ZnO
-    # and other layered/hexagonal phases with strong texture).
-    if manifest["options"].get("refine_po", False):
-        for p in phases:
-            try:
-                p.set_HAP_refinements({"PO": True})
-            except Exception:
-                pass  # not all phases support PO; ignore
+    # NOTE on March-Dollase (MD) preferred-orientation (PO) refinement:
+    # GSAS-II creates every phase/histogram link with 'Pref.Ori.' already set
+    # to ['MD', r=1.0, refine=False, direction=[0,0,1], 0, {}, [], 0.1]
+    # (see GSASIImath.SetDefaultDData, dType='PWDR'); the MD model *and* the
+    # c-axis direction are therefore already chosen on import.  We only need
+    # to flip the refine flag (index 2) to True -- but this MUST be done at the
+    # very end of the staging, after scale / background / cell / profile /
+    # atoms have converged.  If PO refinement is switched on while the profile
+    # is still unconverged, the Levenberg-Marquardt step drives the March r
+    # parameter negative, the MD integrand
+    # ``1/sqrt((r*cosP)^2 + sinP^2/r)`` goes NaN, the whole calculated
+    # pattern is poisoned and Rwp collapses to its ~80% no-profile fallback.
+    # We therefore just record the PO intent here; the actual refine flag is
+    # turned on in the dedicated PO stage below.
+    #
+    # The [0,0,1] MD axis models the basal (001) texture of wurtzite ZnO and
+    # layered brucite Mg(OH)2.  r=1.0 (isotropic) is the safe starting point.
+    want_po = manifest["options"].get("refine_po", False)
 
     opts = manifest["options"]
     if opts.get("two_theta_range"):
@@ -387,6 +458,24 @@ def main() -> int:
     if opts.get("refine_atoms", False):
         for p in phases:
             p.set_refinements({"Atoms": {"all": "XU"}})
+        gpx.set_Controls("cycles", max(cycles // 2, 2))
+        gpx.refine(makeBack=True)
+
+    # PO stage (last): turn on March-Dollase refinement only after the profile
+    # has converged, so r only fine-tunes texture and cannot drive the MD
+    # integrand NaN on an unconverged profile.
+    if want_po:
+        for p in phases:
+            try:
+                for _hname, hd in p.data.get("Histograms", {}).items():
+                    po = hd.get("Pref.Ori.")
+                    if po is None:
+                        continue
+                    po[0] = "MD"          # March-Dollase model
+                    po[3] = [0, 0, 1]     # PO axis = c-axis (basal texture)
+                    po[2] = True          # refine the March r parameter
+            except Exception:
+                pass
         gpx.set_Controls("cycles", max(cycles // 2, 2))
         gpx.refine(makeBack=True)
 
