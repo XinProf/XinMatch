@@ -382,8 +382,11 @@ python -m xinmatch.cli <subcommand>
    - 验收结果：**Top-1 一致率 69.2%（9/13）FAIL vs 80%；Top-5 重叠 67.7% PASS；13/13 样品 top1 均为真相相**
    - FoM 权重扫描（4 组组合 + 13 样品 × ~15k 候选 P 值缓存）全部停在 9/13 → 5-x 差异（Calcite/Quartz/Goethite vs Magnesite/Hematite/Kaolinite）**不是线性权重问题**，属 Match! 独有 FoM 内部逻辑 + COD 快照条目级差异（96-901-5965/96-900-0381 内容错位、96-900-9231 缺失）
    - 若需继续追平 Top-1：方向为逆向 Match! FoM 内部逻辑（T0.8 深挖）或补库（Kaolinite 等），但物理上我们 top1 正确
-3. **中期（待办）**：续做 T13.3–T13.8 GUI；T8.3 Rietveld 定量（GSAS-II 闭环已通）
-4. **长期（待办）**：T0.3/T0.4 标准样品集扩充到 20–30 个；T14.3/T14.4 批处理+串口；Phase 15 打包；Phase 16 3D 可视化
+3. ✅ **已完成**：T13.3–T13.8 GUI 全部模块 + T8.3 Rietveld 定量（commit 076686b/d290ce3/13638cb/cffa3a7，117 passed + 1 skipped）
+   - T13.3 三表格（`ui/tables.py`）、T13.4 周期表（`ui/periodic_table.py`，118 元素三态）、T13.5 对话框（`ui/dialogs/`，15 类选项 + 颜色线型，YAML 持久化）、T13.6 快捷键（`ui/shortcuts.py`，67 条）、T13.7 主题（`ui/theme.py`，浅/深）、T13.8 精修向导（`ui/refinement_wizard.py`，MAUD 风格四步，委托 GSAS-II）、T8.3 Rietveld 定量（`core/quant/rietveld_quant.py`）
+   - 修复两个生产路径 bug：**pattern_to_gss 的 .gss 格式 bug**（ncards/token 数不符 GSAS 规范，修复后 raw txt→.gss 端到端可读）与 **scale 因子未精修**（驱动从未开 HAP Scale，加入 scale-only 收敛后 Rwp 59%→14–17%）
+   - **T8.3 验收未完全达标（诚实记录）**：微量相达标（CPD-1c/3-1 CaF₂ +2.3 wt%、4-1 Brucite −2.76 wt% 均 <3%），主相偏 7–12 wt%（ZnO/Brucite 择优取向未建模 + 手写 CIF 非标准 + 通用仪器参数）；降至 <3 wt% 需 COD 标准 CIF + 实测仪器参数文件
+4. **长期（待办）**：T0.3/T0.4 标准样品集扩充到 20–30 个；T14.3/T14.4 批处理+串口；Phase 15 打包；Phase 16 3D 可视化；精修向导菜单入口待搜索匹配→phases 数据流接线
 
 **重要约束**：
 - 不要自研精修算法——所有 Le Bail/Rietveld/残差/峰形计算委托 GSAS-II
