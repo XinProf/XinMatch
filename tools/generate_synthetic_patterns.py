@@ -23,10 +23,7 @@ python tools/generate_synthetic_patterns.py --out <dir> [--seed 42]
 from __future__ import annotations
 
 import argparse
-import io
 import math
-import os
-import random
 import sqlite3
 import sys
 from pathlib import Path
@@ -84,10 +81,10 @@ def _pseudovoigt(tth: float, tth0: float, fwhm: float, eta: float) -> float:
     if fwhm <= 1e-6:
         return 0.0
     g = math.exp(-4.0 * math.log(2.0) * ((tth - tth0) / fwhm) ** 2)
-    l = 1.0 / (1.0 + 4.0 * ((tth - tth0) / fwhm) ** 2)
+    lorentz = 1.0 / (1.0 + 4.0 * ((tth - tth0) / fwhm) ** 2)
     a = (2.0 / fwhm) * math.sqrt(math.log(2.0) / math.pi)
     b = 2.0 / (math.pi * fwhm)
-    return eta * b * l + (1.0 - eta) * a * g
+    return eta * b * lorentz + (1.0 - eta) * a * g
 
 
 def _fwhm(tth: float) -> float:
@@ -128,7 +125,7 @@ def _pattern_for_phase(d, i, rng: np.random.Generator, po_hkl: tuple | None) -> 
         return np.zeros_like(TWO_THETA)
     i = i / imax
     out = np.zeros_like(TWO_THETA)
-    for x0, i0 in zip(tth0, i):
+    for x0, i0 in zip(tth0, i, strict=True):
         fwhm = _fwhm(x0)
         eta = 0.4 + 0.3 * rng.random()
         near = np.abs(TWO_THETA - x0) <= 5.0 * fwhm
@@ -196,7 +193,7 @@ def main() -> None:
         sample = _build_sample(label, phases, rng)
         fname = args.out / f"synth_{idx:02d}.txt"
         with open(fname, "w", encoding="utf-8", newline="\n") as fh:
-            for x, y in zip(TWO_THETA, sample["pattern"]):
+            for x, y in zip(TWO_THETA, sample["pattern"], strict=True):
                 fh.write(f"{x:8.2f} {y:12.3f}\n")
         elems = _element_suggestion(sample["truth"])
         rows.append({"file": fname.name, "label": label, "truth": sample["truth"], "elems": elems})

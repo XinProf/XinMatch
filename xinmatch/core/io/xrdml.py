@@ -13,6 +13,7 @@ trailing intensity column (same fallback as the PolyXRD loader).
 
 from __future__ import annotations
 
+import contextlib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -45,9 +46,13 @@ def _axis_from_scan(root: ET.Element) -> tuple[float | None, float | None, int]:
     for el in root.iter():
         if _localname(el.tag) == "positions":
             for child in el.iter():
-                if _localname(child.tag) == "axis" and child.get("axisName") == "2Theta":
-                    if child.text and child.text.strip():
-                        positions = child.text.strip()
+                if (
+                    _localname(child.tag) == "axis"
+                    and child.get("axisName") == "2Theta"
+                    and child.text
+                    and child.text.strip()
+                ):
+                    positions = child.text.strip()
     if positions:
         vals = [float(v) for v in positions.split()]
         if vals:
@@ -107,10 +112,8 @@ def read_xrdml(path: str | Path) -> Pattern:
         for el in root.iter():
             if el.text and el.text.strip():
                 for t in el.text.split():
-                    try:
+                    with contextlib.suppress(ValueError):
                         numbers.append(float(t))
-                    except ValueError:
-                        pass
         if len(numbers) < 6:
             raise ValueError(f"Unable to extract 2θ/intensity from XRDML: {p}")
         n = len(numbers) // 2
