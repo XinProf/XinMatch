@@ -138,4 +138,4 @@ Top-1 一致率没有变化。真正的杠杆是**全库峰数据的反射丰富
 - 新增 `tests/search/test_cod_curated_search.py`：优选库可被 `search_match` 检索到保留卡。
 - `tests/db/test_multi_db.py`：注册 `cod_full_curated` 并可 `open_library` 查询。
 - 运行：`python -m pytest tests/db tests/search -p no:cacheprovider`（新增测试 19+5 通过）。
-- 自检：`ruff check` 全绿；`mypy` 新增/改动源文件零错误；品牌词 `Match[!！]|Match4|match4|Match™` 0 命中。
+- 自检：`ruff check` 全绿；`mypy` 新增/改动源文件零错误；品牌词 grep 0 命中（统一用"参考软件"中性词）。
