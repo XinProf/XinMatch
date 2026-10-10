@@ -1,0 +1,20 @@
+Candidate list of sample CPD-1A
+Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct.;FoM
+96-230-0450;C;Ca F2;calcium fluoride (fluorite);0.0071;n.a.;0.0000;n.a.;0.6994;1.0000
+96-500-0223;C;Ca F2;Calcium fluoride (Fluorite);0.0114;n.a.;0.0000;n.a.;0.6909;0.9816
+96-900-9006;C;Ca F2;Fluorite;0.0087;n.a.;0.0000;n.a.;0.6936;0.9813
+96-900-7061;C;Ca F2;Fluorite;0.0078;n.a.;0.0000;n.a.;0.6943;0.9807
+96-100-0044;C;Ca F2;Calcium difluoride (Fluorite);0.0144;n.a.;0.0000;n.a.;0.6868;0.9776
+96-155-9794;C;Ca F2;;0.0696;n.a.;0.0000;n.a.;0.4667;0.4446
+96-230-0113;C;O Zn;zinc_oxide;0.0072;n.a.;0.0000;n.a.;0.0373;0.0482
+96-230-0451;C;O Zn;zinc oxide (zincite);0.0082;n.a.;0.0000;n.a.;0.0374;0.0482
+96-900-4181;C;O Zn;Zincite;0.0107;n.a.;0.0000;n.a.;0.0374;0.0471
+96-900-4179;C;O Zn;Zincite;0.0107;n.a.;0.0000;n.a.;0.0374;0.0470
+96-901-1663;C;O Zn;Zincite;0.0085;n.a.;0.0000;n.a.;0.0392;0.0460
+96-900-8878;C;O Zn;Zincite;0.0047;n.a.;0.0000;n.a.;0.0394;0.0458
+96-900-4180;C;O Zn;Zincite;n.a.;n.a.;0.0000;n.a.;0.0369;0.0415
+96-900-4182;C;O Zn;Zincite;n.a.;n.a.;0.0000;n.a.;0.0371;0.0415
+96-900-7062;C;Ca F2;Fluorite;0.2177;n.a.;0.0000;n.a.;0.0419;0.0271
+96-210-7060;C;O Zn;Zn O;0.0570;n.a.;0.0000;n.a.;0.0231;0.0262
+96-230-0114;C;O Zn;zinc_oxide;0.1253;n.a.;0.0000;n.a.;0.0120;0.0165
+96-101-1259;C;O Zn;Zinc oxide (Zincite);0.1963;n.a.;0.0000;n.a.;0.0128;0.0127

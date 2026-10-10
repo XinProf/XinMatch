@@ -1,0 +1,9 @@
+Candidate list of sample synth_13
+Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct.;FoM
+96-210-1235;C;O2 Zr;;0.0128;n.a.;0.0000;n.a.;0.5242;1.0000
+96-152-5707;C;O2 Zr;Zr O2;0.1679;n.a.;0.0000;n.a.;0.1417;0.3347
+96-153-9832;C;O2 Zr;Zr O2;0.1638;n.a.;0.0000;n.a.;0.1090;0.3290
+96-900-8560;C;Zr;Zirconium;0.2492;n.a.;0.0000;n.a.;0.0605;0.3222
+96-230-0613;C;O2 Zr;tetragonal zirconia;0.1538;n.a.;0.0000;n.a.;0.1344;0.2699
+96-153-3767;C;O1.78 Zr0.88;Zr0.88 O1.78;0.1110;n.a.;0.0000;n.a.;0.0807;0.1293
+96-500-0039;C;O2 Zr;Zirconium oxide (1/2.12) (Arkelite);0.0728;n.a.;0.0000;n.a.;0.2780;0.0459

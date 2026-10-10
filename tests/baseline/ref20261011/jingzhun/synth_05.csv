@@ -1,0 +1,28 @@
+Candidate list of sample synth_05
+Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct.;FoM
+96-101-1149;C;Cu O;Copper oxide (Tenorite);0.0251;n.a.;0.0000;n.a.;0.6145;1.0000
+96-110-0029;C;Cu O;copper(II) oxide (Tenorite);0.0251;n.a.;0.0000;n.a.;0.6145;1.0000
+96-900-8962;C;Cu O;Tenorite;0.0251;n.a.;0.0000;n.a.;0.6145;1.0000
+96-101-1195;C;Cu O;Copper oxide (Tenorite);n.a.;n.a.;0.0000;n.a.;0.4026;0.7405
+96-721-2243;C;Cu O;Copper Oxide (Tenorite);n.a.;n.a.;0.0000;n.a.;0.3764;0.6415
+96-901-4581;C;Cu O;Tenorite;n.a.;n.a.;0.0000;n.a.;0.3764;0.6415
+96-901-5925;C;Cu O;Tenorite;n.a.;n.a.;0.0000;n.a.;0.3184;0.6051
+96-900-4181;C;O Zn;Zincite;0.0294;n.a.;0.0000;n.a.;0.4444;0.3992
+96-900-4179;C;O Zn;Zincite;0.0294;n.a.;0.0000;n.a.;0.4443;0.3986
+96-900-4180;C;O Zn;Zincite;n.a.;n.a.;0.0000;n.a.;0.4597;0.3940
+96-900-4182;C;O Zn;Zincite;n.a.;n.a.;0.0000;n.a.;0.4591;0.3922
+96-901-1663;C;O Zn;Zincite;0.0227;n.a.;0.0000;n.a.;0.4417;0.3802
+96-900-8878;C;O Zn;Zincite;0.0184;n.a.;0.0000;n.a.;0.4449;0.3785
+96-230-0113;C;O Zn;zinc_oxide;0.0231;n.a.;0.0000;n.a.;0.4438;0.3725
+96-230-0451;C;O Zn;zinc oxide (zincite);0.0241;n.a.;0.0000;n.a.;0.4431;0.3718
+96-901-6106;C;Cu O;Tenorite;n.a.;n.a.;0.0000;n.a.;0.3922;0.3576
+96-901-6327;C;Cu O;Tenorite;n.a.;n.a.;0.0000;n.a.;0.2587;0.3422
+96-210-7060;C;O Zn;Zn O;0.1597;n.a.;0.0000;n.a.;0.2334;0.3336
+96-901-6058;C;Cu O;Tenorite;n.a.;n.a.;0.0000;n.a.;0.3012;0.2708
+96-152-6991;C;Cu O;;n.a.;n.a.;0.0000;n.a.;0.4324;0.2244
+96-230-0114;C;O Zn;zinc_oxide;0.3483;n.a.;0.0000;n.a.;0.1134;0.1445
+96-157-1908;C;Cu O;CuO;0.0932;n.a.;0.0000;n.a.;0.2551;0.1410
+96-101-1259;C;O Zn;Zinc oxide (Zincite);0.4354;n.a.;0.0000;n.a.;0.1580;0.0662
+96-230-0115;C;O Zn;zinc_oxide;0.1032;n.a.;0.0000;n.a.;0.0332;0.0262
+96-101-1260;C;O Zn;Zinc oxide (Zincite);0.0000;n.a.;0.0000;n.a.;0.0356;0.0258
+96-210-6878;C;O2;Oxygen;0.1173;n.a.;0.0000;n.a.;0.0344;0.0133
