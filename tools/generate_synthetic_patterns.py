@@ -97,7 +97,7 @@ def _dump_header(fname: str, label: str, n_points: int, tmin: float, tmax: float
         f"  File Name : {fname}",
         "",
         "# Profile Datafile",
-        "          comment             = Synthetic pattern with known ground truth",
+        "          comment             =  ",
         f"          date & time         = {tstamp} ",
         "",
         "# Measurement Condition",
@@ -112,7 +112,7 @@ def _dump_header(fname: str, label: str, n_points: int, tmin: float, tmax: float
         "    Scanning",
         "          drive axis          = Theta-Theta ",
         f"          scan range          =   {tmin:6.3f} -  {tmax:6.3f} ",
-        "          scan mode           = Step Scan ",
+        "          scan mode           = Fixed Time ",
         "          scan speed          =   1.0000 (deg/min) ",
         "          sampling pitch      =   0.0200 (deg) ",
         "          preset time         =   1.20 (sec) ",
@@ -192,7 +192,8 @@ def _background(tth: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     return a + b * (tth - 50.0) + c * (tth - 50.0) ** 2
 
 
-def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]], rng: np.random.Generator) -> dict:
+def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]],
+                  rng: np.random.Generator, noise_scale: float = 0.012) -> dict:
     """Build one synthetic sample; returns pattern + phase truth."""
     pattern = np.zeros_like(TWO_THETA)
     truth: list[dict] = []
@@ -210,7 +211,7 @@ def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]], rng
     pattern += _background(TWO_THETA, rng)
     pattern = np.maximum(pattern, 0.0)
     scale = pattern.max() if pattern.max() > 0 else 1.0
-    noise = rng.normal(0.0, 0.012 * scale, size=pattern.shape)
+    noise = rng.normal(0.0, noise_scale * scale, size=pattern.shape)
     pattern = np.maximum(pattern + noise, 0.0)
     if pattern.max() > 0:
         pattern = pattern / pattern.max() * 50000.0
@@ -230,13 +231,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, default=Path(r"D:\Project\XRD\test_xrd\synthetic"))
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--noise-scale", type=float, default=0.012,
+                    help="高斯噪音幅度（相对最强峰），默认 0.012；低噪音对照可用 0.003")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(args.seed)
 
     rows = []
     for idx, (label, phases) in enumerate(_MATERIALS, start=1):
-        sample = _build_sample(label, phases, rng)
+        sample = _build_sample(label, phases, rng, noise_scale=args.noise_scale)
         fname = f"synth_{idx:02d}.txt"
         header = _dump_header(
             fname, label, len(TWO_THETA),
@@ -245,7 +248,8 @@ def main() -> None:
         with open(args.out / fname, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(header)
             for x, y in zip(TWO_THETA, sample["pattern"], strict=True):
-                fh.write(f"{x:11.4f} {round(float(y)):10d}\n")
+                # 数据行无中间分隔空格（对齐实测样本 5-x：%11.4f%10.0f 连续拼接，行宽 21）
+                fh.write(f"{x:11.4f}{round(float(y)):10d}\n")
         elems = _element_suggestion(sample["truth"])
         rows.append({"file": fname, "label": label, "truth": sample["truth"], "elems": elems})
         print(
