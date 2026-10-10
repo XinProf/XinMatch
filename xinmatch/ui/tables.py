@@ -110,10 +110,10 @@ class _PeakListModel(QtCore.QAbstractTableModel):
         return None
 
     # -- model API -------------------------------------------------------
-    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
+    def rowCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self._peaks)
 
-    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
+    def columnCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self.HEADERS)
 
     def headerData(self, section: int, orientation: QtCore.Qt.Orientation,  # noqa: N802
@@ -122,7 +122,7 @@ class _PeakListModel(QtCore.QAbstractTableModel):
             return self.HEADERS[section]
         return super().headerData(section, orientation, role)
 
-    def data(self, index: QtCore.QModelIndex,
+    def data(self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
              role: int = QtCore.Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
             return None
@@ -259,10 +259,10 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
             return self._results[row].entry.entry_id
         return None
 
-    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
+    def rowCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self._results)
 
-    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
+    def columnCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self.HEADERS)
 
     def headerData(self, section: int, orientation: QtCore.Qt.Orientation,  # noqa: N802
@@ -271,7 +271,7 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
             return self.HEADERS[section]
         return super().headerData(section, orientation, role)
 
-    def data(self, index: QtCore.QModelIndex,
+    def data(self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
              role: int = QtCore.Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
             return None
@@ -374,10 +374,10 @@ class CandidateListTable(QtWidgets.QTableView):
         eid = self._entry_id(index) if index.isValid() else None
         act_view = menu.addAction("查看条目...")
         act_view.setEnabled(eid is not None)
-        act_view.triggered.connect(lambda _c=False, e=eid: e and self.view_entry.emit(e))
+        act_view.triggered.connect(lambda _c=False, e=eid: e and self.view_entry.emit(e))  # type: ignore[func-returns-value]
         act_toggle = menu.addAction("选中/取消选中")
         act_toggle.setEnabled(eid is not None)
-        act_toggle.triggered.connect(lambda _c=False, e=eid: e and self.toggle_selection.emit(e))
+        act_toggle.triggered.connect(lambda _c=False, e=eid: e and self.toggle_selection.emit(e))  # type: ignore[func-returns-value]
         menu.addSeparator()
         act_export = menu.addAction("导出候选列表 (CSV)...")
         act_export.triggered.connect(self.export_requested.emit)
@@ -412,10 +412,10 @@ class _MatchListModel(QtCore.QAbstractTableModel):
             return self._phases[row].entry.entry_id
         return None
 
-    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
+    def rowCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self._phases)
 
-    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
+    def columnCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self.HEADERS)
 
     def headerData(self, section: int, orientation: QtCore.Qt.Orientation,  # noqa: N802
@@ -424,7 +424,7 @@ class _MatchListModel(QtCore.QAbstractTableModel):
             return self.HEADERS[section]
         return super().headerData(section, orientation, role)
 
-    def data(self, index: QtCore.QModelIndex,
+    def data(self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
              role: int = QtCore.Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
             return None
@@ -502,7 +502,7 @@ class MatchListTable(QtWidgets.QTableView):
         eid = self._entry_id(index) if index.isValid() else None
         act_remove = menu.addAction("从匹配列表移除")
         act_remove.setEnabled(eid is not None)
-        act_remove.triggered.connect(lambda _c=False, e=eid: e and self.remove_phase.emit(e))
+        act_remove.triggered.connect(lambda _c=False, e=eid: e and self.remove_phase.emit(e))  # type: ignore[func-returns-value]
         menu.addSeparator()
         act_export = menu.addAction("导出匹配列表 (CSV)...")
         act_export.triggered.connect(self.export_requested.emit)

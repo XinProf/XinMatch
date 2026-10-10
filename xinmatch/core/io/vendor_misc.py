@@ -116,11 +116,11 @@ def read_cpi(path: str | Path) -> Pattern:
         intensity.extend(_parse_numbers(ln))
     if len(intensity) < 2:
         raise ValueError(f"Sietronics CPI has no intensity data: {p}")
-    intensity = np.asarray(intensity, dtype=np.float64)
-    two_theta = start + step * np.arange(len(intensity), dtype=np.float64)
+    intensity_arr = np.asarray(intensity, dtype=np.float64)
+    two_theta = start + step * np.arange(len(intensity_arr), dtype=np.float64)
     return Pattern(
         two_theta=two_theta,
-        intensity=intensity,
+        intensity=intensity_arr,
         wavelength=1.5406,
         step=float(step),
         metadata={"format": "cpi", "vendor": "Sietronics"},

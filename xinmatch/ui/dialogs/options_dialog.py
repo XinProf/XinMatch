@@ -95,7 +95,7 @@ class OptionsDialog(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
             accepted=self.accept, rejected=self.reject,
-        ))
+        ))  # type: ignore[call-overload]
 
     def _build_page(self, section_cfg: dict[str, Any],
                     rows: list[tuple[str, str, str, Any]]) -> QtWidgets.QWidget:
@@ -103,6 +103,12 @@ class OptionsDialog(QtWidgets.QDialog):
         widgets: dict[str, QtWidgets.QWidget] = {}
         for label, key, kind, default in rows:
             value = section_cfg.get(key, default)
+            w: (
+                QtWidgets.QCheckBox
+                | QtWidgets.QSpinBox
+                | QtWidgets.QDoubleSpinBox
+                | QtWidgets.QLineEdit
+            )
             if kind == "check":
                 w = QtWidgets.QCheckBox()
                 w.setChecked(bool(value))
@@ -136,9 +142,11 @@ class OptionsDialog(QtWidgets.QDialog):
         result: dict[str, Any] = {}
         idx = [t[1] for t in _PAGES].index(section)
         page = self._tabs.widget(idx)
-        form = page.layout()
+        form = page.layout() if page is not None else None
+        if form is None:
+            return result
         for i, (_label, key, _kind, _default) in enumerate(rows):
-            field_item = form.itemAt(i, QtWidgets.QFormLayout.ItemRole.FieldRole)
+            field_item = form.itemAt(i, QtWidgets.QFormLayout.ItemRole.FieldRole)  # type: ignore[call-arg]
             w = field_item.widget() if field_item is not None else None
             if isinstance(w, QtWidgets.QCheckBox):
                 result[key] = w.isChecked()

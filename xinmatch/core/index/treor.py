@@ -183,7 +183,7 @@ def _treor_cubic(
     n_total = len(sorted_d)
 
     solutions: list[LatticeSolution] = []
-    seen_a: set[int] = set()  # de-duplicate by 'a' rounded to 0.001 Å
+    seen_a: set[float] = set()  # de-duplicate by 'a' rounded to 0.001 Å
     iter_count = 0
 
     # Try assigning each of the first few peaks to each candidate hkl.
@@ -253,7 +253,7 @@ def _treor_tetragonal(
     solutions: list[LatticeSolution] = []
     iter_count = 0
     n_total = len(sorted_d)
-    seen: set[tuple[int, int]] = set()
+    seen: set[tuple[float, float]] = set()
 
     # Pick peaks to assign as (1,0,0) (gives a) and (0,0,l) (gives c).
     n_trial = min(5, n_total)
@@ -369,7 +369,7 @@ def _treor_orthorhombic(
 
     solutions: list[LatticeSolution] = []
     iter_count = 0
-    seen: set[tuple[int, int, int]] = set()
+    seen: set[tuple[float, float, float]] = set()
 
     for i in range(n_trial):
         for j in range(n_trial):
@@ -480,7 +480,7 @@ def _treor_hexagonal(
 
     solutions: list[LatticeSolution] = []
     iter_count = 0
-    seen: set[tuple[int, int]] = set()
+    seen: set[tuple[float, float]] = set()
 
     for i in range(n_trial):
         d_a = sorted_d[i]

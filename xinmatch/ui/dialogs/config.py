@@ -122,7 +122,8 @@ DEFAULTS: dict[str, Any] = {
 
 def default_config() -> dict[str, Any]:
     """Return a deep copy of :data:`DEFAULTS` safe to mutate."""
-    return yaml.safe_load(yaml.safe_dump(DEFAULTS))
+    result: dict[str, Any] = yaml.safe_load(yaml.safe_dump(DEFAULTS))
+    return result
 
 
 def config_path() -> Path:

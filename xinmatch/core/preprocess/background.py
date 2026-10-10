@@ -200,7 +200,9 @@ def estimate_background(
         i0, i1 = intensity[0], intensity[-1]
         if t1 == t0:
             return np.full_like(intensity, i0)
-        return i0 + (i1 - i0) * (two_theta - t0) / (t1 - t0)
+        return np.asarray(
+            i0 + (i1 - i0) * (two_theta - t0) / (t1 - t0), dtype=np.float64
+        )
 
     raise ValueError(f"unknown background method: {method!r}")
 
@@ -252,7 +254,7 @@ def interpolate_background(
         bounds_error=False,
         fill_value=(yp[0], yp[-1]),
     )
-    return f(np.asarray(two_theta, dtype=np.float64)).astype(np.float64)
+    return np.asarray(f(np.asarray(two_theta, dtype=np.float64)), dtype=np.float64)
 
 
 def subtract_background(
@@ -285,4 +287,4 @@ def subtract_background(
         )
     net = intensity - background
     np.clip(net, 0.0, None, out=net)
-    return net
+    return np.asarray(net, dtype=np.float64)

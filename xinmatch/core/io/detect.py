@@ -193,9 +193,13 @@ def detect_format(path: str | Path) -> str:
 
     # 4. Ambiguous extensions: content sniffing ----------------------------
     if ext == ".dat":
-        return _sniff_dat(lines)
+        fmt = _sniff_dat(lines)
+        if fmt is not None:
+            return fmt
     if ext == ".txt":
-        return _sniff_txt(lines)
+        fmt = _sniff_txt(lines)
+        if fmt is not None:
+            return fmt
     if ext == ".dif":
         # ENDEAVOUR is 2-column 2theta/d + I; Bruker .dif has a header
         return _sniff_dif(lines)

@@ -60,7 +60,7 @@ def angular_separation(
     sin_theta2 = np.clip(ratio * np.sin(theta), -1.0, 1.0)
     theta2 = np.arcsin(sin_theta2)
     delta = 2.0 * np.degrees(theta2 - theta)
-    return delta
+    return np.asarray(delta, dtype=np.float64)
 
 
 def strip_alpha2(
@@ -105,7 +105,10 @@ def strip_alpha2(
     if n == 0:
         return alpha1
 
-    delta = angular_separation(two_theta, wavelength_kalpha1, wavelength_kalpha2)
+    delta = np.asarray(
+        angular_separation(two_theta, wavelength_kalpha1, wavelength_kalpha2),
+        dtype=np.float64,
+    )
 
     # Iterate from low to high 2θ: the Kα2 companion seen at 2θ_i was
     # produced by the Kα1 at (2θ_i - δ_i), which has already been computed.

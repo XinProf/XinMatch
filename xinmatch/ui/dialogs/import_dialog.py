@@ -113,7 +113,7 @@ class ImportDialog(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
             accepted=self.accept, rejected=self.reject,
-        ))
+        ))  # type: ignore[call-overload]
 
     def _on_radiation_changed(self, index: int) -> None:
         """Pick the wavelength when a preset radiation is chosen."""

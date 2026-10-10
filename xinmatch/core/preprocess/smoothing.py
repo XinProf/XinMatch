@@ -78,7 +78,10 @@ def smooth(
             window += 1
         if polyorder >= window:
             polyorder = window - 1
-        return savgol_filter(intensity, window_length=window, polyorder=polyorder)
+        return np.asarray(
+            savgol_filter(intensity, window_length=window, polyorder=polyorder),
+            dtype=np.float64,
+        )
 
     if method == "moving_average":
         kernel = np.ones(window, dtype=np.float64) / window

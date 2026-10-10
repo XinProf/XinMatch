@@ -68,8 +68,9 @@ References
 
 from __future__ import annotations
 
+import os
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -159,7 +160,7 @@ class RietveldQuantResult:
 def rietveld_quantify(
     pattern: Pattern,
     phases: Sequence[Phase],
-    cif_paths: dict[str, str | Path],
+    cif_paths: Mapping[str, str | os.PathLike[str]],
     work_dir: str | Path | None = None,
     options: RefineOptions | None = None,
     *,
@@ -226,7 +227,7 @@ def rietveld_quantify(
         proj = build_gsas2_project(
             pattern,
             phases,
-            cif_paths,
+            dict(cif_paths),
             options=options,
             work_dir=work_dir,
             project_name="rietveld_quant",
@@ -234,8 +235,8 @@ def rietveld_quantify(
         )
 
     # ---- 定位产物文件 ----------------------------------------------------
-    lst_path = getattr(proj, "lst_path", None)
-    prf_path = getattr(proj, "prf_path", None)
+    lst_path: str | Path | None = getattr(proj, "lst_path", None)
+    prf_path: str | Path | None = getattr(proj, "prf_path", None)
     refined_cifs = getattr(proj, "refined_cifs", [])
     gpx_path = getattr(proj, "gpx_path", None)
 
@@ -251,6 +252,10 @@ def rietveld_quantify(
             raise RuntimeError(
                 f"GSAS-II 精修未产出 .prf 文件: {prf_path!r}"
             )
+    # Belt-and-braces: by construction the default path already raised above;
+    # a custom driver is expected to return a project carrying both paths.
+    if lst_path is None or prf_path is None:
+        raise RuntimeError("精修项目缺少 .lst/.prf 产物路径")
 
     # ---- 解析精修结果 ----------------------------------------------------
     outcome = parse_refinement(

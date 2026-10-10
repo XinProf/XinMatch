@@ -89,14 +89,14 @@ class Pattern:
     @property
     def theta(self) -> np.ndarray:
         """Scattering angle θ in radians."""
-        return np.radians(self.two_theta) / 2.0
+        return np.asarray(np.radians(self.two_theta) / 2.0, dtype=np.float64)
 
     @property
     def d_spacing(self) -> np.ndarray:
         """d-spacing in Å via Bragg's law ``λ = 2 d sin θ``."""
         with np.errstate(divide="ignore", invalid="ignore"):
             d = self.wavelength / (2.0 * np.sin(self.theta))
-        return d
+        return np.asarray(d, dtype=np.float64)
 
     @property
     def q(self) -> np.ndarray:

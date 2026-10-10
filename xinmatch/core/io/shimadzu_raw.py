@@ -105,12 +105,12 @@ def _target_wavelength(header: str) -> tuple[float, str]:
 
 
 def _i32(raw: bytes, off: int) -> int:
-    return struct.unpack_from("<i", raw, off)[0]
+    return int(struct.unpack_from("<i", raw, off)[0])
 
 
 def _u32(raw: bytes, off: int) -> int | None:
     try:
-        return struct.unpack_from("<I", raw, off)[0]
+        return int(struct.unpack_from("<I", raw, off)[0])
     except struct.error:
         return None
 

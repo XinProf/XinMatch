@@ -234,7 +234,7 @@ class LibraryDialog(QtWidgets.QDialog):
                 | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
                 accepted=self.accept,
                 rejected=self.reject,
-            )
+            )  # type: ignore[call-overload]
         )
 
     # ------------------------------------------------------------------

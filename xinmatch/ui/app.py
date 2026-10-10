@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Sequence
+from typing import cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -38,11 +39,14 @@ def create_app(argv: Sequence[str] | None = None) -> QtWidgets.QApplication:
     singleton), which keeps unit tests cheap and prevents "QApplication
     already exists" errors.
     """
-    app = QtWidgets.QApplication.instance()
+    # instance() is typed on the base QCoreApplication; cast narrows it.
+    app = cast(QtWidgets.QApplication, QtWidgets.QApplication.instance())
     if app is None:
         app = QtWidgets.QApplication(list(argv) if argv is not None else [])
     app.setApplicationName("XinMatch")
-    app.setApplicationDisplayName("XinMatch — powder XRD phase analysis")
+    # setApplicationDisplayName exists at runtime; the PySide6 stub for the
+    # base QCoreApplication class omits it.
+    app.setApplicationDisplayName("XinMatch — powder XRD phase analysis")  # type: ignore[attr-defined]
     app.setOrganizationName("XinMatch")
     return app
 
@@ -84,7 +88,7 @@ def _run_about_selftest(window: QtWidgets.QWidget) -> None:
 
     def _snap() -> None:
         dlg.grab().save(out_path)
-        QtWidgets.QApplication.instance().quit()
+        QtWidgets.QApplication.quit()
 
     QtCore.QTimer.singleShot(800, _snap)
 
@@ -119,7 +123,7 @@ def _run_libraries_selftest() -> None:
     Path(out_path).write_text(
         json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    QtWidgets.QApplication.instance().quit()
+    QtWidgets.QApplication.quit()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

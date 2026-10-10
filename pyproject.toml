@@ -84,3 +84,21 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+# Scope: type-check the package from ``python -m mypy`` (no args).
+# xinmatch/core/search is owned by a parallel task (T0.6 task A) and xinmatch/
+# core/refine is out of scope for this milestone; both are excluded here and
+# recorded as baseline exemptions in docs/mypy_baseline.md.
+#
+# ``exclude`` prunes them from the initial file scan; ``overrides`` silences
+# any residual errors that surface when in-scope modules import them.  Both
+# are baseline exemptions, not a signal that those packages are error-free.
+files = ["xinmatch"]
+exclude = [
+    "xinmatch[/\\\\]core[/\\\\]search",
+    "xinmatch[/\\\\]core[/\\\\]refine",
+]
+
+[[tool.mypy.overrides]]
+module = ["xinmatch.core.search.*", "xinmatch.core.refine.*"]
+ignore_errors = true

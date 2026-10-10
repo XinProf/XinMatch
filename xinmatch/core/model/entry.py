@@ -130,7 +130,7 @@ class Entry:
         imax = self.intensities.max()
         if imax == 0:
             return self.intensities.copy()
-        return self.intensities / imax * scale
+        return np.asarray(self.intensities / imax * scale, dtype=np.float64)
 
     def to_dict(self) -> dict[str, Any]:
         return {

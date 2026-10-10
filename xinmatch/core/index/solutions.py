@@ -165,7 +165,7 @@ def wolff_fom(
         return 0.0
 
     # Pair observed d's with their (hkl) assignment and convert to 2θ.
-    indexed: list[tuple[float, float]] = []  # (2θ_obs, d_obs)
+    indexed: list[tuple[float, float, float]] = []  # (2θ_obs, d_obs, 2θ_calc)
     for d_obs, hkl in zip(all_peaks_d, solution.hkl_assignments, strict=False):
         if hkl is None:
             continue
@@ -294,15 +294,16 @@ def smith_snyder_fom(
     delta_sum = 0.0
     d_min_idx = math.inf
     d_max_idx = 0.0
-    for tt_obs, d_obs, tt_calc, indexed in obs_first_n:
-        if not indexed or tt_calc is None:
+    for row in obs_first_n:
+        tt_o, d_o, tt_calc_o, is_indexed = row
+        if not is_indexed or tt_calc_o is None:
             continue
-        delta_sum += abs(tt_obs - tt_calc)
-        if d_obs > 0:
-            if d_obs < d_min_idx:
-                d_min_idx = d_obs
-            if d_obs > d_max_idx:
-                d_max_idx = d_obs
+        delta_sum += abs(tt_o - tt_calc_o)
+        if d_o > 0:
+            if d_o < d_min_idx:
+                d_min_idx = d_o
+            if d_o > d_max_idx:
+                d_max_idx = d_o
     delta_avg = delta_sum / n_pos if n_pos else math.inf
     if delta_avg <= 0:
         # Perfect fit.

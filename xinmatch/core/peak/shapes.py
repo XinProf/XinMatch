@@ -18,10 +18,16 @@ which is the convention used for integrated intensities.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 # 2 * sqrt(2 * ln 2)  — converts Gaussian σ to FWHM and back.
-_FWHM_TO_SIGMA = 1.0 / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+# float(...) pins these to Python scalars (np.sqrt returns a 0-d ndarray
+# whose arithmetic mypy widens to Any).
+_FWHM_TO_SIGMA = 1.0 / (2.0 * float(np.sqrt(2.0 * np.log(2.0))))
+_SQRT_2PI = float(np.sqrt(2.0 * np.pi))
+_SQRT_PI = float(np.sqrt(np.pi))
 
 
 def fwhm_to_sigma(fwhm: float | np.ndarray) -> float | np.ndarray:
@@ -62,7 +68,7 @@ def gaussian(
     """
     x = np.asarray(x, dtype=np.float64)
     sigma = fwhm_to_sigma(fwhm)
-    prefactor = amplitude / (sigma * np.sqrt(2.0 * np.pi))
+    prefactor = amplitude / (sigma * _SQRT_2PI)
     return prefactor * np.exp(-0.5 * ((x - center) / sigma) ** 2)
 
 
@@ -157,12 +163,20 @@ def pearson_vii(
     w = fwhm
     scale = 2.0 * np.sqrt(2.0 ** (1.0 / m) - 1.0) / w
     # Normalisation constant so the integral equals `amplitude`.
-    norm = scale * gamma_func(m) / (np.sqrt(np.pi) * gamma_func(m - 0.5))
-    return amplitude * norm * (1.0 + (scale * (x - center)) ** 2) ** (-m)
+    # scipy.special.gamma is untyped (Any); float(...) keeps the scalar
+    # chain typed so the return value stays a properly typed ndarray.
+    norm = float(scale * gamma_func(m) / (_SQRT_PI * gamma_func(m - 0.5)))
+    return np.asarray(
+        amplitude * norm * (1.0 + (scale * (x - center)) ** 2) ** (-m),
+        dtype=np.float64,
+    )
 
 
 # Mapping of shape name -> callable for use by profile fitting.
-SHAPE_FUNCTIONS = {
+# The value type is deliberately loose (Callable[..., ndarray]): the four
+# shapes differ in their optional trailing args (eta / shape), and callers
+# pass them positionally after (x, center, fwhm, amplitude).
+SHAPE_FUNCTIONS: dict[str, Callable[..., np.ndarray]] = {
     "gaussian": gaussian,
     "lorentzian": lorentzian,
     "pseudo_voigt": pseudo_voigt,

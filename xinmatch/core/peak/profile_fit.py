@@ -160,7 +160,7 @@ def fit_profile(
 
     def residuals(params: np.ndarray) -> np.ndarray:
         calc = _build_model(two_theta, params, n_peaks, shape, has_eta)
-        return weight * (obs - calc)
+        return np.asarray(weight * (obs - calc), dtype=np.float64)
 
     result = least_squares(
         residuals,

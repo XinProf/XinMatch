@@ -109,8 +109,8 @@ class MicrostrainResult:
 
 
 def instrumental_corrected_fwhm(
-    observed_fwhm_deg: float | Sequence[float],
-    instrumental_fwhm_deg: float | Sequence[float],
+    observed_fwhm_deg: float | Sequence[float] | np.ndarray,
+    instrumental_fwhm_deg: float | Sequence[float] | np.ndarray,
 ) -> np.ndarray | float:
     """Remove the instrumental broadening contribution from observed FWHM.
 
@@ -148,7 +148,7 @@ def instrumental_corrected_fwhm(
     # Return a scalar if the inputs were scalar.
     if sample.ndim == 0:
         return float(sample)
-    return sample
+    return np.asarray(sample, dtype=np.float64)
 
 
 def williamson_hall(
@@ -341,7 +341,9 @@ def williamson_hall_from_peaks(
             f"Need at least 2 peaks with valid FWHM, got {len(sample_peaks)}"
         )
 
-    fwhm_list = [p.fwhm for p in sample_peaks]
+    # fwhm is non-None for every element by the filter above; the second
+    # clause lets mypy narrow the value out of ``float | None``.
+    fwhm_list = [p.fwhm for p in sample_peaks if p.fwhm is not None]
     tt_list = [p.two_theta for p in sample_peaks]
 
     inst_fwhm = None

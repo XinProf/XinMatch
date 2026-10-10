@@ -62,7 +62,7 @@ from xinmatch.ui.theme import apply_theme, current_theme
 try:  # pragma: no cover - 取决于并行任务产物是否落地
     from xinmatch.ui.icons import icon as _themed_icon
 except ImportError:  # pragma: no cover
-    _themed_icon = None
+    _themed_icon = None  # type: ignore[assignment]
 
 # PDF-2 源目录注入（并行任务交付；缺失时静默跳过）。
 try:  # pragma: no cover
@@ -521,7 +521,7 @@ class MainWindow(QtWidgets.QMainWindow):
         proxy = self.candidate_table.model()
         selected: list[CandidateResult] = []
         for idx in idxs:
-            row = proxy.mapToSource(idx).row()
+            row = proxy.mapToSource(idx).row()  # type: ignore[attr-defined]
             if 0 <= row < len(self._candidates):
                 selected.append(self._candidates[row])
         return selected or list(self._candidates)
@@ -622,7 +622,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if not out_dir:
             return
-        exported = export_cifs(matched, out_dir)
+        exported = export_cifs(matched, out_dir)  # type: ignore[arg-type]
         note = ""
         if missing:
             note = "\n\n以下相无 CIF（已跳过）：" + "、".join(missing)

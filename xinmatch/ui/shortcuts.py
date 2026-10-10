@@ -186,7 +186,7 @@ def install_shortcuts(
         action = QtGui.QAction(entry.description, window)
         action.setObjectName(f"shortcut_{entry.name}")
         action.setShortcut(QtGui.QKeySequence(entry.sequence))
-        action.setShortcutContext(QtCore.Qt.WindowShortcut)
+        action.setShortcutContext(QtCore.Qt.WindowShortcut)  # type: ignore[attr-defined]
         action.setStatusTip(entry.menu)
         callback = callbacks.get(entry.name) if callbacks else None
         action.triggered.connect(_make_handler(window, entry, callback))

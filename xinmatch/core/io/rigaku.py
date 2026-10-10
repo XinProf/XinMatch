@@ -108,7 +108,7 @@ def read_raw2(path: str | Path) -> Pattern:
         raise ValueError(f"RAW2 file data segment too short: {p}")
 
     start, step = _raw2_axis(raw)
-    if start is None:
+    if start is None or step is None:
         raise ValueError(f"RAW2 header has no trustworthy start/step: {p}")
 
     intensity = np.frombuffer(
@@ -139,7 +139,7 @@ def _raw2_axis(raw: bytes) -> tuple[float | None, float | None]:
     """
     def _f(off: int) -> float | None:
         try:
-            return struct.unpack_from("<f", raw, off)[0]
+            return float(struct.unpack_from("<f", raw, off)[0])
         except struct.error:
             return None
 

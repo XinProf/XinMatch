@@ -29,7 +29,7 @@ API
 from __future__ import annotations
 
 import traceback
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 import pyqtgraph as pg
@@ -76,7 +76,7 @@ class RefinementWizard(QtWidgets.QDialog):
     def __init__(
         self,
         phases: Sequence[Phase],
-        cif_paths: dict[str, str | Path],
+        cif_paths: Mapping[str, str | Path],
         pattern: Pattern,
         options: RefineOptions | None = None,
         parent: QtWidgets.QWidget | None = None,
@@ -383,17 +383,19 @@ class RefinementWizard(QtWidgets.QDialog):
         proj = build_gsas2_project(
             self._pattern,
             phases,
-            self._cif_paths,
+            self._cif_paths,  # type: ignore[arg-type]
             options=options,
             work_dir=work_dir,
             project_name="wizard",
             run=True,
         )
         cifs = [str(c) for c in proj.refined_cifs] if proj.refined_cifs else None
+        if proj.lst_path is None or proj.prf_path is None:
+            raise RuntimeError("精修工程缺少 .lst/.prf 产物路径")
         outcome = parse_refinement(
             proj.lst_path,
             proj.prf_path,
-            cifs=cifs,
+            cifs=cifs,  # type: ignore[arg-type]
             gpx=proj.gpx_path,
         )
         return outcome
@@ -441,6 +443,8 @@ class RefinementWizard(QtWidgets.QDialog):
         for row, rph in enumerate(outcome.refined_phases):
             ph = rph.phase
             cell = ph.entry.cell
+            if cell is None:
+                continue
             name = ph.entry.mineral_name or ph.entry.entry_id
             wf = ph.weight_fraction
             wt_pct = f"{wf * 100:.2f}" if wf is not None else "—"
@@ -472,6 +476,8 @@ class RefinementWizard(QtWidgets.QDialog):
             QtWidgets.QMessageBox.information(
                 self, "无精修 CIF", "本次精修没有生成精修后 CIF。"
             )
+            return
+        if self._outcome is None:
             return
         idx = 0
         if len(paths) > 1:
