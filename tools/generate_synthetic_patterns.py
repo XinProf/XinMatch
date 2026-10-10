@@ -136,7 +136,9 @@ def _pseudovoigt(tth: float, tth0: float, fwhm: float, eta: float) -> float:
 def _fwhm(tth: float) -> float:
     t = math.tan(math.radians(tth / 2.0))
     f = math.sqrt(max(0.0, U * t * t + V * t + W))
-    return max(f, 0.03)
+    # 下限 0.15°：对齐常规实验室 Cu 源的仪器展宽（实测样本峰形 ~0.15–0.25°）。
+    # 早期下限 0.03° 生成 FWHM ~0.1° 的过窄峰，参考软件 SMPF 拟合不稳定。
+    return max(f, 0.15)
 
 
 def _march_factor(tth: np.ndarray, tth0: float, r: float) -> np.ndarray:
@@ -193,7 +195,7 @@ def _background(tth: np.ndarray, rng: np.random.Generator) -> np.ndarray:
 
 
 def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]],
-                  rng: np.random.Generator, noise_scale: float = 0.012) -> dict:
+                  rng: np.random.Generator, noise_scale: float = 0.003) -> dict:
     """Build one synthetic sample; returns pattern + phase truth."""
     pattern = np.zeros_like(TWO_THETA)
     truth: list[dict] = []
@@ -231,8 +233,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, default=Path(r"D:\Project\XRD\test_xrd\synthetic"))
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--noise-scale", type=float, default=0.012,
-                    help="高斯噪音幅度（相对最强峰），默认 0.012；低噪音对照可用 0.003")
+    ap.add_argument("--noise-scale", type=float, default=0.003,
+                    help="高斯噪音幅度（相对最强峰），默认 0.003（真实计数统计噪音量级）；"
+                         "早期 0.012 偏高，参考软件 SMPF 拟合受扰")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(args.seed)
