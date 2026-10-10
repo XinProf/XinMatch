@@ -38,6 +38,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T2.4 | Bruker (.uxd/.brml; .raw TODO) | 🟡 |
 | T2.8 | Exporters (ASCII profile + peak list) | ✅ |
 | T2.9 | Unified `load_pattern()` entry | ✅ |
+| T2.10 | 全谱图格式补齐（对齐 PolyXRD 可解析全集，2026-10-10） | ✅ (`core/io/xrdml.py` XRDML、`mdi.py` MDI（丢首点校正）、`shimadzu_txt.py` 岛津文本导出、`vendor_misc.py` RAS/CPI/PLV/ESG/GDF；detect 修复二进制魔数限定 .raw 扩展名，文本型 .raw 保留文本签名路径；22 格式全 dispatch，真实 4-1.mdi 峰位与 .dat 对齐 <0.02°) |
 
 ## Phase 3 — Raw data preprocessing (`core/preprocess/`)
 
@@ -86,6 +87,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ✅ |
 | T6.9 | L3 acceptance (Top-10 vs 参考软件 baseline) | ✅ (real COD db 71,199 entries: **13/13 samples top1 = ground-truth phase**; vs 参考软件 CSV: Top-5 overlap 67.7% ≥ 60% PASS, Top-1 agreement 69.2% (9/13) < 80% FAIL — 4 mismatches are multi-phase 5-x samples where both sides pick a true phase; FoM weight sweep (4 combos) all stop at 9/13, not reproducible by linear weights; see docs/l3_golden_acceptance_cod.html) |
+| T6.9b | COD 全库检索质量核验（2026-10-10） | ✅ (用 `data/cod_full.db` 112,734 条目重跑同基线：Top-1 一致率反而降至 1/13——全库含大量重复/低质量卡片稀释排序。**结论：默认检索保持精选无机库 71,199 正确，全库仅作覆盖性挂载**；L3 追平不靠换库，方向仍是逆向参考软件 FoM 内部逻辑或补条目) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 
 ## Phase 7 — Restraints application (`core/search/`)

@@ -47,15 +47,19 @@ COD 全库 CIF 归档：`D:\Project\XRD\PolyXRD\cod\cif`（522,545 个 CIF）。
   `open_library("pdf2_2004")` + 检索链路可用。
 - 重建：`python -m xinmatch.core.db.pdf2_index`（一次性，约 3 分钟）。
 
-## 5. COD 全库构建入口（脚本已交付，全量未硬跑）
+## 5. COD 全库构建（已全量完成）
 
 - `tools/build_cod_full_xinmatch.py`：CIF 归档 → XinMatch-schema DB（entries+peaks），
   支持 `--out / --start / --limit / --resume`、增量写入、进度日志、条/min 与 ETA
   （断点续跑水位表 `build_progress`）。
-- 实测：300 条切片 **entries=300 / peaks=30,000，吞吐 ≈1,472 条/min**，切片内相自检
-  `search_match` 命中（FoM=1.0 第一）；切片产物 `data/cod_full.db`（2.6 MB）。
-- 全量预估：`cod_entries` parse_ok=1 共 113,111 条 → 按实测速率约 **77 分钟**；
-  考虑大胞/蛋白相单条反射更多，**保守 2–4 小时**（可后台分批跑）。
+- **全量实测（2026-10-09 已入库，commit 7a88494）**：`data/cod_full.db`（941.8 MB）
+  **entries=112,734 / peaks=10,979,059 / elements=527,398**，schema 与默认库一致
+  （entries/peaks/elements/element_combo/build_progress），可直接被 search 查询与挂载。
+- 300 条切片吞吐 ≈1,472 条/min；全量约 2 小时内完成（含大胞相反射较多的耗时）。
+- **检索质量结论（2026-10-10 核验）**：用全库 112,734 条重跑 L3 黄金基线，Top-1 一致率
+  反降至 1/13（无机库为 9/13）——全库含大量重复/低质量卡片（同一物相多卡片、实验与
+  理论条目并存）稀释 FoM 排序。**默认检索保持精选无机库 `data/cod_inorganics.db`
+  （71,199），全库仅作覆盖性挂载/人工查阅**，不作为默认搜索库。
 - 用法示例：
 
 ```powershell
@@ -74,7 +78,8 @@ python -m tools.build_cod_full_xinmatch --limit 500 --out data\cod_full.db
 
 ## 7. 后续建议（不在本版本范围）
 
-1. GUI 提供 PDF-2 源路径 / 侧车索引重建按钮（当前走环境变量 `XINMATCH_POLYXRD_DIR`）。
-2. COD 全库一键后台构建任务（带进度条与断点续跑，产物自动注册）。
+1. ~~GUI 提供 PDF-2 源路径 / 侧车索引重建按钮~~ ✅ 已完成（2026-10-09，体验修订轮）：参考数据库对话框「PDF-2 源路径…」，持久化 `config.yaml` 的 `pdf2_source_dir`。
+2. ~~COD 全库一键后台构建任务（带进度条与断点续跑，产物自动注册）~~ ✅ 已完成：对话框「构建 COD 全库…」后台线程 + 进度条/日志 + 可取消，全量产物已注册（见第 5 节）。
 3. 将 `COD_inorganics.sqlite`（与默认库同源）注册为可选挂载，供不随包分发的部署场景。
+4. 全库检索质量治理（去重/优选卡片）以让 COD 全库也可作为搜索库——当前结论是保持无机库为默认搜索库。
 4. 检索前可选库的连接复用与预热（首次打开 71k/163k 条库的索引加载耗时优化）。
