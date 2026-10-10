@@ -190,14 +190,26 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 - **Phase 16 3D 结构可视化 ✅（2026-10-09）**：`ui/structure_view.py`（QWebEngineView + **3Dmol.js 2.5.5 本地打包**，禁外部 CDN；gemmi 0.7.5 解析 CIF→JSON 纯函数 `cif_to_structure_data()`，晶胞从 CIF 标签直读剥 esd；COD ref_id→归档 CIF 路径规则实测核对）；主窗口"精修(&E)"→"3D 结构视图…" Ctrl+Shift+V，无 CIF 时空态页。精修后 CIF 接入 3D 留待后续（`Gsas2RefineOutcome` 未携带精修 CIF 路径）。
 - **About/图标**：About 对话框动态读 `xinmatch.__version__`（importlib.metadata，当前 1.0.0，不得硬编码）；主窗口图标 `assets/logo.png`（原创生成，随本版提交）。
 
-剩余：T14.4 serial instrument control、T0.3/T0.4 人工样品采集（工具已就绪）、T0.8 FoM P 值深挖。
+剩余：T14.4 serial instrument control、T0.3/T0.4 人工样品采集（工具已就绪）、T0.8 FoM P 值深挖、COD 全库检索质量上游修复（峰抽取标定）。
 
-## 已知环境问题（2026-10-10 记录）
+## COD 全库检索质量治理（2026-10-10，Organizer o_000EpGLcrJB 任务 1）✅
 
-**单进程全量 pytest 在 tests/refine → tests/report 交界处挂起**：首个 matplotlib PNG 导出测试
-（tests/report/test_figure_export.py）CPU 持续占用 30+ 分钟不结束。已定位为**既有环境问题**，
-与本轮 L3 追平 / mypy 改动无关（refine/report 目录 git diff 为空、tests/refine 与 tests/report
-均不导入改动的 search 模块；tests/report 单独跑 2.63s 全绿、tests/refine 单独全过，仅同进程
-衔接时挂起）。规避：分块跑（全量-{refine,report} 947 passed + 1 xfailed、tests/refine 122 passed、
-tests/report 41 passed + 1 skipped，分块零失败）。后续建议单独立项排查状态泄漏（如 matplotlib
-后端/Qt 事件循环污染）。
+**交付**：`tools/build_cod_full_curated.py`（幂等可复跑）、`data/cod_full_curated.db`（**94,553 entries / 9,328,888 peaks / 836.3MB**，schema 与全库一致、无孤立条目、无残留多卡簇）、`multi_db.py` 注册 `cod_full_curated`、24 新测试 + 交付文档。
+
+**L3 三列对比**（run_acceptance 实测）：
+
+| 库 | entries | Top-1 一致率 | Top-5 重叠 | 判定 |
+|---|---:|---:|---:|---|
+| cod_inorganics（默认） | 71,199 | **84.6%（11/13）** | 83.1% | PASS |
+| cod_full（全库直查） | 112,734 | 7.7%（1/13） | 46.2% | FAIL |
+| cod_full_curated（优选去重） | 94,553 | 7.7%（1/13） | 33.8% | FAIL |
+
+**根因**：去重不提升 Top-1——全库 quality/year 质量字段全空；同 entry_id 全库仅 21 峰 vs 无机库 30–38 峰（全库 CIF→峰抽取稀疏 → FoM 区分度弱），离群相胜出。真正杠杆在上游 `tools/build_cod_full_xinmatch.py` 峰抽取（峰窗口/强度标定），已单独立项。优选库价值 = 瘦身去冗余底座（−16.1% entries），**默认检索保持无机库**。
+
+## 全量 pytest"挂起"根因定性（2026-10-10，Organizer o_000EpGLcrJB 任务 2）✅
+
+**"挂起"是误观察**：faulthandler + py-spy 进程栈铁证显示主线程从未进入 matplotlib，始终在 `scipy.optimize.least_squares` 数值雅可比（`test_rollback_triggers_when_optimizer_diverges`，test_turn_on.py:219——故意触发优化器发散）密集计算：max_nfev=400 × 数值雅可比 × structure_factor 重算，**单测孤立运行（零争用）即 35+ 分钟**，算法固有成本。
+
+**修复**：`tests/report/conftest.py` autouse fixture（强制 Agg 后端 + 清理残留 figure，防御性；未改断言/运行时行为）。pyproject 未动。
+
+**验收**：单进程全量 EXIT=0，**1124 passed + 2 skipped + 1 xfailed，用时 53:17**（完整跑完、无挂起）；分块对账一致（A 953+1xf 10:49 / B 130+1sk 42:56 / C 41+1sk 2.7s），无顺序惩罚。固有慢测试清单：turn_on 发散测试（~35min）、GSAS-II 子进程（timeout 1800s）、baseline_acceptance curve_fit——后续建议收敛发散测试拟合预算（需改测试行为），CI 采用分块方案。
