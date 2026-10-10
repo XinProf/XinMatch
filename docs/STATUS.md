@@ -13,7 +13,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 参考软件 操作步骤 + 13→20–30 缺口清单：建议 IUCr CPD-1a/1b/1d/1e/1f/1g/1h、CPD-4、csuHJW data002/033/038/020/036）；样品采集本身只能人工在 参考软件 中执行，尚未跑) |
 | T0.4 | Run 参考软件 baseline on the sample set | 🟡 (转换链就绪：参考软件 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；等待人工跑完 20–30 样品后导入) |
 | T0.5 | Terminology mapping table | ⬜ |
-| T0.6 | Project skeleton + CI (pytest, ruff, mypy) | 🟡 |
+| T0.6 | Project skeleton + CI (pytest, ruff, mypy) | ✅ (2026-10-10：mypy 配置落地（pyproject [tool.mypy]，files=xinmatch + search/refine 基线豁免），26 源文件纯类型层修复，**109 错误 → 0（81 源文件）**，`python -m mypy` 与 `mypy xinmatch` 均 Success；豁免清单见 docs/mypy_baseline.md。pytest/ruff 此前已就绪) |
 | T0.7 | Cross-platform conventions | ✅ |
 | T0.8 | Reverse-engineer FoM P-value definitions from baseline CSV | 🟡 |
 
@@ -87,6 +87,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ✅ |
 | T6.9 | L3 acceptance (Top-10 vs 参考软件 baseline) | ✅ (real COD db 71,199 entries: **13/13 samples top1 = ground-truth phase**; vs 参考软件 CSV: Top-5 overlap 67.7% ≥ 60% PASS, Top-1 agreement 69.2% (9/13) < 80% FAIL — 4 mismatches are multi-phase 5-x samples where both sides pick a true phase; FoM weight sweep (4 combos) all stop at 9/13, not reproducible by linear weights; see docs/l3_golden_acceptance_cod.html) |
+| T6.9c | **L3 追平（2026-10-10）** | ✅ Top-1 一致率 **9/13 → 11/13（84.6% ≥ 80% PASS）**、Top-5 重叠 **67.7% → 83.1% PASS**。两处 FoM 算法修正（`core/search/fom_criteria.py`）：① 强度归一化改用「匹配峰最大值」（消除多相次相 I_scale 尺度效应重复惩罚，翻转 5-2/5-2b Hematite）；② sigma_pos 0.1→0.15（修复 4-1 胶着回归，CaF₂ 曾以 0.001 压 ZnO）。终态仅剩 5-1（参考 Magnesite 96-900-0381 快照内容错位为 Teruggite）与 5-3（参考 Kaolinite 96-900-9231 快照缺失）两处不匹配；**13/13 top1 均为真相相**；诊断确认库中这些相正常条目均在、纯排序问题，SMPF 权重模拟崩坏彻底排除权重路线、未补库。详见 docs/l3_traceup_report.md |
 | T6.9b | COD 全库检索质量核验（2026-10-10） | ✅ (用 `data/cod_full.db` 112,734 条目重跑同基线：Top-1 一致率反而降至 1/13——全库含大量重复/低质量卡片稀释排序。**结论：默认检索保持精选无机库 71,199 正确，全库仅作覆盖性挂载**；L3 追平不靠换库，方向仍是逆向参考软件 FoM 内部逻辑或补条目) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 
@@ -190,3 +191,13 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 - **About/图标**：About 对话框动态读 `xinmatch.__version__`（importlib.metadata，当前 1.0.0，不得硬编码）；主窗口图标 `assets/logo.png`（原创生成，随本版提交）。
 
 剩余：T14.4 serial instrument control、T0.3/T0.4 人工样品采集（工具已就绪）、T0.8 FoM P 值深挖。
+
+## 已知环境问题（2026-10-10 记录）
+
+**单进程全量 pytest 在 tests/refine → tests/report 交界处挂起**：首个 matplotlib PNG 导出测试
+（tests/report/test_figure_export.py）CPU 持续占用 30+ 分钟不结束。已定位为**既有环境问题**，
+与本轮 L3 追平 / mypy 改动无关（refine/report 目录 git diff 为空、tests/refine 与 tests/report
+均不导入改动的 search 模块；tests/report 单独跑 2.63s 全绿、tests/refine 单独全过，仅同进程
+衔接时挂起）。规避：分块跑（全量-{refine,report} 947 passed + 1 xfailed、tests/refine 122 passed、
+tests/report 41 passed + 1 skipped，分块零失败）。后续建议单独立项排查状态泄漏（如 matplotlib
+后端/Qt 事件循环污染）。
