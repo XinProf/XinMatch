@@ -76,6 +76,52 @@ def _two_theta(d: float) -> float:
     return 2.0 * math.degrees(math.asin(s))
 
 
+def _dump_header(fname: str, label: str, n_points: int, tmin: float, tmax: float) -> str:
+    """参考软件兼容的 Profile Data Ascii Dump (XRD) 文件头（行宽 81，对齐实测样本）。
+
+    参考软件端可导入的实测谱（test_xrd/txt/*.txt）即此格式：/// banner +
+    分组信息 + # Profile Datafile + # Measurement Condition + # Data 表头。
+    合成谱早期版本为无表头纯两列 ASCII，实测在参考软件中零候选，故改用此格式。
+    """
+    banner = "/" * 81
+    mid = "/// Profile Data Ascii Dump (XRD)" + " " * 45 + "///"
+    assert len(mid) == 81, len(mid)
+    tstamp = "26-10-10 00:00:00"
+    return "\n".join([
+        banner,
+        mid,
+        banner,
+        "",
+        "  Group     : XRD",
+        f"  Data      : {label}",
+        f"  File Name : {fname}",
+        "",
+        "# Profile Datafile",
+        "          comment             = Synthetic pattern with known ground truth",
+        f"          date & time         = {tstamp} ",
+        "",
+        "# Measurement Condition",
+        "    X-ray tube",
+        "          target              = Cu ",
+        "          voltage             = 40.0 (kV)",
+        "          current             = 40.0 (mA)",
+        "    Slits",
+        "          divergence slit     = 1.00000 (deg) ",
+        "          scatter slit        = 1.00000 (deg) ",
+        "          receiving slit      = 0.30000 (mm)  ",
+        "    Scanning",
+        "          drive axis          = Theta-Theta ",
+        f"          scan range          =   {tmin:6.3f} -  {tmax:6.3f} ",
+        "          scan mode           = Step Scan ",
+        "          scan speed          =   1.0000 (deg/min) ",
+        "          sampling pitch      =   0.0200 (deg) ",
+        "          preset time         =   1.20 (sec) ",
+        "",
+        f"# Data      [ Total No. = {n_points} ]",
+        "  <2Theta>   <   I   >",
+    ]) + "\n"
+
+
 def _pseudovoigt(tth: float, tth0: float, fwhm: float, eta: float) -> float:
     """Normalised pseudo-Voigt at x=tth (Gaussian+Lorentzian mix)."""
     if fwhm <= 1e-6:
@@ -191,20 +237,31 @@ def main() -> None:
     rows = []
     for idx, (label, phases) in enumerate(_MATERIALS, start=1):
         sample = _build_sample(label, phases, rng)
-        fname = args.out / f"synth_{idx:02d}.txt"
-        with open(fname, "w", encoding="utf-8", newline="\n") as fh:
+        fname = f"synth_{idx:02d}.txt"
+        header = _dump_header(
+            fname, label, len(TWO_THETA),
+            float(TWO_THETA[0]), float(TWO_THETA[-1]),
+        )
+        with open(args.out / fname, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(header)
             for x, y in zip(TWO_THETA, sample["pattern"], strict=True):
-                fh.write(f"{x:8.2f} {y:12.3f}\n")
+                fh.write(f"{x:11.4f} {round(float(y)):10d}\n")
         elems = _element_suggestion(sample["truth"])
-        rows.append({"file": fname.name, "label": label, "truth": sample["truth"], "elems": elems})
+        rows.append({"file": fname, "label": label, "truth": sample["truth"], "elems": elems})
         print(
-            f"{fname.name}: {label} phases="
+            f"{fname}: {label} phases="
             f"{[(t['cod_id'], t['formula'], round(t['wt'], 2)) for t in sample['truth']]}"
         )
 
     with open(args.out / "manifest.md", "w", encoding="utf-8") as fh:
         fh.write("# 合成谱清单（真相已知）\n\n")
-        fh.write("生成方式：COD 标准 CIF → 结构因子 → pseudo-Voigt 峰形 + 背底 + 噪音，Cu Kα1 1.5406 Å，10–90°，步进 0.02°。\n\n")
+        fh.write(
+            "生成方式：COD 标准 CIF → 结构因子 → pseudo-Voigt 峰形 + 背底 + 噪音，"
+            "Cu Kα1 1.5406 Å，10–90°，步进 0.02°。\n"
+            "文件格式：Profile Data Ascii Dump (XRD) 兼容（/// banner + 测量条件块 + "
+            "`<2Theta> <I>` 表头，行宽 81 对齐实测样本），可直接在参考软件中导入并跑 SMPF；"
+            "强度已整数化。\n\n"
+        )
         for r in rows:
             fh.write(f"## {r['file']} — {r['label']}\n")
             fh.write("| COD | 化学式 | 质量分数 |\n|---|---|---|\n")
