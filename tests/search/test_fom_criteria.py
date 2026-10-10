@@ -142,9 +142,9 @@ def test_compute_p_values_positional_mismatch_lowers_p_peakpos():
     pairs = [(0, 0), (1, 1), (2, 2), (3, 3)]
     p = compute_p_values(exp_peaks, ref_shifted, pairs, wavelength=WL)
     assert p["peakpos"] < 1.0
-    # Sanity bound: 0.2° offset on one of 4 peaks, σ_pos = 0.1°.
-    # mean(Δ²) = 0.04/4 = 0.01; exp(-0.01/0.01) = exp(-1) ≈ 0.368
-    assert p["peakpos"] == pytest.approx(math.exp(-1.0), abs=1e-3)
+    # Sanity bound: 0.2° offset on one of 4 peaks, σ_pos = 0.15°.
+    # mean(Δ²) = 0.04/4 = 0.01; exp(-0.01/0.15²) = exp(-0.444) ≈ 0.641
+    assert p["peakpos"] == pytest.approx(math.exp(-0.4444), abs=1e-3)
 
 
 def test_compute_p_values_intensity_mismatch_lowers_p_intensity():
@@ -164,6 +164,40 @@ def test_compute_p_values_intensity_mismatch_lowers_p_intensity():
     # ΔI = [0, 45, 0, 0], mean(Δ²) = 45²/4 = 506.25
     # P_intensity = exp(-506.25 / 100) = exp(-5.0625) ≈ 0.0063
     assert p["intensity"] == pytest.approx(math.exp(-5.0625), abs=1e-3)
+
+
+def test_compute_p_values_matched_max_normalizes_minor_phase_intensity():
+    """Intensity is normalised by the matched-peak max, not the global max.
+
+    A minor phase's matched peaks are weak relative to the global pattern
+    (which is dominated by an unmatched major-phase peak).  Normalising to
+    the global max would crush the minor phase's intensities (shape mismatch
+    against a reference card normalised to 100 on its own strongest peak);
+    normalising to the matched-peak max gives a fair *shape* comparison.
+    """
+    # Major-phase peak at 10° (strong), minor-phase peaks at 20°/30° (weak).
+    exp_peaks = [
+        Peak(two_theta=10.0, intensity=100.0),  # unmatched major phase
+        Peak(two_theta=20.0, intensity=20.0),   # minor phase, strongest matched
+        Peak(two_theta=30.0, intensity=10.0),  # minor phase
+    ]
+    # Minor-phase reference card: peaks at 20°/30° with relative [100, 50].
+    ref_peaks_d_intensity = [
+        (_d_from_two_theta(20.0), 100.0),
+        (_d_from_two_theta(30.0), 50.0),
+    ]
+    pairs = correlate_peaks(
+        exp_peaks, ref_peaks_d_intensity, wavelength=WL, window_deg=0.3
+    )
+    # Only peaks 1 and 2 should correlate; peak 0 (10°) is unmatched.
+    assert sorted(ei for ei, _ in pairs) == [1, 2]
+
+    p = compute_p_values(exp_peaks, ref_peaks_d_intensity, pairs, wavelength=WL)
+    # Matched-peak max = 20 → e_norm = [100, 50] ≈ r_norm = [100, 50].
+    # ΔI = [0, 0] → P_intensity ≈ 1.0 (shape matches perfectly).
+    assert p["intensity"] == pytest.approx(1.0, abs=1e-6)
+    # I_scale ≈ 1 (the matched shape is self-consistent).
+    assert p["i_scale"] == pytest.approx(1.0, abs=1e-6)
 
 
 def test_compute_p_values_npeaks_partial_coverage():

@@ -129,7 +129,7 @@ def compute_p_values(
     pairs: list[tuple[int, int]],
     wavelength: float,
     *,
-    sigma_pos: float = 0.1,
+    sigma_pos: float = 0.15,
     sigma_intensity: float = 10.0,
 ) -> dict[str, float]:
     """Compute the five FoM agreement criteria (the *P* values + *I_scale*).
@@ -192,6 +192,18 @@ def compute_p_values(
         }
 
     # Intensity normalisation factors (max → 100 on each side).
+    #
+    # The experimental side is normalised by the **matched-peak** maximum,
+    # not the global pattern maximum.  In a multi-phase pattern the global
+    # maximum is the major phase's strongest reflection, so a minor phase's
+    # matched peaks — though perfectly self-consistent in *shape* — are
+    # scaled down by the major/minor abundance ratio and look mismatched
+    # against a reference card that is itself normalised to 100 on its own
+    # strongest peak.  Normalising to the matched-peak maximum makes the
+    # intensity comparison a pure *shape* comparison on the peaks that
+    # actually correlate, which is what profile-fitting (SMPF mode) does.
+    # For single-phase samples the matched peaks are the strong peaks, so
+    # matched_max ≈ global_max and the behaviour is unchanged.
     exp_intensities = np.fromiter(
         (p.intensity for p in exp_peaks), dtype=np.float64, count=n_exp
     )
@@ -200,7 +212,15 @@ def compute_p_values(
         dtype=np.float64,
         count=n_ref,
     )
-    exp_max = float(exp_intensities.max()) if n_exp > 0 else 0.0
+    matched_exp_idx = [ei for ei, _ in pairs]
+    matched_exp_max = (
+        float(exp_intensities[matched_exp_idx].max()) if matched_exp_idx else 0.0
+    )
+    # Fall back to the global max only when no peaks matched (should not
+    # happen here, since the empty-pairs branch returned above).
+    exp_max = matched_exp_max if matched_exp_max > 0.0 else (
+        float(exp_intensities.max()) if n_exp > 0 else 0.0
+    )
     ref_max = float(ref_intensities.max()) if n_ref > 0 else 0.0
 
     delta_2th = np.empty(len(pairs), dtype=np.float64)
@@ -316,7 +336,7 @@ def score_candidate(
     *,
     window_deg: float = 0.3,
     weights: dict[str, float] | FomWeights | None = None,
-    sigma_pos: float = 0.1,
+    sigma_pos: float = 0.15,
     sigma_intensity: float = 10.0,
     method: str = "greedy",
 ) -> tuple[float, dict[str, float]]:
