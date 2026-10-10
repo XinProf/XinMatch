@@ -29,7 +29,16 @@ from xinmatch.core.search.search_match import fetch_entries_by_ids
 # ---------------------------------------------------------------------------
 def test_list_libraries_contains_known_ids():
     ids = {r.id for r in list_libraries()}
-    assert {"cod_inorganics", "pdf2_2004", "cod_full"} <= ids
+    assert {"cod_inorganics", "pdf2_2004", "cod_full", "cod_full_curated"} <= ids
+
+
+def test_cod_full_curated_record_resolves():
+    """The curated library id resolves and points at a XinMatch-schema DB."""
+    rec = library_by_id("cod_full_curated")
+    assert rec is not None
+    assert rec.kind == multi_db.KIND_XINMATCH
+    # Path is data/cod_full_curated.db regardless of availability.
+    assert rec.path.name == "cod_full_curated.db"
 
 
 def test_resolve_default_is_cod_inorganics():
