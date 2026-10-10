@@ -120,6 +120,19 @@ def cod_full_db_path() -> Path:
     return project_root() / "data" / "cod_full.db"
 
 
+def cod_full_curated_db_path() -> Path:
+    """Where :mod:`tools.build_cod_full_curated.py` writes its product.
+
+    The curated de-duplicated copy keeps one card per
+    (``formula``, ``space_group``) cluster of the full COD DB so the FoM
+    ranking is no longer diluted by near-duplicate cards.  Same resolution
+    rules as :func:`default_db_path`.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent / "data" / "cod_full_curated.db"
+    return project_root() / "data" / "cod_full_curated.db"
+
+
 def user_data_dir() -> Path:
     """Writable per-user data directory.
 
@@ -369,6 +382,18 @@ def list_libraries() -> list[LibraryRecord]:
                 "`python -m tools.build_cod_full_xinmatch`; not built by default."
             ),
         ),
+        _xinmatch_record(
+            "cod_full_curated",
+            "COD full curated (one card per formula+space_group cluster)",
+            KIND_XINMATCH,
+            cod_full_curated_db_path(),
+            note=(
+                "De-duplicated copy of cod_full.db: keeps the highest-quality "
+                "card per (formula, space_group) cluster so FoM ranking is not "
+                "diluted by near-duplicates.  Build with "
+                "`python -m tools.build_cod_full_curated`."
+            ),
+        ),
     ]
     return out
 
@@ -457,6 +482,7 @@ __all__ = [
     "KIND_COD_FULL",
     "LibraryNotAvailableError",
     "LibraryRecord",
+    "cod_full_curated_db_path",
     "cod_full_db_path",
     "default_db_path",
     "list_libraries",
