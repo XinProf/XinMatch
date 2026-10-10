@@ -76,7 +76,7 @@ $env:QT_QPA_PLATFORM="offscreen"
 |---|---|
 | `pytest tests/report/` | 41 passed + 1 skipped（含新 conftest） |
 | `ruff check tests/report/conftest.py` | All checks passed |
-| 品牌词约束 `Match[!！]\|Match4\|match4\|Match™` | 0 命中 |
+| 品牌词 grep（参考软件中性词约束） | 0 命中 |
 | 全量单进程（排除 turn_on） | EXIT=0，100% 完成 |
 
 ### 全量运行用时说明
