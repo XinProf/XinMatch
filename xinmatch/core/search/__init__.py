@@ -67,6 +67,13 @@ from .search_match import (
     search_marked_peaks,
     search_match,
 )
+from .smpf import (
+    SmpfConfig,
+    expand_reflections,
+    fit_candidate,
+    generate_theory_profile,
+    search_match_smpf,
+)
 
 __all__ = [
     # correlate
@@ -107,6 +114,12 @@ __all__ = [
     "compute_rwp",
     "pfsm_score",
     "pfsm_rank",
+    # SMPF (full-pattern search-match)
+    "SmpfConfig",
+    "expand_reflections",
+    "generate_theory_profile",
+    "fit_candidate",
+    "search_match_smpf",
     # Residual-driven FoM recompute (T6.8)
     "recompute_fom_after_selection",
     "build_residual_peaks",

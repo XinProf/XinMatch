@@ -236,3 +236,22 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 
 FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未动**。剩余：synth_06（BaTiO₃，rank3，intensity 残余差异）、synth_11（CaSO₄/CaCO₃，rank2）。
 
+## SMPF（全谱拟合检索）实现（2026-10-11）✅
+
+**交付**：`xinmatch/core/search/smpf.py`（完整流水线：峰列表预筛 150 卡 → 7 参数受限最小二乘全谱拟合精排 → Rwp/GOF/FoM 排序）；`pfsm.py` 保留 `pfsm_score`/`pfsm_rank` 兼容层（签名不变）；`tests/search/test_smpf.py`（单元 + 合成验收 + 真实记录 + 性能守卫）；机制文档 `docs/smpf_mechanism.md`。
+
+**关键设计（经实验验证）**：
+1. 背底**内吸收不预扣除**——Rwp 权重 w=1/y，预扣除背底致低强度残差点被过度惩罚（Rwp≈0.42、GOF≈9.4）；改为二次背底基纳入最小二乘，真相 Rwp≈0.09、错误相 0.26–0.28，分离显著。
+2. 全局单 FWHM（init 0.2°，bounds 0.08–0.6°）：Caglioti 在扫描区间近似恒定，单参数稳、快；合成谱收敛 0.151° 贴合生成器 0.15° 下限。
+3. 峰形评估用每反射 ±1.5° 局部窗（全网格 M×N 广播致 150 卡精排 492s → 局部窗 12–28s）。
+4. 预筛复用 `search_match`（recall_strongest_peak=True，top_n=150）；双线配置 `wavelength_kalpha2=1.5444`（合成单线 None）。
+5. FoM=exp(−Rwp/σ)，σ=0.25。
+
+**合成谱 13 组验收**：**Top-1 13/13、Top-5 13/13、Top-20 13/13**（目标 ≥12/13，达成 13/13）。单谱总耗时 44.5–64.7s。
+
+**真实谱 13 组（Kα1/Kα2 双线）**：全部跑通、候选非空；Top-1 均命中任一真相相（LiFePO4/NCM811/ZnO/TiO2/Magnesite/Hematite/Goethite/Gibbsite/Quartz）。单谱 61.4–104.8s，<120s。记录模式不设硬断言。
+
+**测试/性能**：`pytest tests/search` 全绿；`ruff check` 全绿。L3 峰列表回归（`tools/run_acceptance`）保持 13/13 top1 真相相、未退化。
+
+**局限**：未做择优取向/晶胞微调/多相解叠/角度依赖 Caglioti 宽化；后续接 GSAS-II 做完整 Rietveld。
+
