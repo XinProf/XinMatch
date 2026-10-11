@@ -285,3 +285,13 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 **验收**：adapter 13 passed + 1 skipped；gsas2_project 15 passed（非真实）+ 真实精修测试 1 passed（18.02 s，GSAS2_AVAILABLE 守卫）；向导 12 passed；`tests/refine` + 向导独立复跑全绿；ruff 全绿；品牌词 0 命中。
 
 **已知局限（非本次引入）**：PO 阶段 [0,0,1] March-Dollase 轴面向层状/纤锌矿结构（如 ZnO、Mg(OH)2），在立方/三方相上勾选 PO 可能使 MD 积分发散（Rwp→100%）——现有 PO 逻辑未改，仅新增界面暴露；size/strain 与 U/V/W 高度相关，依赖分阶段收敛顺序，极端数据下需人工校验参数物理性。
+
+## 版本 1.2.0 + 二进制打包（2026-10-11）✅
+
+**版本升级 1.0.0 → 1.2.0**：`pyproject.toml` version、`xinmatch.spec`（APP_VERSION/VERSION_TUPLE/COLLECT 名）、`tools/build_exe.ps1` 默认 `-Version 1.2.0`；`xinmatch.__version__` 走 `importlib.metadata`（重装 editable 后解析为 1.2.0）；About 对话框显示 **版本 1.2.0** + 联系方式 `sshztx@outlook.com` + logo（独立「关于」菜单，帮助→关于XinMatch...）。
+
+**打包**：`tools/build_exe.ps1`（PyInstaller 6.22.3 onedir）产物 `dist/xinmatch-1.2.0/`（约 1186 MB）：XinMatch.exe（7.2 MB，图标/版本资源 1.2.0）+ `data/cod_inorganics.db`（71,203 entries，512 MB，已重定位到 exe 旁）+ `_internal/`（Qt/PySide6 6.11.2/pyqtgraph 0.14.0/scipy/lmfit 等）+ assets（logo/splash/ico）+ 3Dmol.js。入口 `tools/pyi_entry.py` 单 exe 调度（CLI 子命令/GUI）。
+
+**打包产物自测（真窗口）**：启动 ✓（窗口标题/200 MB 稳定）→ About 版本 1.2.0/联系方式/logo ✓ → 打开 synth_06.txt（4000 点，谱图曲线正常）✓ → Search-Match 检索（候选列表填充，真相相 96-210-0858 rank5 FoM 0.719）✓ → CLI `search --help`/synth_06 检索（146 峰/5 候选）✓ → **3 次启动/关闭循环全成功**（PID 9152/13412/14104）✓。品牌词 0 命中。
+
+**说明**：截图中 "77604 entries COD-Inorg 2025.12.01"/Shimadzu 版权行来自桌面并排运行的参考软件窗口（OCR 混入），非 XinMatch 内容；XinMatch 加载的是打包的 71,203 库。pyqtgraph.examples/OpenGL hidden-import ERROR 与 scipy.special._cdflib WARNING 为无害构建告警（v1.0.0 同）。

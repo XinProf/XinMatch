@@ -31,10 +31,10 @@ Build with::
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 1.0.0) ----
+# ---- Version (read-only mirror of pyproject [project] version = 1.2.0) ----
 APP_NAME = "XinMatch"
-APP_VERSION = "1.0.0"
-VERSION_TUPLE = (1, 0, 0, 0)
+APP_VERSION = "1.2.0"
+VERSION_TUPLE = (1, 2, 0, 0)
 
 # ---- Collect non-.py assets for packages that ship them at runtime ----
 datas = []
@@ -149,5 +149,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="xinmatch-1.0.0",
+    name="xinmatch-1.2.0",
 )
