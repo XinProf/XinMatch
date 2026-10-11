@@ -439,7 +439,8 @@ def main() -> int:
     gpx.refine(makeBack=True)
 
     # Staged turn-on (mirrors the reference software auto parameters / FullProf default):
-    #   scale -> background -> cell -> profile(U/V/W) -> atoms(XU) -> zero-shift.
+    #   scale -> background -> cell -> profile(U/V/W) -> atoms(XU) ->
+    #   PO(March-Dollase) -> size/strain -> zero-shift.
     if opts.get("refine_background", True):
         hist.set_refinements({"Background": {"no. coeffs": 8, "refine": True}})
         gpx.set_Controls("cycles", max(cycles // 2, 5))
@@ -461,7 +462,7 @@ def main() -> int:
         gpx.set_Controls("cycles", max(cycles // 2, 2))
         gpx.refine(makeBack=True)
 
-    # PO stage (last): turn on March-Dollase refinement only after the profile
+    # PO stage: turn on March-Dollase refinement only after the profile
     # has converged, so r only fine-tunes texture and cannot drive the MD
     # integrand NaN on an unconverged profile.
     if want_po:
@@ -475,6 +476,30 @@ def main() -> int:
                     po[3] = [0, 0, 1]     # PO axis = c-axis (basal texture)
                     po[2] = True          # refine the March r parameter
             except Exception:
+                pass
+        gpx.set_Controls("cycles", max(cycles // 2, 2))
+        gpx.refine(makeBack=True)
+
+    # Size/strain stage: turn on isotropic crystallite-size and microstrain
+    # broadening.  This must come after the profile (U/V/W) has converged,
+    # because size/strain broadening is highly correlated with U/V/W; turning
+    # it on too early makes the least-squares step wander into unphysical
+    # parameter values.  Uses GSAS-II's ``set_HAP_refinements`` dict API
+    # (verified empirically against GSAS-II source: Size[2][0] is the
+    # isotropic-size refine flag, Mustrain[2][0] is the isotropic-mustrain
+    # refine flag; see GSASIIscriptable.py lines ~5134-5163 for the Size
+    # branch and ~5070-5133 for the Mustrain branch).
+    want_size_strain = manifest["options"].get("refine_size_strain", False)
+    if want_size_strain:
+        for p in phases:
+            try:
+                p.set_HAP_refinements({
+                    "Size": {"type": "isotropic", "refine": True},
+                    "Mustrain": {"type": "isotropic", "refine": True},
+                })
+            except Exception:
+                # Be robust against GSAS-II version differences (renamed keys,
+                # missing default Size/Mustrain entries on some CIFs).
                 pass
         gpx.set_Controls("cycles", max(cycles // 2, 2))
         gpx.refine(makeBack=True)
@@ -662,6 +687,7 @@ def build_gsas2_project(
             "refine_background": bool(options.refine_background),
             "refine_profile": bool(options.refine_profile),
             "refine_po": bool(options.refine_po),
+            "refine_size_strain": bool(options.refine_size_strain),
             "wavelength": float(options.wavelength),
             "two_theta_range": (
                 list(options.two_theta_range)

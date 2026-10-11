@@ -147,6 +147,9 @@ def test_no_gsas2_raises_but_writes_artifacts(
         (RefineOptions(wavelength=0.71073), {"wavelength": 0.71073}),
         (RefineOptions(two_theta_range=(15.0, 120.0)),
          {"two_theta_range": [15.0, 120.0]}),
+        (RefineOptions(refine_po=True), {"refine_po": True}),
+        (RefineOptions(refine_size_strain=True),
+         {"refine_size_strain": True}),
     ],
 )
 def test_options_propagate_to_manifest(
@@ -205,3 +208,28 @@ def test_real_refinement_cpd1c(tmp_path: Path) -> None:
     assert proj.rp is not None and np.isfinite(proj.rp)
     assert proj.gpx_path.is_file(), ".gpx not produced"
     assert proj.lst_path is not None and proj.lst_path.is_file(), ".lst not produced"
+
+
+def test_real_refinement_with_size_strain(tmp_path: Path) -> None:
+    """Real refinement with isotropic size/strain broadening turned on.
+
+    Guards against driver crashes and confirms .lst/.prf products are still
+    produced.  Note: March-Dollase PO is not enabled here because the [0,0,1]
+    texture axis is physically specific to layered/wurtzite structures and
+    drives the MD integrand NaN on the cubic/trigonal benchmark phases; that
+    is a pre-existing PO-stage limitation, not a size/strain issue.
+    """
+    proj = gp.build_gsas2_project(
+        _pattern(), _phases(), {k: str(v) for k, v in _CIF.items()},
+        RefineOptions(
+            max_iter=25,
+            two_theta_range=(10.0, 140.0),
+            refine_size_strain=True,
+        ),
+        work_dir=tmp_path, project_name="cpd1c_sz", run=True,
+    )
+    assert proj.rwp is not None and np.isfinite(proj.rwp)
+    assert 0.0 < proj.rwp < 100.0
+    assert proj.gpx_path.is_file(), ".gpx not produced"
+    assert proj.lst_path is not None and proj.lst_path.is_file(), ".lst not produced"
+    assert proj.prf_path is not None and proj.prf_path.is_file(), ".prf not produced"

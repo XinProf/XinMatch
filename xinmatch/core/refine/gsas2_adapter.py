@@ -81,6 +81,15 @@ class RefineOptions:
         Whether to refine peak-profile parameters (Caglioti U/V/W).
         The GSAS-II driver turns these on at the profile-refinement stage;
         the local refiner ignores this flag.
+    refine_po:
+        Whether to refine March-Dollase preferred-orientation parameters.
+        The GSAS-II driver turns this on only after the profile has
+        converged (otherwise the MD integrand can go NaN).
+    refine_size_strain:
+        Whether to refine crystallite-size / microstrain broadening
+        parameters (isotropic Size + Mustrain).  The GSAS-II backend turns
+        these on at a dedicated staging step after the profile has
+        converged; the local refiner does not model size/strain.
     wavelength:
         Radiation wavelength in Å.
     two_theta_range:
@@ -93,6 +102,7 @@ class RefineOptions:
     refine_background: bool = True
     refine_profile: bool = True
     refine_po: bool = False
+    refine_size_strain: bool = False
     wavelength: float = 1.5406
     two_theta_range: tuple[float, float] | None = None
 

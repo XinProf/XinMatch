@@ -224,6 +224,60 @@ class TestRefinementWizard:
         assert opts.max_iter == 50
         wizard.close()
 
+    def test_params_page_has_po_and_size_strain_checkboxes(self, qapp):
+        """The advanced-parameter page exposes PO and size/strain checkboxes."""
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+        )
+        # Navigate to page 3 (params)
+        wizard._go_next()
+        wizard._go_next()
+        assert wizard._current_index() == 2
+        # Both checkboxes exist and default to False (from RefineOptions defaults)
+        assert wizard._chk_po.isChecked() is False
+        assert wizard._chk_size_strain.isChecked() is False
+        wizard.close()
+
+    def test_po_and_size_strain_options_mapped(self, qapp):
+        """Checking the new boxes propagates into RefineOptions."""
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+        )
+        wizard._chk_po.setChecked(True)
+        wizard._chk_size_strain.setChecked(True)
+        opts = wizard._collect_options()
+        assert opts.refine_po is True
+        assert opts.refine_size_strain is True
+        wizard.close()
+
+    def test_injected_driver_receives_po_and_size_strain(self, qapp):
+        """End-to-end: with both advanced boxes checked, the fake driver
+        receives a RefineOptions with both flags True."""
+        received: list = []
+
+        def fake_driver(pattern, phases, cif_paths, options, work_dir=None):
+            received.append(options)
+            return _fake_outcome()
+
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=fake_driver,
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+        # Check the advanced boxes on the params page (page index 2)
+        wizard._chk_po.setChecked(True)
+        wizard._chk_size_strain.setChecked(True)
+        wizard._go_next()
+        wizard._run_refinement()
+
+        assert len(received) == 1
+        opts = received[0]
+        assert opts.refine_po is True
+        assert opts.refine_size_strain is True
+        wizard.close()
+
     def test_selected_phases_filter(self, qapp):
         wizard = RefinementWizard(
             _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),

@@ -195,3 +195,21 @@ def test_gsas2_adapter_can_be_constructed_when_installed():  # pragma: no cover
     adapter = GSAS2RietveldAdapter()
     assert adapter.backend == "gsas2"
     assert isinstance(adapter, RietveldAdapter)
+
+
+# ---------------------------------------------------------------------------
+# RefineOptions fields (new in T13.x: refine_size_strain)
+# ---------------------------------------------------------------------------
+def test_refine_options_size_strain_default_false():
+    opts = RefineOptions()
+    assert opts.refine_size_strain is False
+
+
+def test_refine_options_size_strain_settable():
+    opts = RefineOptions(refine_size_strain=True)
+    assert opts.refine_size_strain is True
+
+
+def test_refine_options_po_default_false():
+    opts = RefineOptions()
+    assert opts.refine_po is False

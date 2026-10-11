@@ -137,7 +137,8 @@ class RefinementWizard(QtWidgets.QDialog):
         v = QtWidgets.QVBoxLayout(page)
         v.addWidget(QtWidgets.QLabel(
             "<b>步骤 1：选择参与精修的相</b><br>"
-            "勾选需要纳入 Rietveld 全谱拟合的物相。"
+            "可多选多个相进行多相精修；每相的尺度因子 / 晶胞 / 原子参数"
+            "由 GSAS-II 后端独立处理。"
         ))
         self._phase_checks: dict[str, QtWidgets.QCheckBox] = {}
         for ph in self._phases:
@@ -202,6 +203,35 @@ class RefinementWizard(QtWidgets.QDialog):
         )
         self._chk_atoms.setChecked(self._options.refine_atoms)
         v.addWidget(self._chk_atoms)
+
+        # ---- Advanced parameters (delegated entirely to GSAS-II) --------
+        self._chk_po = QtWidgets.QCheckBox(
+            "择优取向（March-Dollase）"
+        )
+        self._chk_po.setChecked(self._options.refine_po)
+        self._chk_po.setToolTip(
+            "在 profile 收敛后由 GSAS-II 后端自动开启，精修 March r 参数"
+        )
+        v.addWidget(self._chk_po)
+
+        self._chk_size_strain = QtWidgets.QCheckBox(
+            "晶粒尺寸 / 微应变（size/strain 展宽）"
+        )
+        self._chk_size_strain.setChecked(self._options.refine_size_strain)
+        self._chk_size_strain.setToolTip(
+            "在 profile 收敛后由 GSAS-II 后端自动开启，精修各向同性尺寸与微应变"
+        )
+        v.addWidget(self._chk_size_strain)
+
+        # Note: all advanced parameters are delegated to the GSAS-II backend;
+        # the local code does NOT implement any fitting algorithm itself.
+        lb_note = QtWidgets.QLabel(
+            "<i>以上高级参数全部委托 GSAS-II 后端执行，本地不做拟合算法；"
+            "择优取向 / 尺寸·微应变阶段在 profile 收敛后由后端自动开启。</i>"
+        )
+        lb_note.setStyleSheet("color: #555; font-size: 11px;")
+        lb_note.setWordWrap(True)
+        v.addWidget(lb_note)
 
         v.addWidget(QtWidgets.QLabel("最大迭代次数："))
         self._spn_max_iter = QtWidgets.QSpinBox()
@@ -315,6 +345,8 @@ class RefinementWizard(QtWidgets.QDialog):
             refine_atoms=self._chk_atoms.isChecked(),
             refine_background=self._chk_bkg.isChecked(),
             refine_profile=self._chk_profile.isChecked(),
+            refine_po=self._chk_po.isChecked(),
+            refine_size_strain=self._chk_size_strain.isChecked(),
             wavelength=self._options.wavelength,
             two_theta_range=self._options.two_theta_range,
         )

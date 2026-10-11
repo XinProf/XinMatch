@@ -28,6 +28,7 @@ from xinmatch.core.db.multi_db import (
     resolve_default,
 )
 from xinmatch.core.io import load_pattern
+from xinmatch.core.model import Entry
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.peak.peak_search import find_peaks
@@ -42,6 +43,7 @@ from xinmatch.core.report.report_model import (
 )
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.search_match import search_match
+from xinmatch.core.search.smpf import search_match_smpf
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import load_config, save_config
@@ -133,6 +135,44 @@ _TOOLBAR_ICONS: dict[str, str] = {
     "options": "SP_FileDialogDetailedView",
 }
 
+# ---------------------------------------------------------------------------
+# 统一检索入口：检索模式（峰列表 FoM / SMPF 全谱拟合）
+# ---------------------------------------------------------------------------
+SEARCH_MODE_PEAKS_FOM = "peaks_fom"
+SEARCH_MODE_SMPF_FULL = "smpf_full"
+
+# 模式下拉框选项：(显示文本, 内部常量)。
+_SEARCH_MODE_ITEMS: tuple[tuple[str, str], ...] = (
+    ("峰列表 FoM（寻峰）", SEARCH_MODE_PEAKS_FOM),
+    ("SMPF 全谱拟合（不寻峰）", SEARCH_MODE_SMPF_FULL),
+)
+
+
+def smpf_results_to_candidates(
+    smpf_results: list[tuple[Entry, dict[str, float]]],
+) -> list[CandidateResult]:
+    """把 SMPF 的 ``(Entry, score_dict)`` 结果转换为 GUI 候选行。
+
+    SMPF 不产出峰相关量（未寻峰、无峰位/强度 P 值、无关联峰对），因此
+    ``pairs`` 留空、``i_scale`` 取默认值；剖面拟合质量量（Rwp / Rexp /
+    GOF）放进 ``p_values`` 供候选表与下游链路读取。候选表的 P(2θ) /
+    P(I/I₀) 两列在 SMPF 模式下自然显示占位符（—），属预期行为。
+    """
+    out: list[CandidateResult] = []
+    for entry, score in smpf_results:
+        out.append(
+            CandidateResult(
+                entry=entry,
+                fom=float(score["fom"]),
+                p_values={
+                    "rwp": float(score["rwp"]),
+                    "rexp": float(score["rexp"]),
+                    "gof": float(score["gof"]),
+                },
+            )
+        )
+    return out
+
 
 class MainWindow(QtWidgets.QMainWindow):
     """Top-level application window; see module docstring for layout."""
@@ -157,6 +197,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._active_library_id: str | None = None
         # 当前已打开数据文件的显示名（文件名），用于状态栏 / 报告。
         self._current_filename: str = ""
+        # 统一检索入口模式：默认峰列表 FoM（寻峰）；可在工具栏下拉框切换。
+        self._search_mode: str = SEARCH_MODE_PEAKS_FOM
 
         self.module_actions: dict[str, QtGui.QAction] = {}
 
@@ -359,6 +401,16 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar.addAction(self.peakdetect_action)
         toolbar.addSeparator()
         toolbar.addAction(self.module_actions["search_match"])
+        # 检索模式切换下拉框：峰列表 FoM（寻峰）/ SMPF 全谱拟合（不寻峰）。
+        # 切换只更新内部状态，不自动触发检索；下次点击 Search-Match 执行新模式。
+        self._search_mode_combo = QtWidgets.QComboBox()
+        for text, mode in _SEARCH_MODE_ITEMS:
+            self._search_mode_combo.addItem(text, userData=mode)
+        self._refresh_search_mode_combo_tip()
+        self._search_mode_combo.currentIndexChanged.connect(
+            self._on_search_mode_combo_changed
+        )
+        toolbar.addWidget(self._search_mode_combo)
         toolbar.addAction(self.module_actions["profile_fitting"])
         toolbar.addSeparator()
         toolbar.addAction(self.module_actions["rietveld"])
@@ -675,8 +727,37 @@ class MainWindow(QtWidgets.QMainWindow):
             f"已打开 {fname}：{n} 点，2θ {x0:.2f}–{x1:.2f}°"
         )
 
+    def _on_search_mode_combo_changed(self, _index: int) -> None:
+        """检索模式下拉框切换：仅更新内部状态，不自动触发检索。"""
+        mode = self._search_mode_combo.currentData()
+        if mode:
+            self._search_mode = mode
+        self._refresh_search_mode_combo_tip()
+
+    def _refresh_search_mode_combo_tip(self) -> None:
+        """根据当前模式刷新下拉框 tooltip（说明当前所选检索模式）。"""
+        if self._search_mode == SEARCH_MODE_SMPF_FULL:
+            detail = (
+                "当前：SMPF 全谱拟合——直接对整条实验谱做剖面拟合精排，"
+                "不寻峰、不覆盖峰列表。"
+            )
+        else:
+            detail = (
+                "当前：峰列表 FoM——先自动寻峰，再按峰位/强度匹配参考库。"
+            )
+        self._search_mode_combo.setToolTip(
+            f"{detail}\n切换后不立即检索；下次点击 Search-Match 按所选模式执行。"
+        )
+
     def _run_search_match(self) -> None:
-        """Search-Match：对当前实验谱寻峰后检索参考数据库，填充候选列表。"""
+        """统一 Search-Match 入口：按工具栏所选模式检索参考数据库。
+
+        - ``peaks_fom``（默认）：自动寻峰 → 峰列表 FoM 检索（现状行为）；
+        - ``smpf_full``：SMPF 全谱拟合检索（直接拟合原始谱，不寻峰、不覆盖
+          峰列表）。
+        两模式结果统一为 :class:`CandidateResult` 列表填充候选列表，
+        保证精修向导 / 3D 视图 / CIF 导出等下游链路元素类型不变。
+        """
         if self._current_pattern is None:
             QtWidgets.QMessageBox.information(
                 self,
@@ -695,26 +776,63 @@ class MainWindow(QtWidgets.QMainWindow):
                 "请在 设置→参考数据库… 中选择一个可用库后重试。",
             )
             return
-        try:
-            peaks = find_peaks(pattern.two_theta, pattern.intensity)
-            results = search_match(peaks, conn, pattern.wavelength)
-        except Exception as exc:  # noqa: BLE001 — 检索过程异常一律友好提示
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Search-Match 检索失败",
-                f"检索过程中出现错误：\n\n{exc}",
-            )
-            return
+
+        peaks: list | None = None
+        if self._search_mode == SEARCH_MODE_SMPF_FULL:
+            results, mode_label = self._search_smpf(pattern, conn)
+            if results is None:
+                return
+        else:
+            try:
+                peaks = find_peaks(pattern.two_theta, pattern.intensity)
+                results = search_match(peaks, conn, pattern.wavelength)
+            except Exception as exc:  # noqa: BLE001 — 检索过程异常一律友好提示
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Search-Match 检索失败",
+                    f"检索过程中出现错误：\n\n{exc}",
+                )
+                return
+            mode_label = "峰列表 FoM"
+
         self.set_candidates(results)
-        self.peak_table.set_peaks(peaks)
+        # SMPF 模式不寻峰：保留上一次峰列表，不覆盖 peak_table。
+        if peaks is not None:
+            self.peak_table.set_peaks(peaks)
         lib_label = self._active_library_id or "默认库"
         if library_by_id is not None and self._active_library_id:
             rec = library_by_id(self._active_library_id)
             if rec is not None:
                 lib_label = rec.display_name
         self.statusBar().showMessage(
-            f"检索完成：{len(results)} 个候选（库：{lib_label}）", 8000
+            f"检索完成：{len(results)} 个候选（{mode_label}，库：{lib_label}）", 8000
         )
+
+    def _search_smpf(
+        self, pattern: Pattern, conn
+    ) -> tuple[list[CandidateResult] | None, str | None]:
+        """SMPF 全谱拟合分支（异常信息标注模式名）。
+
+        直接接收原始实验谱（不寻峰、不要求预扣背景）。``wavelength_kalpha2``
+        保持默认 ``None``（单线）——与合成谱验收基线一致；真实 Cu 双线
+        （Kα1 1.5406 / Kα2 1.5444）为后续旋钮，本任务不开启。
+
+        返回 ``(候选列表, 模式名)``；失败时弹出友好提示并返回 ``(None, None)``。
+        """
+        try:
+            raw = search_match_smpf(
+                pattern,
+                conn,
+                wavelength_kalpha1=pattern.wavelength,
+            )
+        except Exception as exc:  # noqa: BLE001 — 检索过程异常一律友好提示
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Search-Match 检索失败（SMPF 全谱拟合）",
+                f"SMPF 全谱拟合检索过程中出现错误：\n\n{exc}",
+            )
+            return None, None
+        return smpf_results_to_candidates(raw), "SMPF 全谱拟合"
 
     def _run_report_preview(self) -> None:
         """报告与打印：渲染当前候选 + 峰列表为文本报告并弹出只读预览。"""

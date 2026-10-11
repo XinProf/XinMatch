@@ -255,3 +255,33 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **局限**：未做择优取向/晶胞微调/多相解叠/角度依赖 Caglioti 宽化；后续接 GSAS-II 做完整 Rietveld。
 
+
+## 统一检索入口 + GSAS-II 高级拟合接口（2026-10-11）✅
+
+**A. 统一检索入口（峰列表 FoM / SMPF 双模式）**
+
+**交付**：`xinmatch/ui/main_window.py`——工具栏新增检索模式下拉框 `_search_mode_combo`（「峰列表 FoM（寻峰）」「SMPF 全谱拟合（不寻峰）」，切换仅更新内部状态、不自动触发检索）；`_run_search_match` 按模式分支执行；模块级 `smpf_results_to_candidates()` 把 SMPF `(Entry, score_dict)` 适配为 `CandidateResult`（`fom` + `p_values{rwp,rexp,gof}`），`self._candidates` 元素类型不变（精修向导 / 3D 视图 / CIF 导出链路不破）；SMPF 分支不寻峰、不覆盖峰列表（保留上次峰列表）；Kα2 双线（1.5444）留作后续旋钮。新增测试 `tests/ui/test_search_mode.py`（控件存在性/切换行为/纯函数转换/双模式冒烟/SMPF Top-1 命中/`_selected_candidate_results` 回归锚点）。
+
+**冒烟结果**（offscreen + 真实默认库 + 合成谱 synth_06）：
+
+| 模式 | 候选数 | Top-5 | 峰列表 |
+|---|---:|---|---|
+| 峰列表 FoM | 20 | 全 "Ba O3 Ti" | 84 行（写入） |
+| SMPF 全谱拟合 | 10（测试限 top_n=10） | Top-3 全 "Ba O3 Ti"（fom 0.701/0.700/0.700） | 保持 84 行（不覆盖） |
+
+**SMPF 命中（UI 级，is_truth 元素集+比例口径）**：synth_06 Top-1 = 96-210-0858 "Ba O3 Ti" ✓；synth_09 Top-1 = 96-101-0519 "C 1 2 1"（fom 0.614，第二名 0.044）✓。
+
+**验收**：`pytest tests/ui/test_search_mode.py tests/ui/test_main_window.py tests/search/test_synthetic_acceptance.py tests/search/test_smpf.py` = **47 passed / 0 failed**（独立复跑一致）；既有 UI / Search 测试无退化；ruff 全绿；品牌词全仓 0 命中（缓存目录除外）。
+
+**B. GSAS-II 高级拟合接口（择优取向 + 晶粒尺寸/微应变，全委托后端）**
+
+**交付**：
+- `xinmatch/core/refine/gsas2_adapter.py`：`RefineOptions` 新增 `refine_size_strain: bool = False`。
+- `xinmatch/core/refine/gsas2_project.py`：manifest `options` 新增 `refine_size_strain` 键；driver 新增 size/strain 阶段（PO 之后、zero-shift 之前，遵循"profile 收敛后才开"原则）：`p.set_HAP_refinements({"Size": {"type":"isotropic","refine":True}, "Mustrain": {"type":"isotropic","refine":True}})`，per-phase try/except 容错。GSAS-II API 经本机实测确认（`Size[2][0]` / `Mustrain[2][0]` 为各向同性精修标志，GSASIIscriptable.py 5070–5163 行）。
+- `xinmatch/ui/refinement_wizard.py`：参数页新增「择优取向（March-Dollase）」「晶粒尺寸 / 微应变」勾选，映射 `refine_po` / `refine_size_strain`；说明标签：**以上高级参数全部委托 GSAS-II 后端执行，本地不做拟合算法**；第 1 页多相提示完善（可多选多相，每相 scale/晶胞/原子由后端独立处理）。
+
+**实测**（真实 GSAS-II，3 相 Al2O3/ZnO/CaF2 + cpd-1c.gss，max_iter=25，size_strain=on，PO=off）：**Rwp = 11.85%**、Rp = 9.26%、约 18 s；产物 .gpx/.lst/.prf/.gss/.prm/driver/manifest/result.json 齐全。探针：U/V/W 收敛后 Rwp 21.44% → 开启 size+mustrain 后 20.66%。manifest 传播（run=False）：`refine_size_strain=True → manifest["options"]["refine_size_strain"] is True` ✓。
+
+**验收**：adapter 13 passed + 1 skipped；gsas2_project 15 passed（非真实）+ 真实精修测试 1 passed（18.02 s，GSAS2_AVAILABLE 守卫）；向导 12 passed；`tests/refine` + 向导独立复跑全绿；ruff 全绿；品牌词 0 命中。
+
+**已知局限（非本次引入）**：PO 阶段 [0,0,1] March-Dollase 轴面向层状/纤锌矿结构（如 ZnO、Mg(OH)2），在立方/三方相上勾选 PO 可能使 MD 积分发散（Rwp→100%）——现有 PO 逻辑未改，仅新增界面暴露；size/strain 与 U/V/W 高度相关，依赖分阶段收敛顺序，极端数据下需人工校验参数物理性。
