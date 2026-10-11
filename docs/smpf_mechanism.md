@@ -2,7 +2,7 @@
 
 > 交付日期：2026-10-11。模块：`xinmatch/core/search/smpf.py`。
 > 本文为净室实现说明：仅依据 Rietveld / profile-fitting 公开准则（Rwp/Rexp/GOF；Young, *The Rietveld Method*）与解析 pseudo-Voigt 峰形（`xinmatch/core/peak/shapes.py`）撰写，不复制任何商业软件代码。涉及参考软件一律以"参考软件/对标产品"中性表述。
-> 研究笔记 `docs/smpf_research_notes.md` 由并行研究任务维护；本文未读取到该文件时，相关机制综述即由本模块实验结果自行归纳，研究笔记后续补充后可整合。
+> 研究笔记 `docs/smpf_research_notes.md`（并行研究任务产出，2026-10-11，已入库）：含 SMPF 公开机制完整综述（概念与流程 / 峰形模型 / 背底处理 / Kα1-Kα2 双线 / 拟合判据 / 候选预筛 / 评分归一化，共 7 主题 + 按主题分组的参考来源清单）。本节仅归纳经本实现实验验证的三条关键结论，完整机制综述见该笔记。
 
 ---
 
