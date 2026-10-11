@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -35,6 +36,10 @@ from tools.build_cod_full_xinmatch import compute_peaks_from_cif  # noqa: E402
 from xinmatch.core.refine.cif_store import cod_cif_path  # noqa: E402
 
 COD_INDEX = Path(r"D:\Project\XRD\PolyXRD\cod_data\cod_index.sqlite")
+# XinMatch 检索库（cod_inorganics.db）的 peaks 表存 0-100 相对强度，与检索 FoM 同源。
+# 生成合成谱的峰强度一律取自该库（entry_id = 96-{cod_id 8 位}），保证"从库内卡片生成、
+# 能在库内找回"的净室闭环；库内无此编号时回退 CIF 结构因子计算。
+CARD_DB = Path(r"D:\Project\XRD\XinMatch\data\cod_inorganics.db")
 WAVELEN = 1.5406  # Cu K-alpha1
 TWO_THETA = np.arange(10.0, 90.0, 0.02)
 # Caglioti parameters (typical laboratory Cu source).
@@ -56,6 +61,77 @@ _MATERIALS: list[tuple[str, list[tuple[int, float, tuple[int, int, int] | None]]
     ("Periclase-Spinel", [(5000225, 0.50, None), (5000120, 0.50, None)]),
     ("Zirconia", [(2101234, 1.00, (-1, 1, 1))]),
 ]
+
+
+def _card_peaks(cod_id: int) -> tuple[np.ndarray, np.ndarray] | None:
+    """从 XinMatch 检索库取卡片 d/I（强度 0-100 相对强度，与 FoM 同源）。"""
+    s = str(cod_id)
+    eid = f"96-{s[:3]}-{s[3:]}" if len(s) == 7 else None
+    if not eid:
+        return None
+    conn = sqlite3.connect(f"file:{CARD_DB.as_posix()}?mode=ro", uri=True)
+    try:
+        rows = conn.execute(
+            "SELECT d, intensity FROM peaks WHERE entry_id=? ORDER BY intensity DESC",
+            (eid,),
+        ).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return None
+    return (
+        np.array([d for d, _ in rows], dtype=float),
+        np.array([i for _, i in rows], dtype=float),
+    )
+
+
+def _card_peaks_by_formula(cod_id: int) -> tuple[np.ndarray, np.ndarray] | None:
+    """库内同元素集卡片（peaks 最多者），作为 fallback 强度来源。
+
+    合成谱真相相可能不在库内（如 900- 系列新编号），但同相的
+    其他 COD 卡片（元素集一致）在库内——用它们的 0-100 相对强度，
+    保证与检索 FoM 同源（CIF 结构因子动态范围过大，直接使用会让
+    次强峰淹没，FoM intensity 失真）。
+    """
+    _, elements = _meta(cod_id)
+    if not elements:
+        return None
+    els = {e.strip() for e in elements.split(",") if e.strip()}
+    if not els:
+        return None
+    conn = sqlite3.connect(f"file:{CARD_DB.as_posix()}?mode=ro", uri=True)
+    try:
+        ordered = sorted(els)
+        q = "SELECT entry_id, formula FROM entries WHERE formula LIKE ?"
+        args: list[str] = [f"%{ordered[0]}%"]
+        for e in ordered[1:]:
+            q += " AND formula LIKE ?"
+            args.append(f"%{e}%")
+        best: tuple[str, int] | None = None
+        for eid, fml in conn.execute(q, args):
+            if _formula_elements(fml) != els:
+                continue
+            n = conn.execute(
+                "SELECT COUNT(*) FROM peaks WHERE entry_id=?", (eid,)
+            ).fetchone()[0]
+            if best is None or n > best[1]:
+                best = (eid, n)
+        if best is None:
+            return None
+        rows = conn.execute(
+            "SELECT d, intensity FROM peaks WHERE entry_id=? ORDER BY intensity DESC",
+            (best[0],),
+        ).fetchall()
+        return (
+            np.array([d for d, _ in rows], dtype=float),
+            np.array([i for _, i in rows], dtype=float),
+        )
+    finally:
+        conn.close()
+
+
+def _formula_elements(formula: str) -> set[str]:
+    return {m.group(1) for m in re.finditer(r"([A-Z][a-z]?)([0-9.]*)", formula or "")}
 
 
 def _meta(cod_id: int) -> tuple[str, str]:
@@ -176,10 +252,22 @@ def _pattern_for_phase(d, i, rng: np.random.Generator, po_hkl: tuple | None) -> 
     for x0, i0 in zip(tth0, i, strict=True):
         fwhm = _fwhm(x0)
         eta = 0.4 + 0.3 * rng.random()
-        near = np.abs(TWO_THETA - x0) <= 5.0 * fwhm
+        # 截断取 8×FWHM 且外侧 1.5×FWHM 用余弦窗平滑衰减到 0：
+        # 硬截断会在峰两侧留下 ~1% 高度的台阶（Lorentzian 尾部），
+        # 峰检测会把台阶误报为伪峰（每个真实峰 +2）。
+        half = 8.0 * fwhm
+        near = np.abs(TWO_THETA - x0) <= half
         if not near.any():
             continue
+        xrel = np.abs(TWO_THETA[near] - x0) / fwhm
+        taper_start = half / fwhm - 1.5
+        taper = np.where(
+            xrel <= taper_start,
+            1.0,
+            0.5 * (1.0 + np.cos(np.pi * (xrel - taper_start) / 1.5)),
+        )
         vals = np.array([_pseudovoigt(x, x0, fwhm, eta) for x in TWO_THETA[near]])
+        vals = vals * taper
         if po_hkl is not None:
             # preferred orientation: enhance near-axis peaks modestly (r=0.75)
             vals = vals * _march_factor(TWO_THETA[near], x0, 0.75)
@@ -195,17 +283,28 @@ def _background(tth: np.ndarray, rng: np.random.Generator) -> np.ndarray:
 
 
 def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]],
-                  rng: np.random.Generator, noise_scale: float = 0.003) -> dict:
+                  rng: np.random.Generator, noise_scale: float = 0.001) -> dict:
     """Build one synthetic sample; returns pattern + phase truth."""
     pattern = np.zeros_like(TWO_THETA)
     truth: list[dict] = []
     for cod_id, wt, po_hkl in phases:
-        cif = cod_cif_path(cod_id)
-        if not cif.is_file():
-            raise RuntimeError(f"no COD CIF for cod_id={cod_id} ({cif})")
-        peaks = compute_peaks_from_cif(cif, dmin=0.7, max_peaks=120)
+        peaks = _card_peaks(cod_id)
         if peaks is None:
-            raise RuntimeError(f"no peaks from {cif}")
+            # 库内无此编号：先找库内同元素集卡片（强度与检索 FoM 同源），
+            # 再无则回退 CIF 结构因子计算（归一化到 0-100）。
+            peaks = _card_peaks_by_formula(cod_id)
+        if peaks is None:
+            cif = cod_cif_path(cod_id)
+            if not cif.is_file():
+                raise RuntimeError(f"no COD CIF for cod_id={cod_id} ({cif})")
+            peaks = compute_peaks_from_cif(cif, dmin=0.7, max_peaks=120)
+            if peaks is None:
+                raise RuntimeError(f"no peaks from {cif}")
+            d, i = peaks
+            imax = float(i.max())
+            if imax > 0:
+                i = i / imax * 100.0
+            peaks = (d, i)
         d, i = peaks
         pattern += wt * _pattern_for_phase(d, i, rng, po_hkl)
         formula, _ = _meta(cod_id)
@@ -233,9 +332,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, default=Path(r"D:\Project\XRD\test_xrd\synthetic"))
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--noise-scale", type=float, default=0.003,
-                    help="高斯噪音幅度（相对最强峰），默认 0.003（真实计数统计噪音量级）；"
-                         "早期 0.012 偏高，参考软件 SMPF 拟合受扰")
+    ap.add_argument("--noise-scale", type=float, default=0.001,
+                    help="高斯噪音幅度（相对最强峰），默认 0.001（对齐实测 5-x 谱背底统计量级 "
+                         "~0.05-0.1% imax）；0.003 在背底区产生 std≈1.2% 的纹波，"
+                         "峰检测会误报大量噪音弱峰")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(args.seed)

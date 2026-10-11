@@ -10,8 +10,8 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T0.1 | Extract official doc library (169 topics) | ✅ |
 | T0.2 | Re-extract against latest 参考软件, diff versions | ⬜ |
-| T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 参考软件 操作步骤 + 13→20–30 缺口清单：建议 IUCr CPD-1a/1b/1d/1e/1f/1g/1h、CPD-4、csuHJW data002/033/038/020/036）；样品采集本身只能人工在 参考软件 中执行，尚未跑) |
-| T0.4 | Run 参考软件 baseline on the sample set | 🟡 (转换链就绪：参考软件 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；等待人工跑完 20–30 样品后导入) |
+| T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 参考软件 操作步骤 + 13→20–30 缺口清单）；合成谱 13 组已生成（`tools/generate_synthetic_patterns.py` → `D:\Project\XRD\test_xrd\synthetic\synth_01~13.txt`，真相已知），用户已在参考软件 SMPF 验收（jingzhun 13/13 Top-1、FoM=1.0000，归档 `tests/baseline/ref20261011/`）；真实样品采集仍待人工跑) |
+| T0.4 | Run 参考软件 baseline on the sample set | 🟡 (转换链就绪：参考软件 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；参考软件 对 13 组合成谱的候选基线已归档 `tests/baseline/ref20261011/`（jingzhun 19 + alloption 23 文件，验收记录 `docs/sample_expansion_20261011.md`）；真实样品跑完后导入) |
 | T0.5 | Terminology mapping table | ⬜ |
 | T0.6 | Project skeleton + CI (pytest, ruff, mypy) | ✅ (2026-10-10：mypy 配置落地（pyproject [tool.mypy]，files=xinmatch + search/refine 基线豁免），26 源文件纯类型层修复，**109 错误 → 0（81 源文件）**，`python -m mypy` 与 `mypy xinmatch` 均 Success；豁免清单见 docs/mypy_baseline.md。pytest/ruff 此前已就绪) |
 | T0.7 | Cross-platform conventions | ✅ |
@@ -213,3 +213,26 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 **修复**：`tests/report/conftest.py` autouse fixture（强制 Agg 后端 + 清理残留 figure，防御性；未改断言/运行时行为）。pyproject 未动。
 
 **验收**：单进程全量 EXIT=0，**1124 passed + 2 skipped + 1 xfailed，用时 53:17**（完整跑完、无挂起）；分块对账一致（A 953+1xf 10:49 / B 130+1sk 42:56 / C 41+1sk 2.7s），无顺序惩罚。固有慢测试清单：turn_on 发散测试（~35min）、GSAS-II 子进程（timeout 1800s）、baseline_acceptance curve_fit——后续建议收敛发散测试拟合预算（需改测试行为），CI 采用分块方案。
+
+## 合成谱 XinMatch 侧检索修复（2026-10-11）✅
+
+**背景**：用户参考软件 SMPF 验收合成谱 13/13（jingzhun 全 Top-1 FoM=1.0000，归档 `tests/baseline/ref20261011/` + `docs/sample_expansion_20261011.md`）；XinMatch 侧标准检索仅 **3/13** 真相相进 Top-20。
+
+**根因（三条，均不在 FoM 参数）**：
+1. **生成器峰强度用 CIF 结构因子**（`tools/build_cod_full_xinmatch.compute_peaks_from_cif`，动态范围 1e17，如 BaTiO₃ (110) 2.45e21 vs 次强峰 59188）→ 归一化后次峰全部淹没，实验谱强度分布与库卡片（0-100 相对强度）严重不匹配 → FoM `intensity` 失真（真相相 0.133 vs 真实谱 0.86）。
+2. **库内无该编号时回退 CIF**（强度仍失真）→ 改为**库内同元素集卡片**（peaks 最多者）。
+3. **无机库系统性缺常见相**：NaCl/KCl/MgO/CuO 无任何元素集匹配卡片（参考软件 COD-Inorg 库均有）→ 从 `cod_full.db` 导入 4 卡补库（`96-900-6388/3133/6475/8961`，备份 `data/cod_inorganics.bak-*.db`，gitignore 排除）。
+
+**修复**：`tools/generate_synthetic_patterns.py`——`_card_peaks()`（精确 entry_id）→ `_card_peaks_by_formula()`（同元素集 fallback）→ CIF 兜底三级强度来源；噪音默认 0.001、峰形尾部余弦衰减（消除 5×FWHM 硬截断台阶伪峰，次要）。
+
+**结果**（现状 FoM + 默认无机库，`tests/search/test_synthetic_acceptance.py` 6 用例）：
+
+| 指标 | 修复前 | 修复后 |
+|---|---:|---:|
+| 真相相 Top-20 | 3/13 | **13/13** |
+| 真相相 Top-5 | 3/13 | **13/13** |
+| 真相相 Top-1 | 1/13 | **11/13** |
+| L3 真实谱 Top-1 一致 | 11/13 | **11/13**（未退化，MISS 仍为已知基线快照差异 5-1/5-3） |
+
+FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未动**。剩余：synth_06（BaTiO₃，rank3，intensity 残余差异）、synth_11（CaSO₄/CaCO₃，rank2）。
+

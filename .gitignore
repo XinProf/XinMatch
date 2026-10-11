@@ -67,3 +67,7 @@ tests/fixtures/cod/**
 # packaging source config (Phase 15) — kept tracked
 !xinmatch.spec
 
+
+# ---- Database backups (large, not for VCS) ----
+data/cod_inorganics.bak-*.db
+
