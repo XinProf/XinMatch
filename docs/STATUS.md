@@ -400,7 +400,9 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 - `tests/search` junit 结论：**275 用例 0 失败 0 错误**（2 跳过，166.5s），含新增 8 项、`test_deterministic_single_pattern` 与 `test_single_pattern_under_120s`（43.4s，护栏 120s）；
 - 两个慢验收类（`TestSyntheticSmpfAcceptance` 13 组合成谱 Top-20/Top-5、`TestRealSmpfRecord` 13 组真实谱 record）在 `tests/peak + tests/preprocess + tests/search` 全量跑（47 分钟）中同样到达 100%、进度行无 F/E；
 - 2 处 skip 为 `tests/search/test_textbook_phases.py` 对 Sylvite/Periclase 的「仅 Halite 断言 Top-5」预期跳过（v1.4.0 无机库专项既有行为，与本改动无关）；
+- `tests/ui` junit 结论：**205 用例 0 失败 0 错误**（350s，offscreen）；
 - ruff 改动文件全绿；mypy `smpf.py` **0 错误**（其余 9 处为 `entry.py`/`background.py`/`smoothing.py`/`fom_criteria.py` 存量）；
+- 提交 `d6a543c`（5 文件 +538/−47）。
 - 已知环境现象：本环境 pytest 收尾会被沙盒钩子拦截临时目录清理（286 文件 > 50 阈值），汇总行不落盘、退出码非 0——**判定以 junit XML 与进度行的 F/E 为准**。
 
 **关联**：v1.4.0 无机库专项遗留的「Sylvite 卡片 a=6.2879 vs 6.2931 的 0.08% 晶胞差」现由 `cell_delta`（边界 ±0.5%）在拟合层面吸收，剩余差距（CIF 强度惯例）仍归 T0.8。
