@@ -12,7 +12,7 @@ from __future__ import annotations
 from PySide6 import QtGui, QtWidgets
 
 from xinmatch.ui.main_window import MainWindow
-from xinmatch.ui.periodic_table import PeriodicTableWidget
+from xinmatch.ui.periodic_table import PeriodicTablePanel
 from xinmatch.ui.tables import CandidateListTable, MatchListTable, PeakListTable
 from xinmatch.ui.theme import current_theme
 
@@ -22,7 +22,8 @@ def test_docks_host_new_tables(qapp):
     assert isinstance(win.candidate_table, CandidateListTable)
     assert isinstance(win.peak_table, PeakListTable)
     assert isinstance(win.match_table, MatchListTable)
-    assert isinstance(win.periodic_table, PeriodicTableWidget)
+    # v1.3.1：周期表改弹出式选择面板（PeriodicTablePanel），省空间给谱图。
+    assert isinstance(win.periodic_panel, PeriodicTablePanel)
     # 表格确实在 dock 内（findChild 从主窗口命中同一实例）。
     assert win.findChild(CandidateListTable) is win.candidate_table
     assert win.findChild(PeakListTable) is win.peak_table
@@ -33,7 +34,7 @@ def test_periodic_table_in_restraints_tab(qapp):
     win = MainWindow()
     tabs = win.findChild(QtWidgets.QTabWidget)
     assert tabs is not None
-    assert tabs.indexOf(win.periodic_table) == 0
+    assert tabs.indexOf(win.periodic_panel) == 0
     assert tabs.indexOf(win.peak_table) == 1
 
 

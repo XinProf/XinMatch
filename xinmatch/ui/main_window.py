@@ -45,12 +45,13 @@ from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.search_match import search_match
 from xinmatch.core.search.smpf import search_match_smpf
 from xinmatch.ui.about_dialog import AboutDialog
+from xinmatch.ui.busy import run_with_busy
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import load_config, save_config
 from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
-from xinmatch.ui.pattern_view import PatternView
-from xinmatch.ui.periodic_table import PeriodicTableWidget
+from xinmatch.ui.pattern_view import PatternPanel
+from xinmatch.ui.periodic_table import PeriodicTablePanel
 from xinmatch.ui.refinement_wizard import RefinementWizard
 from xinmatch.ui.shortcuts import install_shortcuts
 from xinmatch.ui.structure_view import (
@@ -148,8 +149,32 @@ _SEARCH_MODE_ITEMS: tuple[tuple[str, str], ...] = (
 )
 
 
+# 工具栏悬停详细说明（v1.3.1）：比单行状态栏提示更完整的"是什么+怎么用"。
+_MODULE_TIPS: dict[str, str] = {
+    "data_import": "数据导入：打开衍射数据文件，22 种厂商/自由格式自动识别。\n"
+    "用法：文件→打开数据…（Ctrl+O）与此等效。",
+    "data_export": "数据导出：把当前谱图 / 峰列表导出为 ASCII profile、峰表等格式。",
+    "raw_processing": "原始数据处理：背景扣除、平滑、Kα2 剥离、零点校正等预处理流水线入口。",
+    "peak_list": "寻峰与峰列表：自动寻峰并维护可编辑峰列表；峰位/强度供检索与报告使用。",
+    "profile_fitting": "Profile Fitting：多峰同时最小二乘拟合，输出精确峰位 / FWHM / 面积。",
+    "search_match": "Search-Match 物相检索：按工具栏右侧下拉框所选模式执行——\n"
+    "峰列表 FoM（先寻峰再匹配）或 SMPF 全谱拟合（不寻峰）。\n"
+    "检索前请先打开数据并挂载参考数据库（设置→参考数据库…）。",
+    "restraints": "限制条件检索：按元素三态（必含/排除/可选）、晶系等条件过滤候选。\n"
+    "元素选择在右侧「检索与数据」坞的「限制条件」页。",
+    "reference_db": "参考数据库：挂载 / 切换参考库（COD 无机库、全库、优选库…）。",
+    "user_db": "用户数据库：管理自建参考条目（导入 CIF / 导出）。",
+    "indexing": "指标化：Treor / Dicvol 晶胞指标化，由峰列表求初始晶胞。",
+    "rietveld": "Rietveld 与 Le Bail 精修（计算委托 GSAS-II，XinMatch 不自研精修算法）。",
+    "quant_analysis": "定量分析：RIR / 内标法 / Rietveld 定量的物相质量分数。",
+    "microstructure": "微结构分析：Scherrer 晶粒尺寸、Williamson-Hall 微观应变。",
+    "report_print": "报告与打印：把当前峰列表 + 候选列表渲染为 HTML / 文本报告并预览。",
+    "options": "选项与设置：检索、显示、颜色线型等全部设置入口（YAML 持久化）。",
+}
+
+
 def smpf_results_to_candidates(
-    smpf_results: list[tuple[Entry, dict[str, float]]],
+    smpf_results: list[tuple[Entry, dict[str, str | float]]],
 ) -> list[CandidateResult]:
     """把 SMPF 的 ``(Entry, score_dict)`` 结果转换为 GUI 候选行。
 
@@ -219,12 +244,15 @@ class MainWindow(QtWidgets.QMainWindow):
     def _build_actions(self) -> None:
         """Create one placeholder QAction per functional module."""
         style = self.style()
+        # 图标动作注册表：action → 图标名/模块 id，供主题切换时重着色。
+        self._icon_actions: dict[QtGui.QAction, str] = {}
         for mod_id, label, anchor in MODULES:
             action = QtGui.QAction(label, self)
             # 主题图标优先；缺失时回退到 Qt 标准 pixmap。
             themed = _themed_icon(mod_id) if _themed_icon is not None else None
             if themed is not None:
                 action.setIcon(themed)
+                self._icon_actions[action] = mod_id
             else:
                 pix = getattr(
                     QtWidgets.QStyle, _TOOLBAR_ICONS.get(mod_id, ""), None
@@ -232,6 +260,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 if pix is not None:
                     action.setIcon(style.standardIcon(pix))
             action.setStatusTip(f"{label}（参考软件锚点：{anchor}）")
+            tip = _MODULE_TIPS.get(mod_id)
+            if tip:
+                action.setToolTip(tip)
             if mod_id == "options":
                 # T13.5 集成：选项模块动作直接打开选项设置对话框（持久化）。
                 action.triggered.connect(self._open_options_dialog)
@@ -256,9 +287,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.open_action.setStatusTip(
             "打开衍射数据文件（自动识别格式：两列 ASCII / Bruker / Panalytical …）"
         )
+        self.open_action.setToolTip(
+            "打开衍射数据文件（Ctrl+O）。\n"
+            "22 种厂商/自由格式自动识别；打开后谱图区自动适配数据显示范围。"
+        )
         open_icon = _themed_icon("open") if _themed_icon is not None else None
         if open_icon is not None:
             self.open_action.setIcon(open_icon)
+            self._icon_actions[self.open_action] = "open"
         else:
             self.open_action.setIcon(
                 style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton)
@@ -282,9 +318,9 @@ class MainWindow(QtWidgets.QMainWindow):
             "剥离 Kα2 分量（预处理功能，待接线）",
         )
         self.reset_action = self._tool_action(
-            "重置为原始数据", "reset",
+            "重置", "reset",
             lambda _checked=False: self._placeholder("重置为原始数据"),
-            "恢复打开时的原始谱图（待接线）",
+            "重置为打开时的原始谱图（撤销全部预处理；待接线）",
         )
         self.peakdetect_action = self._tool_action(
             "峰检测", "peakdetect",
@@ -307,8 +343,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """Build a toolbar action with an original SVG icon and status tip."""
         action = QtGui.QAction(label, self)
         action.setStatusTip(tip)
+        action.setToolTip(tip)
         if _themed_icon is not None:
             action.setIcon(_themed_icon(icon_name))
+            self._icon_actions[action] = icon_name
         action.triggered.connect(slot)
         return action
 
@@ -352,8 +390,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refinement_wizard_action.setStatusTip(
             "打开 Rietveld 精修向导（GSAS-II 后端）"
         )
+        self.refinement_wizard_action.setToolTip(
+            "Rietveld 精修向导（Ctrl+Shift+W，GSAS-II 后端）。\n"
+            "四步：选已鉴定相 → 背景处理 → 勾选参数组（Scale/Cell/Profile/Atoms）"
+            " → 运行并查看 R 因子与残差谱。"
+        )
         if _themed_icon is not None:
             self.refinement_wizard_action.setIcon(_themed_icon("wizard"))
+            self._icon_actions[self.refinement_wizard_action] = "wizard"
         self.refinement_wizard_action.triggered.connect(
             self._open_refinement_wizard
         )
@@ -377,6 +421,7 @@ class MainWindow(QtWidgets.QMainWindow):
         about_action.setStatusTip("查看版本、联系方式与版权信息")
         if _themed_icon is not None:
             about_action.setIcon(_themed_icon("help"))
+            self._icon_actions[about_action] = "help"
         about_action.triggered.connect(self._open_about)
         help_menu.addAction(about_action)
         self.about_action = about_action
@@ -391,6 +436,14 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar = self.addToolBar("主工具栏")
         toolbar.setObjectName("mainToolbar")
         toolbar.setMovable(False)
+        # 图标按 24×24 设计（并在 16/20/32/48 各预渲染一份，见 ui/icons.py），
+        # 显式固定工具按钮尺寸，避免随平台样式缩到 16 px 导致细节糊化。
+        toolbar.setIconSize(QtCore.QSize(24, 24))
+        # v1.3.1：图标右侧带简洁文字 + 悬停详细说明（用户可读性优先）。
+        # 空间不足时 QToolBar 自带 « 溢出折叠，不会截断。
+        toolbar.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
         toolbar.addAction(self.open_action)
         toolbar.addAction(self.module_actions["data_export"])
         toolbar.addSeparator()
@@ -428,10 +481,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().addPermanentWidget(self._cursor_label)
 
     def _build_central(self) -> None:
-        """Central widget: the diffraction pattern graphics panel."""
-        self.pattern_view = PatternView(self)
-        self.setCentralWidget(self.pattern_view)
-        self.pattern_view.cursor_moved.connect(self._cursor_label.setText)
+        """Central widget: the diffraction pattern graphics panel.
+
+        v1.3.1：谱图区升级为 :class:`PatternPanel`（轴切换控制条 +
+        pyqtgraph 视图）；``self.pattern_view`` 指向其中真正的视图，
+        下游 API（add_pattern / patterns() / …）不变。
+        """
+        self.pattern_panel = PatternPanel()
+        self.pattern_view = self.pattern_panel.view
+        self.setCentralWidget(self.pattern_panel)
+        self.pattern_panel.cursor_moved.connect(self._cursor_label.setText)
 
     def _build_docks(self) -> None:
         """Dock panels mirroring the reference software working area."""
@@ -442,12 +501,13 @@ class MainWindow(QtWidgets.QMainWindow):
         cand.setWidget(self.candidate_table)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, cand)
 
-        # Upper-right: tabbed restraints / peak list / data sheet.  T13.4 周期表
-        # 进"限制条件"页，T13.3 峰列表进"峰列表"页；数据表留占位。
-        self.periodic_table = PeriodicTableWidget()
+        # Upper-right: tabbed restraints / peak list / data sheet.  v1.3.1
+        # 周期表改弹出式选择面板（省空间给谱图），T13.3 峰列表进"峰列表"页；
+        # 数据表留占位。
+        self.periodic_panel = PeriodicTablePanel()
         self.peak_table = PeakListTable()
         tabs = QtWidgets.QTabWidget()
-        tabs.addTab(self.periodic_table, "限制条件")
+        tabs.addTab(self.periodic_panel, "限制条件")
         tabs.addTab(self.peak_table, "峰列表")
         tabs.addTab(QtWidgets.QWidget(), "数据表")
         right = QtWidgets.QDockWidget("检索与数据", self)
@@ -551,6 +611,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._theme_action.setText(f"切换主题（当前：{current_theme()}）")
         # 谱图区配色随主题切换（并行任务交付；缺失时静默跳过）。
         getattr(self.pattern_view, "apply_theme_colors", lambda: None)()
+        # 工具栏图标按新主题重着色（否则深色主题下图标仍是深色线条，几乎不可见）。
+        self._refresh_icons()
+
+    def _refresh_icons(self) -> None:
+        """按当前主题重着色全部注册图标（QSS 换肤不波及已烘焙的 pixmap）。"""
+        if _themed_icon is None:
+            return
+        theme = current_theme()
+        for action, name in getattr(self, "_icon_actions", {}).items():
+            action.setIcon(_themed_icon(name, theme))
 
     # ------------------------------------------------------------------
     # T13.8 / Phase 16 integration: state feeding + refinement wizard / 3D view
@@ -737,9 +807,16 @@ class MainWindow(QtWidgets.QMainWindow):
     def _refresh_search_mode_combo_tip(self) -> None:
         """根据当前模式刷新下拉框 tooltip（说明当前所选检索模式）。"""
         if self._search_mode == SEARCH_MODE_SMPF_FULL:
+            ka1, ka2 = self.smpf_kalpha_wavelengths(self._current_pattern)
+            ka_note = (
+                f"Kα 双线模型：启用（{ka1:.4f} / {ka2:.4f} Å）"
+                if ka2 is not None
+                else f"Kα 双线模型：关闭（单线，{ka1:.4f} Å）"
+            )
             detail = (
                 "当前：SMPF 全谱拟合——直接对整条实验谱做剖面拟合精排，"
-                "不寻峰、不覆盖峰列表。"
+                f"不寻峰、不覆盖峰列表。\n{ka_note}"
+                "\n（可在 设置→选项…→Search-Match 页调整）"
             )
         else:
             detail = (
@@ -757,6 +834,9 @@ class MainWindow(QtWidgets.QMainWindow):
           峰列表）。
         两模式结果统一为 :class:`CandidateResult` 列表填充候选列表，
         保证精修向导 / 3D 视图 / CIF 导出等下游链路元素类型不变。
+
+        v1.3.1：检索在忙碌窗口 + 工作线程中执行（界面不冻结、不可重复
+        触发）。
         """
         if self._current_pattern is None:
             QtWidgets.QMessageBox.information(
@@ -777,24 +857,47 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             return
 
-        peaks: list | None = None
-        if self._search_mode == SEARCH_MODE_SMPF_FULL:
-            results, mode_label = self._search_smpf(pattern, conn)
-            if results is None:
-                return
-        else:
-            try:
-                peaks = find_peaks(pattern.two_theta, pattern.intensity)
-                results = search_match(peaks, conn, pattern.wavelength)
-            except Exception as exc:  # noqa: BLE001 — 检索过程异常一律友好提示
-                QtWidgets.QMessageBox.warning(
-                    self,
-                    "Search-Match 检索失败",
-                    f"检索过程中出现错误：\n\n{exc}",
-                )
-                return
-            mode_label = "峰列表 FoM"
+        mode = self._search_mode
+        mode_desc = (
+            "SMPF 全谱拟合检索（逐候选剖面拟合，耗时较长）"
+            if mode == SEARCH_MODE_SMPF_FULL
+            else "峰列表 FoM 检索"
+        )
 
+        run_with_busy(
+            self,
+            "Search-Match",
+            f"正在执行{mode_desc}…\n对参考数据库逐条比对/拟合，请稍候。",
+            lambda: self._do_search(pattern, conn, mode),
+            on_success=self._apply_search_results,
+            on_error=self._show_search_error,
+        )
+
+    def _do_search(
+        self,
+        pattern: Pattern,
+        conn,
+        mode: str,
+    ) -> tuple[list[CandidateResult], str, list | None]:
+        """检索工作体（运行在工作线程，禁止触碰 GUI）。
+
+        返回 ``(候选列表, 模式名, 峰列表)``；SMPF 分支峰列表为 ``None``。
+        异常直接上抛，由 :func:`run_with_busy` 转交 GUI 线程提示。
+        """
+        peaks: list | None = None
+        if mode == SEARCH_MODE_SMPF_FULL:
+            results, mode_label = self._search_smpf(pattern, conn)
+        else:
+            peaks = find_peaks(pattern.two_theta, pattern.intensity)
+            results = search_match(peaks, conn, pattern.wavelength)
+            mode_label = "峰列表 FoM"
+        return results, mode_label, peaks
+
+    def _apply_search_results(
+        self, payload: tuple[list[CandidateResult], str, list | None]
+    ) -> None:
+        """把检索结果回填候选列表 / 峰列表并更新状态栏（GUI 线程）。"""
+        results, mode_label, peaks = payload
         self.set_candidates(results)
         # SMPF 模式不寻峰：保留上一次峰列表，不覆盖 peak_table。
         if peaks is not None:
@@ -808,31 +911,67 @@ class MainWindow(QtWidgets.QMainWindow):
             f"检索完成：{len(results)} 个候选（{mode_label}，库：{lib_label}）", 8000
         )
 
+    def _show_search_error(self, message: str) -> None:
+        """检索失败提示（GUI 线程回调）。"""
+        QtWidgets.QMessageBox.warning(
+            self,
+            "Search-Match 检索失败",
+            f"检索过程中出现错误：\n\n{message}",
+        )
+
+    def smpf_kalpha_wavelengths(
+        self, pattern: Pattern | None = None
+    ) -> tuple[float, float | None]:
+        """解析 SMPF 的 Kα 波长设置 → ``(kalpha1, kalpha2)``。
+
+        读 **设置→选项…→Search-Match** 页持久化的三个旋钮：
+
+        * ``smpf_kalpha1_angstrom`` <= 0（默认）时回退到图谱自身波长
+          ``pattern.wavelength``；这也让 Co / Mo 等非 Cu 靶数据在不动设置
+          的情况下自动跟随正确波长。
+        * ``smpf_kalpha2_enabled`` 为假时返回 ``kalpha2=None``（单线模型）。
+
+        返回 ``(kalpha1, kalpha2)``；``kalpha2`` 为 ``None`` 表示单线。
+        """
+        cfg = load_config().get("searchmatch", {})
+        ka1 = float(cfg.get("smpf_kalpha1_angstrom", 0.0))
+        if ka1 <= 0.0:
+            ka1 = getattr(pattern, "wavelength", 0.0) or 1.5406
+        enabled = bool(cfg.get("smpf_kalpha2_enabled", True))
+        ka2 = float(cfg.get("smpf_kalpha2_angstrom", 1.5444)) if enabled else None
+        return ka1, ka2
+
     def _search_smpf(
         self, pattern: Pattern, conn
-    ) -> tuple[list[CandidateResult] | None, str | None]:
-        """SMPF 全谱拟合分支（异常信息标注模式名）。
+    ) -> tuple[list[CandidateResult], str]:
+        """SMPF 全谱拟合分支（v1.3.1 起为纯计算：异常直接上抛）。
 
-        直接接收原始实验谱（不寻峰、不要求预扣背景）。``wavelength_kalpha2``
-        保持默认 ``None``（单线）——与合成谱验收基线一致；真实 Cu 双线
-        （Kα1 1.5406 / Kα2 1.5444）为后续旋钮，本任务不开启。
+        直接接收原始实验谱（不寻峰、不要求预扣背景）。Kα 双线模型由
+        **设置→选项…→Search-Match** 页的三个旋钮控制（v1.3.0）：
 
-        返回 ``(候选列表, 模式名)``；失败时弹出友好提示并返回 ``(None, None)``。
+        * ``smpf_kalpha2_enabled`` — 是否叠加 Kα2 伴线（默认开，对应真实
+          实验室 Cu Kα 数据）；由 CIF 生成的合成谱应关闭，否则 Kα2 模型
+          与数据失配会压低正确相排名（synth_13 ZrO₂ 单线谱曾错排 YSZ）。
+        * ``smpf_kalpha1_angstrom`` — Kα1 波长；<=0 时跟随 ``pattern.wavelength``。
+        * ``smpf_kalpha2_angstrom`` — Kα2 波长（默认 1.5444 Å）。
+
+        返回 ``(候选列表, 模式名)``。本函数可能在工作线程中被
+        :meth:`_do_search` 调用，**禁止**在此弹 QMessageBox——异常统一
+        上抛，由忙碌窗口的 ``on_error`` 回调在 GUI 线程提示。
         """
-        try:
-            raw = search_match_smpf(
-                pattern,
-                conn,
-                wavelength_kalpha1=pattern.wavelength,
-            )
-        except Exception as exc:  # noqa: BLE001 — 检索过程异常一律友好提示
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Search-Match 检索失败（SMPF 全谱拟合）",
-                f"SMPF 全谱拟合检索过程中出现错误：\n\n{exc}",
-            )
-            return None, None
-        return smpf_results_to_candidates(raw), "SMPF 全谱拟合"
+        ka1, ka2 = self.smpf_kalpha_wavelengths(pattern)
+        raw = search_match_smpf(
+            pattern,
+            conn,
+            wavelength_kalpha1=ka1,
+            wavelength_kalpha2=ka2,
+        )
+        mode_label = (
+            f"SMPF 全谱拟合（Kα 双线 {ka1:.4f}/{ka2:.4f} Å）"
+            if ka2 is not None
+            else f"SMPF 全谱拟合（Kα 单线 {ka1:.4f} Å）"
+        )
+        return smpf_results_to_candidates(raw), mode_label
 
     def _run_report_preview(self) -> None:
         """报告与打印：渲染当前候选 + 峰列表为文本报告并弹出只读预览。"""

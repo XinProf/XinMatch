@@ -26,7 +26,7 @@ from PySide6 import QtCore, QtWidgets
 
 from xinmatch.core.model.restraints import ElementState
 
-__all__ = ["PeriodicTableWidget"]
+__all__ = ["PeriodicTableWidget", "PeriodicTablePanel"]
 
 # ---------------------------------------------------------------------------
 # Element grid: (symbol, grid_row, grid_col) in an 18-column table.
@@ -199,6 +199,169 @@ class PeriodicTableWidget(QtWidgets.QWidget):
         """Return whether three-state filtering is currently active."""
         return self._toggle.isChecked()
 
+    def set_toggle_visible(self, visible: bool) -> None:
+        """显示 / 隐藏内置"启用元素过滤"开关。
+
+        弹出式选择器（:class:`PeriodicTablePanel`）由外层面板提供开关，
+        弹窗内隐藏周期表自带的那个，避免两处开关状态不一致。
+        """
+        self._toggle.setVisible(visible)
+
     def reset(self) -> None:
         """Reset every element to OPTIONAL."""
         self.set_states({})
+
+
+class PeriodicTablePanel(QtWidgets.QWidget):
+    """元素周期表弹出式选择面板（v1.3.1）。
+
+    替代原来常驻主工作区的整张周期表：面板只占一行摘要 + 开关 + 按钮，
+    点击「选择元素…」弹出模态对话框（内嵌 :class:`PeriodicTableWidget`
+    实例，状态跨弹窗保留），选完关闭弹窗后页面只展示选择结果——
+    省下的显示空间留给谱图。
+
+    ``states`` / ``set_states`` / ``set_enabled`` / ``is_enabled`` /
+    ``reset`` 与原 :class:`PeriodicTableWidget` 同名同义，主窗口 /
+    测试可按 drop-in 使用。
+
+    Signals
+    -------
+    selection_changed():
+        元素状态或过滤开关变化时发出（供检索链路刷新限制条件）。
+    """
+
+    selection_changed = QtCore.Signal()
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        # 持久周期表实例：平时隐藏，弹窗时临时移入对话框。
+        self._table = PeriodicTableWidget(self)
+        self._table.hide()
+        self._table.set_toggle_visible(False)
+        self._table.state_changed.connect(self._on_table_state_changed)
+
+        self._summary = QtWidgets.QLabel()
+        self._summary.setTextFormat(QtCore.Qt.TextFormat.RichText)
+        self._summary.setWordWrap(True)
+
+        self._enabled_cb = QtWidgets.QCheckBox("启用元素过滤")
+        self._enabled_cb.setChecked(True)
+        self._enabled_cb.setToolTip("关闭后保留已选元素但不参与检索过滤")
+        self._enabled_cb.toggled.connect(self._on_enabled_toggled)
+
+        self._pick_button = QtWidgets.QPushButton("选择元素…")
+        self._pick_button.setToolTip(
+            "弹出元素周期表选择必含 / 排除元素（点击元素循环三态），"
+            "关闭弹窗后仅展示选择结果"
+        )
+        self._pick_button.clicked.connect(self._open_picker)
+        self._clear_button = QtWidgets.QPushButton("清除")
+        self._clear_button.setToolTip("清除全部已选元素状态")
+        self._clear_button.clicked.connect(self._clear_all)
+
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self._enabled_cb)
+        row.addWidget(self._pick_button)
+        row.addWidget(self._clear_button)
+        row.addStretch(1)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.addWidget(self._summary)
+        layout.addLayout(row)
+
+        self._refresh_summary()
+
+    # ------------------------------------------------------------------
+    # Drop-in API（与 PeriodicTableWidget 同名同义）
+    # ------------------------------------------------------------------
+    def states(self) -> dict[str, ElementState]:
+        """Return the active (non-default) element states."""
+        return self._table.states()
+
+    def set_states(self, states: dict[str, Any]) -> None:
+        """Set element states from a ``{symbol: ElementState | str}`` mapping."""
+        self._table.set_states(states)
+        self._refresh_summary()
+
+    def set_enabled(self, enabled: bool) -> None:
+        """Programmatically flip the enable switch (mirrors user click)."""
+        self._enabled_cb.setChecked(enabled)
+
+    def is_enabled(self) -> bool:
+        """Return whether three-state filtering is currently active."""
+        return self._enabled_cb.isChecked()
+
+    def reset(self) -> None:
+        """Reset every element to OPTIONAL."""
+        self._table.reset()
+        self._refresh_summary()
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+    def _clear_all(self) -> None:
+        """清除全部已选状态并发出 ``selection_changed``。"""
+        self._table.reset()
+        self._refresh_summary()
+        self.selection_changed.emit()
+
+    def _on_table_state_changed(self, symbol: str, state: ElementState) -> None:
+        """弹窗内元素状态变化 → 刷新摘要并转发信号。"""
+        self._refresh_summary()
+        self.selection_changed.emit()
+
+    def _on_enabled_toggled(self, enabled: bool) -> None:
+        """开关翻转 → 同步内嵌周期表按钮可用性 + 摘要。"""
+        self._table.set_enabled(enabled)
+        self._refresh_summary()
+        self.selection_changed.emit()
+
+    def _refresh_summary(self) -> None:
+        """刷新摘要行：未选择 / 必含·排除（富文本着色）/ 过滤已关闭。"""
+        states = self._table.states()
+        required = [s for s, st in states.items() if st == ElementState.REQUIRED]
+        excluded = [s for s, st in states.items() if st == ElementState.EXCLUDE]
+        if not states:
+            body = "未选择元素"
+        else:
+            parts: list[str] = []
+            if required:
+                parts.append(
+                    "必含：<font color=\"#1a7f37\">"
+                    + "、".join(sorted(required))
+                    + "</font>"
+                )
+            if excluded:
+                parts.append(
+                    "排除：<font color=\"#c0392b\">"
+                    + "、".join(sorted(excluded))
+                    + "</font>"
+                )
+            body = "　".join(parts)
+        if not self.is_enabled():
+            body = f"<b>过滤已关闭</b>（{body}）"
+        self._summary.setText(body)
+
+    def _open_picker(self) -> None:
+        """弹出模态元素选择对话框（复用持久周期表实例）。"""
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle("选择元素")
+        dlg.resize(760, 420)
+        v = QtWidgets.QVBoxLayout(dlg)
+        hint = QtWidgets.QLabel(
+            "点击元素按钮循环切换：必含（绿）→ 排除（红）→ 无；"
+            "关闭窗口后仅展示选择结果。"
+        )
+        hint.setWordWrap(True)
+        v.addWidget(hint)
+        # 把持久实例临时移入对话框；关闭时移回面板隐藏。
+        v.addWidget(self._table)
+        self._table.set_toggle_visible(False)
+        self._table.show()
+        dlg.exec()
+        v.removeWidget(self._table)
+        self._table.setParent(self)
+        self._table.hide()
+        self._refresh_summary()

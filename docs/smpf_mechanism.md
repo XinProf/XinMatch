@@ -27,7 +27,7 @@ SMPF 把"离散峰列表相关"的经典 search-match 升级为"连续全谱拟�
 | FWHM 模型 | **全局单 FWHM**（init 0.2°，bounds 0.08–0.6°） | Caglioti 在扫描区间近似恒定；单参数稳、快 | 合成谱收敛 0.151°，贴近生成器 0.15° 下限 |
 | η（伪 Voigt 混合比） | 拟合，init 0.5，bounds 0.05–0.95 | 留一个自由度吸收峰形不对称 | 合成谱 η≈0.5–0.6，真实谱 0.4–0.95 浮动 |
 | 背底 | **二次多项式基纳入最小二乘**（非预扣除） | 见机制结论 1 | 真相 Rwp 0.09 vs 错误相 0.26–0.28 |
-| Kα 双线 | `wavelength_kalpha2=None`（合成单线）/ `1.5444`（真实 Cu 双线，Kα1:Kα2=2:1 强度） | 合成谱生成器是单线；真实实测是双线 | 真实谱双线配置跑通 13/13 |
+| Kα 双线 | 运行时旋钮：`smpf_kalpha2_enabled`（默认开）+ `smpf_kalpha1_angstrom`（0=跟随样品波长）+ `smpf_kalpha2_angstrom`（默认 1.5444 Å，Kα1:Kα2=2:1 强度） | 真实实测谱是双线；关掉旋钮即退化为 Kα1 单线（合成谱/老行为兼容） | 真实谱双线配置跑通 13/13；`tests/search/test_smpf_kalpha2.py` 覆盖旋钮解析 |
 | FoM 映射 σ | **σ=0.25**，`FoM=exp(−Rwp/σ)` | 干净合成拟合 Rwp≈0.08–0.12 → FoM≈0.6–0.8；Rwp>0.5 → FoM<0.14 强压 | 真相/错误相 FoM 分离显著 |
 | 2θ shift 边界 | ±0.3° | 仪器零位偏移量级 | 拟合 shift 多在 ±0.1° 内 |
 | 峰形评估窗口 | 每反射 ±1.5° 局部窗 | 全网格 (M×N) 广播致 150 卡精排 492s；局部窗降到 12–28s | 性能实测 |
@@ -145,3 +145,13 @@ search_match_smpf(exp_pattern, conn, *,
 - **多相解叠未做**：当前 Top-N 是单相位次排序，未做多相同时拟合（Rietveld 式多相）。
 - **η 固定拟合**：未引入峰形不对称（轴向发散/接收狭缝）校正。
 - 后续可接入 GSAS-II 做完整 Rietveld 精修（Phase 10 生产路径），SMPF 负责"先找到相"，精修交给 GSAS-II。
+
+### 8.1 Kα1/Kα2 双线旋钮（v1.3.0 起）
+
+GUI / CLI / 配置三处均可调，语义一致：
+
+- **配置**（Options → Search-Match 页，落盘 `config/xinmatch.yaml` 的 `searchmatch` 节）：`smpf_kalpha2_enabled`（bool，默认 `true`）、`smpf_kalpha1_angstrom`（float，`0.0` = 跟随样品波长配置）、`smpf_kalpha2_angstrom`（float，默认 `1.5444`）。
+- **CLI**：`xinmatch search --mode smpf [--single-kalpha] [--kalpha1 A] [--kalpha2 A]`；命令行覆盖配置，`--single-kalpha` 等价于 `smpf_kalpha2_enabled=false`。
+- **GUI**：检索模式组合框切到 SMPF 时提示当前 Kα 配置（单线 / 双线 + 波长值）。
+
+实现：`xinmatch/ui/main_window.py::smpf_kalpha_wavelengths()` 读 YAML → `(kalpha1, kalpha2)`；`kalpha2=None` 时 `search_match_smpf` 退化为 Kα1 单线模型（与 v1.2.0 前行为一致）。

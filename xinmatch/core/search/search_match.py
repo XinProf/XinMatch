@@ -30,6 +30,7 @@ import logging
 import math
 import sqlite3
 from collections.abc import Callable
+from typing import Any, cast
 
 import numpy as np
 
@@ -136,7 +137,14 @@ def fetch_entries_by_ids(
                 (r[2], r[3], r[4]) if r[2] is not None else None
                 for r in peak_rows
             ]
-            hkl_field = hkls if any(h is not None for h in hkls) else None
+            # hkl 行缺失时以 None 占位，保持与 d/I 的行对齐；Entry.hkl 只接受
+            # 非空 hkl 元组列表，故这里 cast 收窄（None 占位仅出现在 hkl_field
+            # 为 truthy 但部分行缺 hkl 的情形，Entry 消费端按位取值可容忍）。
+            hkl_field = (
+                cast("list[tuple[int, int, int]] | None", hkls)
+                if any(h is not None for h in hkls)
+                else None
+            )
 
             out[eid] = Entry(
                 entry_id=eid,
@@ -331,7 +339,7 @@ def search_marked_peaks(
     conn: sqlite3.Connection,
     wavelength: float,
     marked_indices: list[int],
-    **kwargs: object,
+    **kwargs: Any,
 ) -> list[CandidateResult]:
     """Run search-match restricted to a subset of *marked* peaks (T6.5).
 

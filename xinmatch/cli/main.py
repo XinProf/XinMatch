@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from xinmatch.core.io import load_pattern
-from xinmatch.core.model import Restraints
+from xinmatch.core.model import Peak, Restraints
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.quant.rir import rir_quantify
 from xinmatch.core.report import (
@@ -45,6 +45,8 @@ from xinmatch.core.report.report_model import (
     SampleInfo,
 )
 from xinmatch.core.search import search_match
+from xinmatch.core.search.fom import CandidateResult
+from xinmatch.core.search.smpf import search_match_smpf
 
 
 # ---------------------------------------------------------------------------
@@ -115,28 +117,71 @@ def _load_restraints(raw: str | None) -> Restraints | None:
 
 
 def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
-    """``xinmatch search`` — search-match against a reference database."""
+    """``xinmatch search`` — search-match against a reference database.
+
+    两种模式（``--mode``）：
+
+    * ``peaks``（默认）：自动寻峰 → 峰列表 FoM 检索；
+    * ``smpf``：SMPF 全谱拟合检索，直接对原始谱做剖面拟合，不寻峰。
+      可用 ``--single-kalpha`` 关闭 Kα2 伴线——合成谱 / 已剥离 Kα2 的数据
+      必须单线模型，否则正确相会被压低（见
+      ``docs/smpf_mechanism.md`` §8.1）。
+    """
     pattern = load_pattern(args.pattern_file)
     if args.wavelength is not None:
         pattern.wavelength = float(args.wavelength)
-    _processed, peaks = auto_process(pattern)
+
+    smpf = args.mode == "smpf"
+    peaks: list[Peak] = []
+    if not smpf:
+        # SMPF 直接拟合原始谱，不做（也不该做）自动预处理。
+        _processed, peaks = auto_process(pattern)
     restraints = _load_restraints(args.restraints)
 
     conn = sqlite3.connect(args.db)
     try:
-        candidates = search_match(
-            peaks,
-            conn,
-            pattern.wavelength,
-            restraints=restraints,
-            top_n=args.top_n,
-        )
+        if smpf:
+            # Kα 模型只解析一次：<=0 的 Kα1 跟随图谱自身波长（Co/Mo 靶数据
+            # 无需手动改设置）；--single-kalpha → kalpha2=None 单线模型。
+            ka1 = float(args.kalpha1)
+            if ka1 <= 0.0:
+                ka1 = pattern.wavelength
+            ka2 = None if args.single_kalpha else float(args.kalpha2)
+            raw = search_match_smpf(
+                pattern,
+                conn,
+                wavelength_kalpha1=ka1,
+                wavelength_kalpha2=ka2,
+                prescreen_top_n=args.prescreen_n,
+                top_n=args.top_n,
+            )
+            candidates = [
+                CandidateResult(
+                    entry=entry,
+                    fom=float(score["fom"]),
+                    p_values={
+                        "rwp": float(score["rwp"]),
+                        "rexp": float(score["rexp"]),
+                        "gof": float(score["gof"]),
+                    },
+                )
+                for entry, score in raw
+            ]
+        else:
+            candidates = search_match(
+                peaks,
+                conn,
+                pattern.wavelength,
+                restraints=restraints,
+                top_n=args.top_n,
+            )
     finally:
         conn.close()
 
-    return {
+    result: dict[str, Any] = {
         "file": str(args.pattern_file),
         "db": str(args.db),
+        "mode": "smpf" if smpf else "peaks",
         "n_peaks": len(peaks),
         "n_candidates": len(candidates),
         "candidates": [
@@ -149,6 +194,14 @@ def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
             for c in candidates
         ],
     }
+    if smpf:
+        # SMPF 模式下回显实际使用的 Kα 模型，便于用户核对设置是否生效。
+        result["kalpha"] = {
+            "double_line": ka2 is not None,
+            "kalpha1": ka1,
+            "kalpha2": ka2,
+        }
+    return result
 
 
 def cmd_quantify(args: argparse.Namespace) -> dict[str, Any]:
@@ -366,6 +419,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_search.add_argument(
         "--top-n", type=int, default=20,
         help="Maximum number of candidates to return (default 20).",
+    )
+    p_search.add_argument(
+        "--mode", choices=("peaks", "smpf"), default="peaks",
+        help="检索模式：peaks=峰列表 FoM（默认，先寻峰）；smpf=SMPF 全谱拟合"
+        "（不寻峰，直接拟合原始谱）。",
+    )
+    p_search.add_argument(
+        "--single-kalpha", action="store_true",
+        help="SMPF 模式：关闭 Kα2 伴线（单线模型）。合成谱 / 已剥离 Kα2 的"
+        "数据必须加此开关，否则正确相排名被压低。",
+    )
+    p_search.add_argument(
+        "--kalpha1", type=float, default=0.0,
+        help="SMPF 模式：Kα1 波长（Å，默认 0 = 跟随图谱自身波长）。",
+    )
+    p_search.add_argument(
+        "--kalpha2", type=float, default=1.5444,
+        help="SMPF 模式：Kα2 波长（Å，默认 Cu 1.5444）。",
+    )
+    p_search.add_argument(
+        "--prescreen-n", type=int, default=None,
+        help="SMPF 模式：峰列表预筛保留的候选数（默认用内置值 150）。",
     )
     _add_json_flag(p_search)
     p_search.set_defaults(func=cmd_search)

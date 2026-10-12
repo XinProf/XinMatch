@@ -123,6 +123,7 @@ class _ParameterLockedRefinement(RietveldRefinement):
         x0_override: np.ndarray | None = None,
     ) -> None:
         super().__init__(pattern, entry, peak_model, wavelength=wavelength)
+        self.locked_mask: np.ndarray
         if locked_mask is None:
             self.locked_mask = np.zeros(11, dtype=bool)
         else:

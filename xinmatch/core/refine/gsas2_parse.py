@@ -439,7 +439,9 @@ def _build_patterns(
 ) -> tuple[Pattern, Pattern, Pattern]:
     step = float(np.diff(two_theta).mean()) if two_theta.size > 1 else None
     wl = wavelength if wavelength else 1.5406
-    common = dict(wavelength=wl, step=step)
+    common: dict[str, float] = {"wavelength": wl}
+    if step is not None:
+        common["step"] = step
     observed = Pattern(two_theta.copy(), y_obs.copy(), metadata={"source": "gsas2_prf"})
     fitted = Pattern(
         two_theta.copy(), y_calc.copy(), metadata={"source": "gsas2_prf_calc"}, **common

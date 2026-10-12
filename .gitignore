@@ -36,6 +36,8 @@ htmlcov/
 *.swo
 *~
 .trae/
+# ---- Local agent workspace (not for VCS) ----
+.workbuddy/
 
 # ---- OS ----
 .DS_Store
@@ -47,6 +49,11 @@ desktop.ini
 *.db3
 *.sqlite
 *.sqlite3
+# COD reference databases (data/*.db, 512–942 MB — far beyond GitHub limits;
+# distributed separately. NOTE: *.db must never be committed — v1.3.1 已用
+# git-filter-repo 从全部历史移除 cod_full/cod_full_curated/cod_inorganics)
+data/*.db
+*.bak-*.db
 # Proprietary commercial XRD database files (not redistributed)
 *.mti
 *.mqs

@@ -66,7 +66,7 @@ def test_save_load_roundtrip(project: Project):
         )
     ]
     with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "test.extmatch.json"
+        path = Path(tmp) / "test.xinmatch.json"
         project.save(str(path))
         assert path.exists()
 

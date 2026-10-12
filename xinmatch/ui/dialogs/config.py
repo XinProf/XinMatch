@@ -52,6 +52,12 @@ DEFAULTS: dict[str, Any] = {
         "min_fom": 0.6,
         "correlation_window_deg": 0.3,
         "use_marked_peaks_only": False,
+        # SMPF 全谱拟合的 Kα1/Kα2 双线旋钮 (T16.5)。
+        # ``smpf_kalpha2_enabled`` 关闭时只按 Kα1 单线计算（旧行为）；
+        # 波长填 0.0 表示"跟随样品波长配置"，非 0 时强制覆盖。
+        "smpf_kalpha2_enabled": True,
+        "smpf_kalpha1_angstrom": 0.0,
+        "smpf_kalpha2_angstrom": 1.5444,
     },
     # Multi-DB mount: which registered reference library search-match opens.
     # Missing / unknown ids resolve to the bundled default

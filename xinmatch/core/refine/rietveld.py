@@ -107,7 +107,7 @@ class RietveldRefinement:
         self.wavelength = float(wavelength)
 
         self._tth = pattern.two_theta
-        self._y_obs = pattern.intensity
+        self._y_obs: np.ndarray = pattern.intensity
 
         # Determine the reflection list.
         self._atoms: list[Atom] | None = getattr(entry, "atoms", None)
@@ -182,20 +182,20 @@ class RietveldRefinement:
         # No atoms: use tabulated intensities, recompute 2θ from refined cell
         # only if hkl is available; otherwise keep the tabulated d-spacings.
         if self._hkls:
-            positions = []
+            hkl_positions: list[float] = []
             for hkl in self._hkls:
                 try:
                     d = compute_d(hkl, cell)
                 except ValueError:
-                    positions.append(0.0)
+                    hkl_positions.append(0.0)
                     continue
-                positions.append(_two_theta_from_d(d, self.wavelength))
-            return np.array(positions), self._ref_i.copy()
+                hkl_positions.append(_two_theta_from_d(d, self.wavelength))
+            return np.array(hkl_positions), self._ref_i.copy()
 
-        positions = np.array(
+        tab_positions = np.array(
             [_two_theta_from_d(float(d), self.wavelength) for d in self._ref_d]
         )
-        return positions, self._ref_i.copy()
+        return tab_positions, self._ref_i.copy()
 
     @staticmethod
     def _crystal_system(cell: CellParams) -> str:
@@ -252,7 +252,7 @@ class RietveldRefinement:
 
     def _residuals(self, params: np.ndarray) -> np.ndarray:
         y_calc, *_ = self._calc_pattern(params)
-        return self._y_obs - y_calc
+        return np.asarray(self._y_obs - y_calc, dtype=np.float64)
 
     # ------------------------------------------------------------------
     # Public API

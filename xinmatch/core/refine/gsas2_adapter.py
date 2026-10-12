@@ -49,9 +49,9 @@ from .rietveld import RietveldRefinement
 # We must NOT hard-import GSASIIscriptable at module top-level: the CI
 # environment does not have GSAS-II installed.  Detect-and-defer.
 GSAS2_AVAILABLE = False
-_GSASIIscriptable: Any = None
+_GSASIIscriptable: Any
 try:  # pragma: no cover - exercised only when GSAS-II is installed
-    import GSASIIscriptable as _GSASIIscriptable  # type: ignore[import-not-found]
+    import GSASIIscriptable as _GSASIIscriptable  # type: ignore[import-not-found,no-redef]
     GSAS2_AVAILABLE = True
 except ImportError:
     _GSASIIscriptable = None

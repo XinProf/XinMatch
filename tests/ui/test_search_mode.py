@@ -68,8 +68,12 @@ def _patch_fast_smpf(monkeypatch) -> None:
 
 
 def _connect(monkeypatch, win) -> sqlite3.Connection:
-    """开真实默认库连接并把窗口的库打开动作指向它（替代配置/多库挂载）。"""
-    conn = sqlite3.connect(DB)
+    """开真实默认库连接并把窗口的库打开动作指向它（替代配置/多库挂载）。
+
+    v1.3.1 起检索在忙碌窗口的工作线程内使用该连接，必须
+    ``check_same_thread=False``（只读访问，忙碌窗口重入保护保证串行）。
+    """
+    conn = sqlite3.connect(DB, check_same_thread=False)
     monkeypatch.setattr(win, "open_search_library", lambda: conn)
     return conn
 

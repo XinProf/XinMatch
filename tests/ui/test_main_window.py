@@ -11,7 +11,7 @@ from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.ui.main_window import MODULES, MainWindow
-from xinmatch.ui.pattern_view import PatternView
+from xinmatch.ui.pattern_view import PatternPanel, PatternView
 
 
 def test_window_constructs(qapp):
@@ -50,8 +50,10 @@ def test_dock_panels_present(qapp):
 
 
 def test_central_widget_is_pattern_view(qapp):
+    # v1.3.1：中央控件为 PatternPanel（轴切换控制条 + 谱图视图）。
     win = MainWindow()
-    assert isinstance(win.centralWidget(), PatternView)
+    assert isinstance(win.centralWidget(), PatternPanel)
+    assert isinstance(win.pattern_view, PatternView)
 
 
 # ---------------------------------------------------------------------------

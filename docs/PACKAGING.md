@@ -31,10 +31,10 @@ The script:
 2. Runs `pyinstaller --noconfirm --clean xinmatch.spec`.
 3. Relocates the bundled DB from `_internal/data/` to `data/` next to the exe.
 
-Output: **`dist/xinmatch-1.2.0/`**
+Output: **`dist/xinmatch-1.3.1/`**
 
 ```
-dist/xinmatch-1.2.0/
+dist/xinmatch-1.3.1/
   XinMatch.exe                 single dispatcher executable (console subsystem)
   data/cod_inorganics.db       reference DB (point Open-DB / --db at this)
   _internal/                   Python runtime, Qt, PySide6, pyqtgraph, gems, ...
@@ -59,7 +59,7 @@ Subcommands recognized for the CLI branch: `import`, `process`, `search`,
 CLI (pure-compute, no DB needed):
 
 ```powershell
-cd dist\xinmatch-1.2.0
+cd dist\xinmatch-1.3.1
 .\XinMatch.exe quantify --phases "{\"Al2O3\":100.0}"
 # expect: weight_fractions: 1 entry(ies)   (exit 0)
 ```
@@ -118,6 +118,6 @@ Verify the bundled DB is intact:
 
 | File | Purpose |
 |------|---------|
-| `xinmatch.spec` | PyInstaller build description (onedir, data files, icon, version resource 1.2.0) |
+| `xinmatch.spec` | PyInstaller build description (onedir, data files, icon, version resource 1.3.1) |
 | `tools/build_exe.ps1` | One-shot build driver (icon -> pyinstaller -> relocate DB) |
 | `tools/pyi_entry.py` | Dispatcher entry point (CLI vs GUI by argv) |

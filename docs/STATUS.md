@@ -295,3 +295,24 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 **打包产物自测（真窗口）**：启动 ✓（窗口标题/200 MB 稳定）→ About 版本 1.2.0/联系方式/logo ✓ → 打开 synth_06.txt（4000 点，谱图曲线正常）✓ → Search-Match 检索（候选列表填充，真相相 96-210-0858 rank5 FoM 0.719）✓ → CLI `search --help`/synth_06 检索（146 峰/5 候选）✓ → **3 次启动/关闭循环全成功**（PID 9152/13412/14104）✓。品牌词 0 命中。
 
 **说明**：截图中 "77604 entries COD-Inorg 2025.12.01"/Shimadzu 版权行来自桌面并排运行的参考软件窗口（OCR 混入），非 XinMatch 内容；XinMatch 加载的是打包的 71,203 库。pyqtgraph.examples/OpenGL hidden-import ERROR 与 scipy.special._cdflib WARNING 为无害构建告警（v1.0.0 同）。
+
+## 版本 1.2.1 / 1.3.0 / 1.3.1（2026-10-12）✅
+
+**v1.2.1 — mypy 全包零豁免 + 品牌自指修复**：`pyproject.toml` 移除 mypy `exclude`（search/refine）与 `[[tool.mypy.overrides]]` 段，18 处注解层修复（`dict[str, str | float]` / `cast` / `Any` / 返回类型包装）；`python -m mypy` → **Success 0 errors / 103 files**；`tests/search+refine+cli+ui` 全量后台验证通过（exit 0）。`docs/mypy_baseline.md` 更新为全包无豁免。HANDOVER 品牌自检命令改为模式串拼接书写（消除文档自指误报）。
+
+**v1.3.0 — SMPF Kα1/Kα2 双线旋钮 + 图标库重绘**：
+- SMPF 旋钮三处收口：Options→Search-Match 页（`smpf_kalpha2_enabled` / `smpf_kalpha1_angstrom` / `smpf_kalpha2_angstrom`，落盘 `config/xinmatch.yaml`）、CLI `search --mode smpf [--single-kalpha] [--kalpha1] [--kalpha2]`、GUI 检索模式 combo 提示当前 Kα 配置；`smpf_kalpha_wavelengths()` 读 YAML（Kα1≤0 时跟随样品波长）。synth_13 单线谱回归锁定（`tests/ui/test_smpf_kalpha2.py`）。
+- 图标库：修复 `_build_actions` 把模块 id 当图标名传入导致 14 个动作全部回退通用立方体的 bug（`icons.icon()` 内置 `resolve_icon_name`）；29+ 图标重绘为填充主体 + accent 点缀（数据特征类保留粗描边）；新增多尺寸预渲染 `(16,20,24,32,48)`；主题切换时图标重着色（`_icon_actions` + `_refresh_icons`）。
+
+**v1.3.1 — 五项 GUI 体验迭代 + 忙碌窗口 + 打包**：
+1. **图标视觉归一化**（`ui/icons.py`）：`_normalized_pixmap` 高清 8× 渲染 → `_alpha_bbox` alpha 包围盒 → 长边等比缩放到 `_CONTENT_RATIO=0.74` → 居中；38 图标占比统一 0.75（±容差验证）。
+2. **工具栏图标+文字+悬停详细说明**：`ToolButtonTextBesideIcon` + `_MODULE_TIPS` 15 条 tooltip（是什么+怎么用）。
+3. **元素周期表改弹窗式**（`ui/periodic_table.py::PeriodicTablePanel`）：摘要行+启用开关+「选择元素…」+「清除」；弹窗复用持久 `PeriodicTableWidget` 实例；states/set_states/set_enabled/is_enabled/reset drop-in API。
+4. **谱图轴切换**（`ui/pattern_view.py`）：X 2θ↔d（布拉格 λ/2sinθ），Y 计数↔√↔log₁₀；crosshair 读数恒显物理量；`fit_data_range()` 打开/删除数据/切轴后自适应。
+5. **耗时操作忙碌窗口**（`ui/busy.py`）：`run_with_busy` QThread + `BusyDialog`（走马灯+模态遮罩+重入保护）；检索全链路 busy 化（`_do_search`/`_apply_search_results`/`_show_search_error` 三件套，异常经 on_error 回 GUI 线程提示）。修复两个生产级线程 bug：DirectConnection 跨线程调 QWidget 挂死（信号 receiver 改 BusyDialog 排队槽）、sqlite 主建连 worker 用（`check_same_thread=False`）。
+
+**版本与打包**：pyproject/spec(APP_VERSION+TUPLE+COLLECT name)/build_exe.ps1/PACKAGING.md 五处同步 **1.3.1** + `pip install -e . --no-deps`；产物 `dist/xinmatch-1.3.1/`（exe FileVersion 1.3.1 实测，CLI FoM+SMPF 单线冒烟通过）。
+
+**验收**：ruff 全绿；mypy 104 files 0 错误；`tests/ui` 轻量 461 passed（新增 `tests/ui/test_v131_ux.py` 15 用例）；heavy 真库冒烟 1m46s 全过；品牌词全仓 0 命中。
+
+**历史大文件治理（推送 GitHub 前）**：`.gitignore` 加 `data/*.db`；`git rm --cached` 三个 512–942 MB 库；`git filter-repo` 重写 86 commits 移除大 blob，.git 1.1GB→8.9MB。**注意**：filter-repo 内部 `reset --hard` 会摧毁未提交工作树改动——跑之前必须 commit/stash（本次事故已凭编辑记录逐文件重建恢复）。

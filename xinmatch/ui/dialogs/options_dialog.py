@@ -32,6 +32,9 @@ _PAGES: tuple[tuple[str, str, list[tuple[str, str, str, Any]]], ...] = (
         ("最小 FoM", "min_fom", "dspin", 0.6),
         ("峰相关窗口（°）", "correlation_window_deg", "dspin", 0.3),
         ("仅使用标记峰", "use_marked_peaks_only", "check", False),
+        ("SMPF 启用 Kα2 双线", "smpf_kalpha2_enabled", "check", True),
+        ("SMPF Kα1 波长 (Å，0=跟随样品)", "smpf_kalpha1_angstrom", "dspin", 0.0),
+        ("SMPF Kα2 波长 (Å)", "smpf_kalpha2_angstrom", "dspin", 1.5444),
     ]),
     ("候选列表", "candidate_list", [
         ("显示质量标记", "show_quality", "check", True),

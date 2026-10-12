@@ -4,9 +4,11 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ⚠️ **Pre-alpha.** The project is in the skeleton + planning stage. See
-> [ROADMAP_v3.md](ROADMAP_v3.md) for the full implementation plan and
-> [docs/STATUS.md](docs/STATUS.md) for current progress.
+> ✅ **v1.3.1.** Core computation kernel + full GUI + dual-mode search-match
+> (peak-list FoM / SMPF full-profile fitting) + GSAS-II refinement pipeline are
+> complete and packaged (Windows onedir). See [ROADMAP_v3.md](ROADMAP_v3.md)
+> for the full implementation plan and [docs/STATUS.md](docs/STATUS.md) for
+> current progress.
 
 ## What XinMatch does
 
@@ -16,7 +18,7 @@ workflows, published algorithms and open reference data (COD).
 - **Raw data preprocessing**: smoothing, background subtraction, Kα₂ stripping,
   zero-point / displacement correction.
 - **Profile fitting & peak search**.
-- **Rietveld / Le Bail refinement** (via GSAS-II / FullProf adapters).
+- **Rietveld / Le Bail refinement** (delegated to GSAS-II).
 - **Powder indexing** (Treor / Dicvol).
 - **Microstructure**: crystallite size (Scherrer), microstrain, crystallinity.
 - **Reports & export**, **GUI** (PySide6), **CLI / batch scripting**.
@@ -46,7 +48,7 @@ xinmatch/
 │   ├── db/          # SQLite reference database (COD) + user DB
 │   ├── search/      # FoM search-match, PFSM, restraints
 │   ├── index/       # Treor / Dicvol indexing
-│   ├── refine/      # Le Bail / Rietveld (+ GSAS-II, FullProf adapters)
+│   ├── refine/      # Le Bail / Rietveld (delegated to GSAS-II)
 │   ├── quant/       # RIR, internal standard, Rietveld quant
 │   ├── micro/       # crystallite size, microstrain, DOC
 │   └── report/      # report data model + rendering

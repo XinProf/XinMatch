@@ -442,7 +442,7 @@ def search_match_smpf(
     prescreen_top_n: int | None = None,
     top_n: int | None = None,
     timing: dict | None = None,
-) -> list[tuple[Entry, dict[str, float]]]:
+) -> list[tuple[Entry, dict[str, str | float]]]:
     """Run the full SMPF (full-pattern) retrieval.
 
     Parameters
@@ -470,7 +470,7 @@ def search_match_smpf(
 
     Returns
     -------
-    list[tuple[Entry, dict[str, float]]]
+    list[tuple[Entry, dict[str, str | float]]]
         ``(entry, score_dict)`` pairs sorted by descending FoM.  The score
         dict carries ``entry_id, formula, scale, shift_deg, fwhm, eta,
         bg0, bg1, bg2, rwp, rexp, gof, fom``.
@@ -536,7 +536,7 @@ def search_match_smpf(
 
     # Stage 3 — assemble (Entry, score) and rank by FoM descending.
     entry_by_id = {e.entry_id: e for e in entries}
-    results: list[tuple[Entry, dict[str, float]]] = []
+    results: list[tuple[Entry, dict[str, str | float]]] = []
     for f in fits:
         e = entry_by_id.get(f.entry_id)
         if e is None:
@@ -556,7 +556,7 @@ def search_match_smpf(
             "gof": f.gof,
             "fom": f.fom,
         }))
-    results.sort(key=lambda kv: kv[1]["fom"], reverse=True)
+    results.sort(key=lambda kv: float(kv[1]["fom"]), reverse=True)
 
     if timing is not None:
         timing.update({

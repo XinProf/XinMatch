@@ -436,9 +436,13 @@ def _open_ro(path: Path) -> sqlite3.Connection:
     SQLite opens WAL-mode databases cleanly in read-only mode as long as the
     directory is writable; for the source dumps we additionally never create
     or modify ``-wal`` / ``-shm`` sidecars.
+
+    ``check_same_thread=False``：GUI 检索在忙碌窗口的工作线程里使用主线程
+    创建的连接（v1.3.1 ``run_with_busy``），只读访问配合忙碌窗口的重入保护
+    保证串行使用，不会并发读写同一连接。
     """
     uri = "file:" + path.as_posix() + "?mode=ro"
-    conn = sqlite3.connect(uri, uri=True)
+    conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
     conn.execute("PRAGMA query_only = ON")
     return conn
 

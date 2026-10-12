@@ -113,7 +113,7 @@ def atomic_scattering_factor(element: str, sin_theta_over_lambda: float) -> floa
         )
     a1, a2, a3, a4, b1, b2, b3, b4, c = coeffs
     s2 = float(sin_theta_over_lambda) ** 2
-    return (
+    return float(
         a1 * np.exp(-b1 * s2)
         + a2 * np.exp(-b2 * s2)
         + a3 * np.exp(-b3 * s2)
