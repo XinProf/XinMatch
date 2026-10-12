@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import math
 import sqlite3
 from pathlib import Path
 
@@ -325,3 +326,165 @@ def test_single_pattern_under_120s():
     finally:
         conn.close()
     assert t["total"] < 120.0, f"单谱全流程 {t['total']:.1f}s > 120s"
+
+
+# --------------------------------------------------------------------------- #
+# v1.4 extensions: Caglioti U/V/W width + cell refinement
+# --------------------------------------------------------------------------- #
+def _raw_pattern_with(
+    entry: Entry,
+    *,
+    uvw: tuple[float, float, float] | None = None,
+    cell_delta: float = 0.0,
+    fwhm: float = 0.2,
+    eta: float = 0.5,
+    noise: float = 2.0,
+    scale: float = 8.0,
+    shift: float = 0.0,
+    bg: tuple[float, float, float] = (300.0, 0.5, 0.0),
+) -> Pattern:
+    """Build a raw pattern from *entry* (optionally cell-scaled by Δ)."""
+    from xinmatch.core.search.smpf import _reflection_windows
+    if cell_delta != 0.0:
+        # 样本晶胞比卡片大 Δ：d 乘 (1+Δ)
+        entry = Entry(
+            entry_id=entry.entry_id,
+            formula=entry.formula,
+            d_spacings=np.asarray(entry.d_spacings) * (1.0 + cell_delta),
+            intensities=entry.intensities,
+        )
+    c, a = expand_reflections(entry, WL, None, 5.0, 90.0)
+    tan = np.clip(np.tan(np.radians(c / 2.0)), 0.0, 8.0)
+    extra = 0.005 * (360.0 / math.pi) * tan
+    win = _reflection_windows(_X, c, 1.5, extra_deg=extra)
+    y = generate_theory_profile(
+        _X, c, a, win, fwhm=fwhm, eta=eta, shift=shift, scale=scale,
+        bg0=bg[0], bg1=bg[1], bg2=bg[2], x_mid=50.0, uvw=uvw, tan_theta=tan,
+    )
+    if noise > 0.0:
+        rng = np.random.default_rng(0)
+        y = y + rng.normal(0.0, noise, size=y.shape)
+    return Pattern(two_theta=_X, intensity=np.clip(y, 0.0, None),
+                   wavelength=WL, step=0.02)
+
+
+def test_caglioti_fwhm_formula_and_clamps():
+    from xinmatch.core.search.smpf import _caglioti_fwhm
+    tan45 = np.array([math.tan(math.radians(22.5))])
+    h = _caglioti_fwhm(tan45, 0.006, -0.004, 0.010, (0.08, 0.6))
+    expect = math.sqrt(0.006 * tan45[0] ** 2 - 0.004 * tan45[0] + 0.010)
+    assert h[0] == pytest.approx(expect, rel=1e-12)
+    # H² < 0 → clamp at the lower width bound (must not produce NaN).
+    assert _caglioti_fwhm(tan45, 0.0, -1.0, 0.0, (0.08, 0.6))[0] == 0.08
+    # H far above the upper bound → clamp.
+    assert _caglioti_fwhm(tan45, 5.0, 0.0, 5.0, (0.08, 0.6))[0] == 0.6
+
+
+def _fwhm_at(x: np.ndarray, y: np.ndarray, centre: float) -> float:
+    """Measure the FWHM of the peak nearest *centre* (grid resolution)."""
+    i = int(np.argmin(np.abs(x - centre)))
+    half = 0.5 * float(y[i])
+    j = i
+    while j > 0 and y[j] > half:
+        j -= 1
+    k = i
+    while k < x.size - 1 and y[k] > half:
+        k += 1
+    return float(x[k] - x[j])
+
+
+def test_theory_profile_caglioti_widens_high_angle():
+    entry = _entry(_DS, _INTS)
+    c, a = expand_reflections(entry, WL, None, 5.0, 90.0)
+    from xinmatch.core.search.smpf import _reflection_windows
+    # 细网格：峰宽 ~0.1°，0.02° 步进的半高宽量化误差会压过高/低角比值。
+    xf = np.arange(5.0, 90.0, 0.005, dtype=np.float64)
+    tan = np.clip(np.tan(np.radians(c / 2.0)), 0.0, 8.0)
+    win = _reflection_windows(xf, c, 2.5)
+    # 纯高斯 (eta=0)，U>0 → 高角峰应显著宽于低角峰。
+    y = generate_theory_profile(xf, c, a, win, fwhm=0.2, eta=0.0,
+                                uvw=(0.1, 0.0, 0.01), tan_theta=tan,
+                                fwhm_bounds=(0.02, 1.0))
+    lo_c = float(c[np.argmax(a)])            # 最强峰（低角）
+    hi_c = float(c[np.argmin(np.abs(c - 64.0))])
+    fwhm_lo = _fwhm_at(xf, y, lo_c)
+    fwhm_hi = _fwhm_at(xf, y, hi_c)
+    assert fwhm_hi > 1.5 * fwhm_lo
+
+
+def test_fit_recovers_caglioti_uvw():
+    entry = _entry(_DS, _INTS)
+    pat = _raw_pattern_with(entry, uvw=(0.006, -0.004, 0.010))
+    f = fit_candidate(entry, pat.two_theta, pat.intensity,
+                      wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                      cfg=SmpfConfig())
+    assert f.u == pytest.approx(0.006, abs=0.003)
+    assert f.v == pytest.approx(-0.004, abs=0.003)
+    assert f.w == pytest.approx(0.010, abs=0.004)
+    assert f.rwp < 0.05
+
+
+def test_caglioti_beats_global_fwhm_on_angle_dependent_width():
+    entry = _entry(_DS, _INTS)
+    pat = _raw_pattern_with(entry, uvw=(0.05, 0.0, 0.01), noise=1.0)
+    f_on = fit_candidate(entry, pat.two_theta, pat.intensity,
+                         wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                         cfg=SmpfConfig())
+    f_off = fit_candidate(entry, pat.two_theta, pat.intensity,
+                          wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                          cfg=SmpfConfig(caglioti=False, cell_refine=False))
+    # 同一角度依赖宽化谱：Caglioti 拟合必须显著优于全局单 FWHM。
+    assert f_on.rwp < 0.5 * f_off.rwp
+
+
+def test_fit_recovers_cell_delta():
+    entry = _entry(_DS, _INTS)
+    pat = _raw_pattern_with(entry, cell_delta=0.003)
+    f = fit_candidate(entry, pat.two_theta, pat.intensity,
+                      wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                      cfg=SmpfConfig())
+    assert f.cell_delta == pytest.approx(0.003, abs=0.0008)
+    assert f.rwp < 0.05
+    # 不修正时同一谱的 Rwp 显著变差（constant shift 无法吸收 tanθ 差分位移）。
+    f2 = fit_candidate(entry, pat.two_theta, pat.intensity,
+                       wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                       cfg=SmpfConfig(cell_refine=False))
+    assert f.rwp < f2.rwp
+
+
+def test_switches_off_identity_encoding():
+    entry = _entry(_DS, _INTS)
+    pat = _raw_pattern_with(entry, fwhm=0.2)
+    f = fit_candidate(entry, pat.two_theta, pat.intensity,
+                      wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                      cfg=SmpfConfig(caglioti=False, cell_refine=False))
+    assert f.u == 0.0 and f.v == 0.0
+    assert f.w == pytest.approx(f.fwhm ** 2)
+    assert f.cell_delta == 0.0
+    assert f.fwhm == pytest.approx(0.2, abs=0.02)
+
+
+def test_reflection_windows_extra_margin_widens_high_angle():
+    from xinmatch.core.search.smpf import _reflection_windows
+    c = np.array([20.0, 60.0])
+    plain = _reflection_windows(_X, c, 1.5)
+    extra = np.array([0.0, 0.5])
+    wide = _reflection_windows(_X, c, 1.5, extra_deg=extra)
+    assert np.array_equal(plain[0], wide[0])
+    assert wide[1, 0] < plain[1, 0] and wide[1, 1] > plain[1, 1]
+
+
+def test_score_dict_carries_v14_keys():
+    pat = _raw_pattern_with(_entry(_DS, _INTS), scale=8.0, shift=0.0,
+                            fwhm=0.2, eta=0.5, bg=(300.0, 0.0, 0.0))
+    from tools.run_acceptance import build_curated_db
+    conn = build_curated_db()
+    try:
+        res = search_match_smpf(pat, conn, prescreen_top_n=10, top_n=5)
+        if res:
+            for _, s in res:
+                for key in ("caglioti_u", "caglioti_v", "caglioti_w",
+                            "cell_delta"):
+                    assert key in s
+    finally:
+        conn.close()

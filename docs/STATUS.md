@@ -352,3 +352,55 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 **验收**：`.scratch/probe_ambient.py` → Halite rank 1（FoM 0.928）/ Sylvite rank 5 / Periclase rank 2（榜首 `96-900-5516 Fe0.01Mg0.99O` 为掺 Fe 近缘卡片，合理）；`tests/search` + `tests/preprocess` + `tests/peak` 套件通过；ruff/mypy 改动文件全绿（`alpha2.py` 护栏行为 mypy 零错误）。
 
 **遗留（归入后续任务）**：Sylvite rank 5 的差距源于卡片 a=6.2879 vs 教科书 6.2931 的 0.08% 单元格差 + CIF 强度惯例（→ T0.8 FoM P 值深挖）；`recall_strongest_peak=True` 在 71k 全库上单次检索 ~9s（plain ~2.5s 但结果错误），Hanawalt 模式下 `recall_max_candidates` 被忽略，超大规模库的性能旋钮留待 T6.0 索引落地。
+
+---
+
+## v1.4.0 SMPF 剩余扩展（2026-10-13）✅
+
+**背景**：`docs/smpf_mechanism.md` §8 列了四项局限（择优取向与晶胞微调 / FWHM 全局单值 / 多相解叠 / 峰形不对称）。本次先做**数据可行性核查**再定范围，落地两项、推迟两项（其中一项被数据阻塞）。
+
+**选型结论（先查数据，后选模型）**
+
+| 项 | 结论 | 依据 |
+|---|---|---|
+| Caglioti U/V/W 角度依赖宽化 | ✅ 实现并默认开 | 不依赖 hkl；合成谱生成器同款模型，可直接验证参数回收 |
+| 晶胞微调 `cell_delta` | ✅ 实现并默认开 | `entries.a/b/c` 仅 15/71206 缺失；2θ 位移 ∝ tanθ，与常数 shift 可区分 |
+| March-Dollase 择优取向 | ⛔ **被数据阻塞** | `peaks.h/k/l` **6,214,072 行全 NULL**（`Entry.hkl` 恒 None）；真 MD 需逐反射 hkl 算面法向夹角，须先做 CIF→hkl 回填迁移 |
+| 峰形不对称 | ⏸ 明确推迟 | η 自 v1.2 起就在拟合向量内（`eta_bounds=(0.05,0.95)`），已吸收一阶不对称；显式校正（Finger–Cox–Jephcoat 类）对"先找到相"排序增益有限 |
+| 多相解叠 | ⏸ 明确推迟 | SMPF 定位是"先找到相"，精修交 GSAS-II；混合谱真相相仍可排到 Top-1，仅 Rwp 偏高 |
+
+附带发现：生成器的 `_march_factor` **不是**真 March-Dollase——它乘的是**峰内形状**（窗内 |2θ−2θ₀| ≤ 8×FWHM ≈ 0.028 rad，cos≈1 ⇒ 近似常数 1.52），被 `scale` 完全吸收，对排序无影响。
+
+**实现**（`xinmatch/core/search/smpf.py`）
+
+1. `_caglioti_fwhm(tanθ, u, v, w, fwhm_bounds)`：`H²=U·tan²θ+V·tanθ+W`，H² 先夹 0 再开方（U/V/W 的 box 边界不保证 H²>0，否则 NaN），H 再夹进 `fwhm_bounds`。
+2. `cell_delta`：全局相对晶胞缩放，2θ 位移 `−Δ·(360/π)·tanθ_i`（Bragg 一阶；Δ=0.005 时二阶误差 <0.001°，远小于 0.02° 网格）。开启时按 `cell_bound·(360/π)·tanθ_i` **逐反射加宽评估窗**，避免峰被推出窗而截断。
+3. 参数向量 7→11 按 `cfg.caglioti` / `cfg.cell_refine` 动态组装；关闭时严格回退 v1.2 行为，`CandidateFit`/score_dict 写入恒等编码（U=V=0、W=fwhm²、Δ=0），新增键 `caglioti_u/v/w`、`cell_delta` 恒存在。
+4. **剖面向量化**：逐反射切片循环 → 统一宽度索引矩阵 + `np.bincount` 累加。
+
+**性能（本次最反直觉的一点）**：参数 7→11 后首版精排慢 2.8×（refine 12.5→34.7s，照此外推 5-2b 会破 120s 护栏）。插桩定位 = nfev 7→8.9（1.27×）+ 单次残差 4.4→6.8ms（1.55×），后者源于**逐反射循环里 8 次小数组 numpy 调用的固定开销**。向量化后单次残差 0.42→0.18 ms，**端到端反比 v1.3 更快**——6 谱 A/B 全部下降：
+
+| 谱 | v1.3 | v1.4 | 变化 |
+|---|---:|---:|---|
+| synth_01 | 44.8s | 43.4s | −1.4s |
+| synth_06 | 57.2s | 51.1s | −6.1s |
+| synth_12 | 40.2s | 36.1s | −4.1s |
+| synth_13 | 68.3s | 61.5s | −6.8s |
+| 2-1（真实） | 89.9s | 80.1s | −9.8s |
+| 5-2b（真实） | 108.3s | 90.3s | −18.0s |
+
+真相相 6/6 保持 Top-1；真实谱 Rwp 微降（2-1 0.4439→0.4421、5-2b 0.4176→0.4170）。合成谱 Rwp 基本不变（生成器 Caglioti 全程被 0.15° 下限压制 ⇒ 实际常数宽度，两种模型不可区分）。
+
+**回归测试**（`tests/search/test_smpf.py` 新增 8 项）：`test_caglioti_fwhm_formula_and_clamps`、`test_theory_profile_caglioti_widens_high_angle`（细网格高低角 FWHM 比 >1.5）、`test_fit_recovers_caglioti_uvw`、`test_caglioti_beats_global_fwhm_on_angle_dependent_width`（Rwp < 0.5×）、`test_fit_recovers_cell_delta`（+0.003 → +0.00299）、`test_switches_off_identity_encoding`、`test_reflection_windows_extra_margin_widens_high_angle`、`test_score_dict_carries_v14_keys`。
+
+**等价性验证**：改前把旧文件 `cp` 到 `.scratch/smpf_pre_vectorize.py`，以独立模块名加载，48 组配置（Kα 双线 × 晶胞偏移 × 窗口加宽 × 0.01/0.02 网格）对比 `max|Δ|/max < 1e-12`。
+
+**验收**（2026-10-13）
+
+- `tests/search` junit 结论：**275 用例 0 失败 0 错误**（2 跳过，166.5s），含新增 8 项、`test_deterministic_single_pattern` 与 `test_single_pattern_under_120s`（43.4s，护栏 120s）；
+- 两个慢验收类（`TestSyntheticSmpfAcceptance` 13 组合成谱 Top-20/Top-5、`TestRealSmpfRecord` 13 组真实谱 record）在 `tests/peak + tests/preprocess + tests/search` 全量跑（47 分钟）中同样到达 100%、进度行无 F/E；
+- 2 处 skip 为 `tests/search/test_textbook_phases.py` 对 Sylvite/Periclase 的「仅 Halite 断言 Top-5」预期跳过（v1.4.0 无机库专项既有行为，与本改动无关）；
+- ruff 改动文件全绿；mypy `smpf.py` **0 错误**（其余 9 处为 `entry.py`/`background.py`/`smoothing.py`/`fom_criteria.py` 存量）；
+- 已知环境现象：本环境 pytest 收尾会被沙盒钩子拦截临时目录清理（286 文件 > 50 阈值），汇总行不落盘、退出码非 0——**判定以 junit XML 与进度行的 F/E 为准**。
+
+**关联**：v1.4.0 无机库专项遗留的「Sylvite 卡片 a=6.2879 vs 6.2931 的 0.08% 晶胞差」现由 `cell_delta`（边界 ±0.5%）在拟合层面吸收，剩余差距（CIF 强度惯例）仍归 T0.8。

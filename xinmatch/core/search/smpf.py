@@ -31,8 +31,15 @@ Pipeline (top-level :func:`search_match_smpf`)
 3. **Per-candidate refinement**: a bounded least-squares fit of
    ``scale · profile(2θ) + b0 + b1·(2θ−50) + b2·(2θ−50)²`` to the *raw*
    experimental spectrum.  Free parameters: scale (≥0), global 2θ shift
-   (±``shift_bound``), global FWHM, pseudo-Voigt mixing η, and a quadratic
-   background basis.
+   (±``shift_bound``), profile width, pseudo-Voigt mixing η, and a quadratic
+   background basis.  The width model is selectable: a single global FWHM
+   or the Caglioti angle-dependent form
+   ``H²(θ) = U·tan²θ + V·tanθ + W`` (v1.4 default, clamped into
+   ``fwhm_bounds``), which tracks the genuine high-angle broadening of
+   laboratory data.  An optional global cell refinement (``d → d·(1+Δ)``,
+   |Δ| ≤ ``cell_bound``) absorbs small reference-card cell mismatches: the
+   induced 2θ shift grows as tanθ, so it stays identifiable against the
+   constant zero-point shift.
 
    **Why fit the background on the raw spectrum instead of pre-subtracting
    it?**  The Rwp weights points by ``w = 1/y``.  Pre-subtracting a
@@ -44,9 +51,14 @@ Pipeline (top-level :func:`search_match_smpf`)
    keep their natural (large) ``y`` and contribute only their (small)
    Poisson/noise weight.  This is the standard profile-fitting choice.
 
-   A global (single) FWHM is used: on typical laboratory Cu data the
-   Caglioti width is close to constant over the scanned range, and one
-   width is far cheaper / more stable than a 3-parameter U/V/W fit.
+   A global (single) FWHM was the v1.2 default: on typical laboratory Cu
+   data the Caglioti width is close to constant over the scanned range,
+   and one width is far cheaper than a 3-parameter U/V/W fit.  v1.4 keeps
+   both models selectable via :attr:`SmpfConfig.caglioti` (Caglioti on by
+   default): on synthetic data generated with a *floored* Caglioti width
+   the two are indistinguishable (the floor dominates), while on real
+   laboratory patterns the angle-dependent form removes the systematic
+   high-angle misfit.
 4. **Scoring**: Rwp (w = 1/y on positive-intensity points), Rexp, GOF, and a
    monotonic FoM = ``exp(−Rwp/σ_fom)`` mapped into (0, 1].
 
@@ -89,6 +101,31 @@ _LN2 = math.log(2.0)
 _GAUSS_H = 2.0 * math.sqrt(_LN2 / math.pi)
 _LORENTZ_H = 2.0 / math.pi
 
+#: 2θ offset (degrees) induced by a relative cell scale Δ on one reflection:
+#: Bragg's law gives ``Δ2θ ≈ −2·(Δd/d)·tanθ`` (radians) → the degree factor.
+_CELL_TTH_FACTOR = 360.0 / math.pi
+
+
+def _caglioti_fwhm(
+    tan_theta: np.ndarray,
+    u: float,
+    v: float,
+    w: float,
+    fwhm_bounds: tuple[float, float],
+) -> np.ndarray:
+    """Caglioti width ``H(θ) = sqrt(U·tan²θ + V·tanθ + W)`` per reflection.
+
+    ``H²`` is clamped at zero before the square root (the box bounds on
+    U/V/W do not by themselves guarantee positivity over the whole angular
+    range) and ``H`` is clamped into ``fwhm_bounds`` so the profile model
+    stays inside its documented width range.  ``tan_theta`` is the tangent
+    of each reflection's Bragg angle (2θ/2).
+    """
+    h2 = u * tan_theta * tan_theta + v * tan_theta + w
+    h = np.sqrt(np.maximum(h2, 0.0))
+    out: np.ndarray = np.clip(h, fwhm_bounds[0], fwhm_bounds[1])
+    return out
+
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -110,6 +147,26 @@ class SmpfConfig:
         Initial FWHM and its search bounds (degrees 2θ).
     eta_init / eta_bounds:
         Initial pseudo-Voigt Lorentzian fraction and its bounds in [0, 1].
+    caglioti:
+        Use the Caglioti angle-dependent width
+        ``H²(θ) = U·tan²θ + V·tanθ + W`` (clamped into ``fwhm_bounds``)
+        instead of a single global FWHM.  Default on; ``False`` restores
+        the v1.2 single-FWHM behaviour (fewer parameters, marginally
+        faster).
+    caglioti_u_init / caglioti_v_init:
+        Initial U / V (deg²) of the Caglioti width.  W is derived so the
+        starting width equals ``fwhm_init`` at the scan mid-angle.
+    caglioti_u_bounds / caglioti_v_bounds / caglioti_w_bounds:
+        Box bounds on U / V / W (deg²).  The bounds need not keep
+        ``H² > 0`` over the whole angular range — :func:`_caglioti_fwhm`
+        clamps ``H²`` at zero and ``H`` into ``fwhm_bounds``.
+    cell_refine:
+        Fit a global relative cell scale ``d → d·(1+Δ)`` (default on).
+        Absorbs small reference-card cell mismatches; the induced 2θ
+        shift grows as tanθ, so it is identifiable against the constant
+        zero-point shift.  ``False`` disables the parameter.
+    cell_bound:
+        Symmetric bound on the relative cell scale Δ (default ±0.5%).
     fom_sigma:
         σ in the FoM mapping ``FoM = exp(−Rwp/σ)``.  Calibrated so a clean
         synthetic fit (Rwp ≈ 0.08–0.12) gives FoM ≈ 0.6–0.8 while a poor
@@ -130,6 +187,14 @@ class SmpfConfig:
     fwhm_bounds: tuple[float, float] = (0.08, 0.6)
     eta_init: float = 0.5
     eta_bounds: tuple[float, float] = (0.05, 0.95)
+    caglioti: bool = True
+    caglioti_u_init: float = 0.006
+    caglioti_v_init: float = -0.004
+    caglioti_u_bounds: tuple[float, float] = (0.0, 0.05)
+    caglioti_v_bounds: tuple[float, float] = (-0.02, 0.02)
+    caglioti_w_bounds: tuple[float, float] = (0.001, 0.5)
+    cell_refine: bool = True
+    cell_bound: float = 0.005
     fom_sigma: float = 0.25
     window_half_deg: float = 1.5
     max_nfev: int = 60
@@ -194,10 +259,14 @@ def generate_theory_profile(
     bg1: float = 0.0,
     bg2: float = 0.0,
     x_mid: float = 50.0,
+    uvw: tuple[float, float, float] | None = None,
+    cell_delta: float = 0.0,
+    tan_theta: np.ndarray | None = None,
+    fwhm_bounds: tuple[float, float] = (0.08, 0.6),
 ) -> np.ndarray:
     """Calculate a full profile on grid ``x`` for pre-expanded reflections.
 
-    The profile is ``scale · Σ_i amp_i · pv(x − (c_i+shift); fwhm, η)``
+    The profile is ``scale · Σ_i amp_i · pv(x − (c_i+shift); fwhm_i, η)``
     plus a quadratic background ``bg0 + bg1·(x−x_mid) + bg2·(x−x_mid)²``.
     Each reflection is summed only over its precomputed local index window
     ``windows[i] = (lo, hi)``, which keeps the inner loop O(M·W) rather than
@@ -212,27 +281,67 @@ def generate_theory_profile(
     windows:
         ``(M, 2)`` int array of ``(lo, hi)`` index slices into ``x``.
     fwhm, eta, shift, scale:
-        Global profile parameters.
+        Global profile parameters.  ``fwhm`` is the constant width, used
+        only when ``uvw`` is ``None``.
     bg0, bg1, bg2:
         Quadratic background coefficients.
     x_mid:
         Centre for the background basis.
+    uvw:
+        Optional Caglioti ``(U, V, W)`` triple.  When given, each reflection
+        gets its own angle-dependent width
+        ``H_i = sqrt(U·tan²θ_i + V·tanθ_i + W)`` (clamped, see
+        :func:`_caglioti_fwhm`) instead of the constant ``fwhm``.
+        Requires ``tan_theta``.
+    cell_delta:
+        Optional global relative cell scale Δ (``d → d·(1+Δ)``).  Shifts
+        each reflection by ``−Δ·(360/π)·tanθ_i`` degrees (first order in
+        Δ from Bragg's law).  Requires ``tan_theta``.
+    tan_theta:
+        Tangent of each reflection's Bragg angle, shape ``(M,)``.  Needed
+        by ``uvw`` and ``cell_delta``.
+    fwhm_bounds:
+        Width clamp for the Caglioti model.
     """
     t = x - x_mid
     yc = bg0 + bg1 * t + bg2 * t * t
     if centres.size == 0 or scale == 0.0:
         return yc
-    gauss_h = _GAUSS_H / fwhm
-    lor_h = _LORENTZ_H / fwhm
-    for i in range(centres.size):
-        lo, hi = int(windows[i, 0]), int(windows[i, 1])
-        if hi <= lo:
-            continue
-        dx = x[lo:hi] - (centres[i] + shift)
-        g = np.exp(-4.0 * _LN2 * (dx / fwhm) ** 2)
-        lor = 1.0 / (1.0 + 4.0 * (dx / fwhm) ** 2)
-        pv = eta * lor_h * lor + (1.0 - eta) * gauss_h * g
-        yc[lo:hi] += scale * amps[i] * pv
+    tt: np.ndarray = tan_theta if tan_theta is not None else np.empty(0)
+    if (uvw is not None or cell_delta != 0.0) and tan_theta is None:
+        raise ValueError("uvw / cell_delta require tan_theta")
+
+    # Per-reflection width (Caglioti array or constant) and effective centres.
+    if uvw is not None:
+        fw = _caglioti_fwhm(tt, uvw[0], uvw[1], uvw[2], fwhm_bounds)
+    else:
+        fw = np.full(centres.size, float(fwhm), dtype=np.float64)
+    fw_col = fw[:, None]
+    gh = (_GAUSS_H / fw)[:, None]
+    lh = (_LORENTZ_H / fw)[:, None]
+    centres_eff = centres + shift
+    if cell_delta != 0.0:
+        centres_eff = centres_eff - cell_delta * _CELL_TTH_FACTOR * tt
+
+    # Uniform-width index matrix over all reflection windows: entries past
+    # a window's ``hi`` are masked out.  One vectorised pass replaces the
+    # per-reflection Python loop (its small-array numpy overhead dominated
+    # the refinement cost for M ~ 50-200 reflections).
+    widths = windows[:, 1] - windows[:, 0]
+    w_max = int(widths.max()) if widths.size else 0
+    if w_max <= 0:
+        return yc
+    n = x.size
+    idx = windows[:, 0:1] + np.arange(w_max, dtype=np.intp)[None, :]
+    valid = idx < windows[:, 1:2]
+    np.clip(idx, 0, n - 1, out=idx)
+    dx = x[idx] - centres_eff[:, None]
+    q = (dx / fw_col) ** 2
+    g = np.exp(-4.0 * _LN2 * q)
+    lor = 1.0 / (1.0 + 4.0 * q)
+    pv = eta * lh * lor + (1.0 - eta) * gh * g
+    contrib = np.where(valid, (scale * amps)[:, None] * pv, 0.0)
+    yc += np.bincount(idx.ravel(), weights=contrib.ravel(), minlength=n)
     return yc
 
 
@@ -240,8 +349,15 @@ def _reflection_windows(
     x: np.ndarray,
     centres: np.ndarray,
     half_deg: float,
+    extra_deg: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Build ``(M, 2)`` index windows into ``x`` around each centre."""
+    """Build ``(M, 2)`` index windows into ``x`` around each centre.
+
+    ``extra_deg`` optionally widens each reflection's window by a
+    per-reflection margin (degrees) — used to keep a peak that the cell
+    refinement may push away from its theoretical centre fully inside its
+    evaluation window.
+    """
     n = x.size
     out = np.zeros((centres.size, 2), dtype=np.intp)
     if centres.size == 0:
@@ -250,9 +366,12 @@ def _reflection_windows(
     step = float(np.median(np.diff(x))) if n > 1 else 0.02
     half_pts = max(5, int(round(half_deg / step)))
     for i, c in enumerate(centres):
+        pad = half_pts
+        if extra_deg is not None:
+            pad += int(math.ceil(max(0.0, float(extra_deg[i])) / step))
         idx = int(np.searchsorted(x, c))
-        lo = max(0, idx - half_pts)
-        hi = min(n, idx + half_pts + 1)
+        lo = max(0, idx - pad)
+        hi = min(n, idx + pad + 1)
         out[i] = (lo, hi)
     return out
 
@@ -320,6 +439,14 @@ class CandidateFit:
     bg0: float = 0.0
     bg1: float = 0.0
     bg2: float = 0.0
+    #: Caglioti U/V/W (deg²).  When the single-FWHM model is used, U=V=0
+    #: and W=fwhm² (the identity encoding H ≡ fwhm).
+    u: float = 0.0
+    v: float = 0.0
+    w: float = 0.0
+    #: Fitted global relative cell scale Δ (``d → d·(1+Δ)``); 0 when the
+    #: cell refinement is disabled.
+    cell_delta: float = 0.0
     rwp: float = float("inf")
     rexp: float = float("inf")
     gof: float = float("inf")
@@ -341,6 +468,15 @@ def fit_candidate(
     Fits ``scale·profile + quadratic bg`` to the *raw* spectrum ``y`` and
     returns a :class:`CandidateFit` with all fitted parameters and the
     resulting Rwp / Rexp / GOF / FoM.
+
+    The free-parameter vector depends on the config switches:
+
+    * always ``scale, shift, eta, bg0, bg1, bg2``;
+    * width: a single ``fwhm`` (``cfg.caglioti=False``) or the Caglioti
+      triple ``u, v, w`` (``cfg.caglioti=True``, default);
+    * ``cell_delta`` when ``cfg.cell_refine=True`` (default): a global
+      relative cell scale whose 2θ signature grows as tanθ and is hence
+      identifiable against the constant zero-point shift.
     """
     lo, hi = float(x.min()), float(x.max())
     centres, amps = expand_reflections(
@@ -357,34 +493,86 @@ def fit_candidate(
         return out
 
     x_mid = 0.5 * (lo + hi)
-    windows = _reflection_windows(x, centres, cfg.window_half_deg)
+    # tan of each reflection's Bragg angle (clip guards the 2θ→180° edge).
+    tan_theta = np.clip(np.tan(np.radians(centres / 2.0)), 0.0, 8.0)
+
+    # Caglioti init: reproduce fwhm_init at the scan mid-angle so the
+    # starting profile matches the legacy single-FWHM behaviour there.
+    tm = math.tan(math.radians(0.25 * (lo + hi)))
+    u0 = cfg.caglioti_u_init
+    v0 = cfg.caglioti_v_init
+    w0 = cfg.fwhm_init ** 2 - u0 * tm * tm - v0 * tm
+    w0 = min(max(w0, cfg.caglioti_w_bounds[0]), cfg.caglioti_w_bounds[1])
+
+    use_uvw = bool(cfg.caglioti)
+    use_cell = bool(cfg.cell_refine)
+    if use_cell:
+        # Widen each window by the largest 2θ offset the cell refinement
+        # can induce at that angle (|Δ|·360/π·tanθ), so a peak pushed to
+        # the bound is never clipped by its evaluation window.
+        extra = cfg.cell_bound * _CELL_TTH_FACTOR * tan_theta
+        windows = _reflection_windows(x, centres, cfg.window_half_deg,
+                                      extra_deg=extra)
+    else:
+        windows = _reflection_windows(x, centres, cfg.window_half_deg)
 
     # --- initial scale: match the strongest calculated stick to raw max. ---
     theory0 = generate_theory_profile(
         x, centres, amps, windows,
         fwhm=cfg.fwhm_init, eta=cfg.eta_init, shift=0.0, scale=1.0,
         x_mid=x_mid,
+        uvw=(u0, v0, w0) if use_uvw else None,
+        tan_theta=tan_theta, fwhm_bounds=cfg.fwhm_bounds,
     )
     tmax = float(theory0.max())
     scale0 = float(y.max()) / tmax if tmax > 0.0 else 1.0
     # Initial background: low-intensity envelope of the raw spectrum.
     bg0_0 = float(np.percentile(y, 5))
+    ymax = float(y.max())
 
-    # Parameter vector: [scale, shift, fwhm, eta, bg0, bg1, bg2]
-    p0 = [scale0, 0.0, cfg.fwhm_init, cfg.eta_init, bg0_0, 0.0, 0.0]
-    lo_b = [0.0, -cfg.shift_bound, cfg.fwhm_bounds[0], cfg.eta_bounds[0],
-            -float(y.max()), -float(y.max()), -float(y.max())]
-    hi_b = [scale0 * 10.0, cfg.shift_bound,
-            cfg.fwhm_bounds[1], cfg.eta_bounds[1],
-            float(y.max()), float(y.max()), float(y.max())]
+    # Parameter vector (order matters — mirrored in ``residuals``):
+    #   [scale, shift, (fwhm | u, v, w), eta, bg0, bg1, bg2, (cell_delta)]
+    p0 = [scale0, 0.0]
+    lo_b = [0.0, -cfg.shift_bound]
+    hi_b = [scale0 * 10.0, cfg.shift_bound]
+    if use_uvw:
+        p0 += [u0, v0, w0]
+        lo_b += [cfg.caglioti_u_bounds[0], cfg.caglioti_v_bounds[0],
+                 cfg.caglioti_w_bounds[0]]
+        hi_b += [cfg.caglioti_u_bounds[1], cfg.caglioti_v_bounds[1],
+                 cfg.caglioti_w_bounds[1]]
+    else:
+        p0 += [cfg.fwhm_init]
+        lo_b += [cfg.fwhm_bounds[0]]
+        hi_b += [cfg.fwhm_bounds[1]]
+    p0 += [cfg.eta_init, bg0_0, 0.0, 0.0]
+    lo_b += [cfg.eta_bounds[0], -ymax, -ymax, -ymax]
+    hi_b += [cfg.eta_bounds[1], ymax, ymax, ymax]
+    if use_cell:
+        p0 += [0.0]
+        lo_b += [-cfg.cell_bound]
+        hi_b += [cfg.cell_bound]
 
     def residuals(p: np.ndarray) -> np.ndarray:
-        scale, shift, fwhm, eta = p[0], p[1], p[2], p[3]
-        bg0, bg1, bg2 = p[4], p[5], p[6]
+        scale, shift = p[0], p[1]
+        k = 2
+        if use_uvw:
+            uvw = (p[2], p[3], p[4])
+            fwhm = cfg.fwhm_init  # unused when uvw is given
+            k = 5
+        else:
+            fwhm = p[2]
+            uvw = None
+            k = 3
+        eta, bg0, bg1, bg2 = p[k], p[k + 1], p[k + 2], p[k + 3]
+        k += 4
+        cell_delta = p[k] if use_cell else 0.0
         yc = generate_theory_profile(
             x, centres, amps, windows,
             fwhm=fwhm, eta=eta, shift=shift, scale=scale,
             bg0=bg0, bg1=bg1, bg2=bg2, x_mid=x_mid,
+            uvw=uvw, cell_delta=cell_delta, tan_theta=tan_theta,
+            fwhm_bounds=cfg.fwhm_bounds,
         )
         r = np.zeros_like(y)
         ym = y[mask]
@@ -407,21 +595,44 @@ def fit_candidate(
         return out
 
     p = sol.x
-    scale, shift, fwhm, eta = p[0], p[1], p[2], p[3]
-    bg0, bg1, bg2 = p[4], p[5], p[6]
+    scale, shift = p[0], p[1]
+    k = 2
+    if use_uvw:
+        u, v, w = p[2], p[3], p[4]
+        k = 5
+    else:
+        fwhm = p[2]
+        k = 3
+    eta, bg0, bg1, bg2 = p[k], p[k + 1], p[k + 2], p[k + 3]
+    k += 4
+    cell_delta = p[k] if use_cell else 0.0
     yc = generate_theory_profile(
         x, centres, amps, windows,
-        fwhm=fwhm, eta=eta, shift=shift, scale=scale,
+        fwhm=cfg.fwhm_init if use_uvw else fwhm,
+        eta=eta, shift=shift, scale=scale,
         bg0=bg0, bg1=bg1, bg2=bg2, x_mid=x_mid,
+        uvw=(u, v, w) if use_uvw else None,
+        cell_delta=cell_delta, tan_theta=tan_theta,
+        fwhm_bounds=cfg.fwhm_bounds,
     )
     rwp, rexp, gof = compute_rwp(y, yc)
     out.scale = float(scale)
     out.shift_deg = float(shift)
-    out.fwhm = float(fwhm)
+    if use_uvw:
+        out.u = float(u)
+        out.v = float(v)
+        out.w = float(w)
+        # Representative width at the scan mid-angle (for reporting).
+        out.fwhm = float(_caglioti_fwhm(np.array([tm]), u, v, w,
+                                        cfg.fwhm_bounds)[0])
+    else:
+        out.fwhm = float(fwhm)
+        out.w = float(fwhm * fwhm)  # identity encoding: H ≡ fwhm
     out.eta = float(eta)
     out.bg0 = float(bg0)
     out.bg1 = float(bg1)
     out.bg2 = float(bg2)
+    out.cell_delta = float(cell_delta)
     out.rwp = float(rwp)
     out.rexp = float(rexp)
     out.gof = float(gof)
@@ -473,7 +684,11 @@ def search_match_smpf(
     list[tuple[Entry, dict[str, str | float]]]
         ``(entry, score_dict)`` pairs sorted by descending FoM.  The score
         dict carries ``entry_id, formula, scale, shift_deg, fwhm, eta,
-        bg0, bg1, bg2, rwp, rexp, gof, fom``.
+        bg0, bg1, bg2, rwp, rexp, gof, fom`` plus the v1.4 extension keys
+        ``caglioti_u, caglioti_v, caglioti_w, cell_delta`` (identity
+        values — U=V=0, W=fwhm², Δ=0 — when the respective switch is off).
+        ``fwhm`` is the representative width at the scan mid-angle when the
+        Caglioti model is active.
     """
     t0 = time.perf_counter()
     cfg = cfg or SmpfConfig()
@@ -551,6 +766,10 @@ def search_match_smpf(
             "bg0": f.bg0,
             "bg1": f.bg1,
             "bg2": f.bg2,
+            "caglioti_u": f.u,
+            "caglioti_v": f.v,
+            "caglioti_w": f.w,
+            "cell_delta": f.cell_delta,
             "rwp": f.rwp,
             "rexp": f.rexp,
             "gof": f.gof,
