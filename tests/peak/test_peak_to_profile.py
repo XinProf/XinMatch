@@ -5,6 +5,9 @@ import numpy as np
 from xinmatch.core.model import Peak
 from xinmatch.core.peak.peak_to_profile import peaks_to_profile
 
+# numpy ≥ 2.0 renamed trapz → trapezoid (trapz removed); support both.
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 
 def test_area_conservation_single_gaussian():
     """Single Gaussian peak: integrated area error < 1%."""
@@ -12,7 +15,7 @@ def test_area_conservation_single_gaussian():
     area = 10.0
     peaks = [Peak(two_theta=0.0, intensity=area, fwhm=0.5)]
     profile = peaks_to_profile(two_theta, peaks, shape="gaussian")
-    measured = np.trapz(profile, two_theta)
+    measured = _trapz(profile, two_theta)
     assert abs(measured - area) / area < 0.01
 
 
@@ -21,7 +24,7 @@ def test_area_conservation_pseudo_voigt():
     area = 7.5
     peaks = [Peak(two_theta=0.0, intensity=area, fwhm=0.4)]
     profile = peaks_to_profile(two_theta, peaks, shape="pseudo_voigt", eta=0.5)
-    measured = np.trapz(profile, two_theta)
+    measured = _trapz(profile, two_theta)
     assert abs(measured - area) / area < 0.01
 
 
@@ -35,7 +38,7 @@ def test_area_conservation_multiple_peaks():
     ]
     total_area = sum(p.intensity for p in peaks)
     profile = peaks_to_profile(two_theta, peaks, shape="gaussian")
-    measured = np.trapz(profile, two_theta)
+    measured = _trapz(profile, two_theta)
     assert abs(measured - total_area) / total_area < 0.01
 
 

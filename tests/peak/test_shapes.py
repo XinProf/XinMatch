@@ -12,6 +12,9 @@ from xinmatch.core.peak.shapes import (
     sigma_to_fwhm,
 )
 
+# numpy ≥ 2.0 renamed trapz → trapezoid (trapz removed); support both.
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 
 def test_fwhm_sigma_roundtrip():
     fwhm = 0.25
@@ -39,7 +42,7 @@ def test_gaussian_area_conservation():
     x = np.linspace(-10, 10, 200001)
     amp = 5.0
     y = gaussian(x, 0.0, 0.5, amp)
-    area = np.trapz(y, x)
+    area = _trapz(y, x)
     assert abs(area - amp) < 1e-4
 
 
@@ -47,7 +50,7 @@ def test_lorentzian_area_conservation():
     x = np.linspace(-1000, 1000, 400001)
     amp = 3.0
     y = lorentzian(x, 0.0, 1.0, amp)
-    area = np.trapz(y, x)
+    area = _trapz(y, x)
     assert abs(area - amp) < 1e-3
 
 
@@ -79,7 +82,7 @@ def test_pseudo_voigt_area():
     amp = 1.0
     for eta in [0.0, 0.5, 1.0]:
         y = pseudo_voigt(x, 0.0, 0.5, amp, eta=eta)
-        area = np.trapz(y, x)
+        area = _trapz(y, x)
         assert abs(area - amp) < 1e-3
 
 

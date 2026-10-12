@@ -43,6 +43,9 @@ from xinmatch.core.model.entry import CellParams
 from xinmatch.core.model.pattern import Pattern
 
 from .peak_model import PeakModel
+
+# numpy ≥ 2.0 renamed trapz → trapezoid (trapz removed); support both.
+_trapz = getattr(np, "trapezoid", None) or np.trapz
 from .structure_factor import get_orbit, multiplicity
 
 _DEG2RAD = math.pi / 180.0
@@ -213,7 +216,7 @@ def le_bail(
     # Initial intensities: distribute the total observed counts uniformly,
     # weighted by the peak shape integral (= 1) so all start equal.
     step = float(np.median(np.diff(tth_fit))) if tth_fit.size > 1 else 0.02
-    total_counts = float(np.trapz(y_fit, tth_fit))
+    total_counts = float(_trapz(y_fit, tth_fit))
     intensities = np.full(len(hkls), total_counts / len(hkls))
 
     rwp = 1.0

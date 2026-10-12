@@ -316,3 +316,39 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 **验收**：ruff 全绿；mypy 104 files 0 错误；`tests/ui` 轻量 461 passed（新增 `tests/ui/test_v131_ux.py` 15 用例）；heavy 真库冒烟 1m46s 全过；品牌词全仓 0 命中。
 
 **历史大文件治理（推送 GitHub 前）**：`.gitignore` 加 `data/*.db`；`git rm --cached` 三个 512–942 MB 库；`git filter-repo` 重写 86 commits 移除大 blob，.git 1.1GB→8.9MB。**注意**：filter-repo 内部 `reset --hard` 会摧毁未提交工作树改动——跑之前必须 commit/stash（本次事故已凭编辑记录逐文件重建恢复）。
+
+## v1.4.0 无机库构建逻辑排查专项（2026-10-12）✅
+
+**问题**：教科书物相（岩盐 Halite / 钾盐 Sylvite / 方镁石 Periclase / 黑铜矿 CuO）在检索中系统性找不到。诊断出**三层缺陷**（峰表污染 → 库数据缺陷 → 召回饱和），逐层定位并全部修复：
+
+**A. 峰表污染（代码缺陷，两处修复）**
+
+合成 NaCl 谱 5 条真峰变 43 峰，密集 junk 卡片凭 `P_npeaks` 霸榜：
+
+1. **Kα2 剥离自激振荡**（`core/preprocess/alpha2.py`）：Rachinger 因果递归对无 Kα2 卫星的谱（单波长合成谱/单色器/已剥离谱）模型失配，后沿过减、负偏移前馈，振荡幅度达峰高 50%（±24000 计数）。修复：递归后负偏移超峰值 1% 判定「与 Kα1+Kα2 模型不一致」，跳过剥离返回输入副本（`_NEGATIVE_EXCURSION_TOL = 0.01`）。效果：Kα2 步骤峰数 43→5。
+2. **MAD 噪声估计崩塌**（`core/peak/peak_search.py`）：`_noise_estimate` 对一阶差分取 MAD，背底相减后平坦区精确为 0 → MAD≈0.0075 → SNR/突出度阈值≈0.02，SNIP 残留 ±16 计数全部成"峰"。修复：`noise <= max(1e-9, 1e-3*signal)` 时回退 `signal*0.01`。效果：SNIP 残留阶段峰数 13→5。
+3. **突出度语义缺陷 + 尾毯伪峰**（`core/peak/peak_search.py`，Kα2 护栏上线后暴露）：单线谱上剥离被正确跳过（输出=输入）后，合成谱的宽 Lorentz 尾（8×FWHM 截断，峰间 40–160 计数"尾毯"）上的噪声凸点越过 3×MAD≈30 阈值——synth_06 峰数 146→182，BaTiO₃ 跌出 Top-10。修复：① 突出度改「钥匙鞍点」语义（scipy 同款：高于两侧通往更高峰路径上的最低点的较高者），尾毯凸点的上坡鞍点贴近峰高 → 突出度塌缩到噪声级；② 候选生成时吸附到局部极大（导数过零点会落在峰侧翼一格，不吸附会重复接受强峰的侧翼候选——实测 121 伪峰）；③ 突出度搜索半窗宽度自适应（max(5, 峰自身 FWHM/2) 点，上限 50 点）——宽弱峰（FWHM 0.3°）要走到自己的谷底才有突出度，尖噪声凸峰保持窄窗。效果：synth_06 峰数 182→122，BaTiO₃ rank 5；13 组合成谱 Top-20/Top-5 全达；新增回归测试 `test_peak_search_rejects_tail_carpet_bumps`（旧代码 15 峰泄漏 → 新代码 ≤8）。
+
+**B. 数据库数据缺陷（幂等迁移工具修复）**
+
+- 上游 dump（`COD_inorganics.sqlite` 71,199 条）中 `Cl Na`/`Cl K`/`Mg O` 纯二元条目数为 **0**——补卡无源，只能从 CIF 现算；
+- 库内 4 张教科书相卡片实为 COD **非环境条件变体**（CIF 自带证据：9006388 是 100K 高压 NaCl，a=5.8447 vs 环境岩盐 5.6402），与教科书线位偏差大；
+- 10 张卡片强度未归一化（6.4e5–9.5e8）；52,366 个幻影峰（`intensity < 1e-6`，库内强度分布二模分离：1e-20 以下 52,366 个，1e-6~0.01 之间 0 个）。
+
+修复：新增 `tools/patch_cod_inorganics.py`（幂等数据迁移）：插入 3 张环境条件卡片 `96-900-3308`（Halite, a=5.6401）/`96-900-3112`（Sylvite, a=6.2879）/`96-900-0501`（Periclase, a=4.212），峰表由 `compute_peaks_from_cif(dmin=1.0, max_peaks=100)` 计算、归一化 max=1000、过滤 `I>=0.01`（去 F 心禁峰）；归一化 10 张未归一化卡片；删 52,366 幻影峰；`build_element_index` + `ANALYZE`；`--dry-run`/`--no-backup` 支持；写前自动备份（`cod_inorganics.bak-20261012-153759`）。已验证幂等（二次运行 0 修改）。
+
+**C. 召回饱和缺陷（默认值翻转修复）**
+
+稀疏谱（5 峰）下数百张密集卡片全部匹配所有窗口，`recall_max_candidates=800` 按 entry_id 字典序截断，`96-900-xxxx` 系列恒被挤出——GUI 峰列表模式实测仅 8/13 命中。修复：`search_match(recall_strongest_peak=True)` 默认翻转（Hanawalt 式召回：只保留最强参考峰落在实验强峰窗内的条目），docstring 补充饱和缺陷说明。实测 13 组合成谱 plain 8/13 → Hanawalt 13/13（12 个 rank 1）。SMPF 路径本就传 True，文档（`docs/smpf_mechanism.md`）早已按 True 描述，翻转后峰列表模式与文档一致。
+
+**回归测试（新增）**
+
+- `tests/peak/test_peak_search.py::test_peak_search_noise_floor_rejects_smooth_ripple`：5 高斯峰 + 慢速波纹 → 恰好 5 峰；
+- `tests/peak/test_peak_search.py::test_peak_search_rejects_tail_carpet_bumps`：宽尾伪峰 + 弱宽真峰 → 真峰全在、总数 ≤8（旧代码 15 峰泄漏）；
+- `tests/preprocess/test_alpha2.py`：3 个护栏测试（Kα1-only 谱跳过剥离 / 真双线仍剥离 / 修复既有 recovering 测试的逐点 δ 构造）；
+- `tests/search/test_search_match.py::test_recall_hanawalt_default_survives_dense_card_saturation`：900 张 `96-200-xxxx` 密集诱饵 + 真相 `96-900-9999`，legacy plain+800 截断丢失真相、Hanawalt 默认 top-1 FoM=1.0；
+- `tests/search/test_textbook_phases.py`（新文件）：教科书晶胞常数现场合成三相谱 → 峰数==线条数 + 环境条件卡片 Top-20 + Halite Top-5，库缺卡片时提示运行迁移工具。
+
+**验收**：`.scratch/probe_ambient.py` → Halite rank 1（FoM 0.928）/ Sylvite rank 5 / Periclase rank 2（榜首 `96-900-5516 Fe0.01Mg0.99O` 为掺 Fe 近缘卡片，合理）；`tests/search` + `tests/preprocess` + `tests/peak` 套件通过；ruff/mypy 改动文件全绿（`alpha2.py` 护栏行为 mypy 零错误）。
+
+**遗留（归入后续任务）**：Sylvite rank 5 的差距源于卡片 a=6.2879 vs 教科书 6.2931 的 0.08% 单元格差 + CIF 强度惯例（→ T0.8 FoM P 值深挖）；`recall_strongest_peak=True` 在 71k 全库上单次检索 ~9s（plain ~2.5s 但结果错误），Hanawalt 模式下 `recall_max_candidates` 被忽略，超大规模库的性能旋钮留待 T6.0 索引落地。

@@ -32,7 +32,23 @@ derived from Bragg's law:
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
+
+#: Negative-excursion tolerance for the Rachinger recursion, as a fraction
+#: of the pattern maximum.  On true Kα1+Kα2 data the recursion is exact and
+#: only produces noise-level negatives.  On Kα1-only data (monochromated or
+#: already-stripped patterns, single-wavelength synthetic patterns) the
+#: assumed satellite does not exist: the subtraction over-shoots on every
+#: falling edge, the negatives feed forward through the companion lookup,
+#: and the output self-excites into oscillations reaching tens of percent
+#: of the peak height.  Such patterns are inconsistent with the Kα1+Kα2
+#: model, so stripping is skipped for them (the correct answer is "nothing
+#: to strip").
+_NEGATIVE_EXCURSION_TOL = 0.01
 
 
 def angular_separation(
@@ -124,5 +140,21 @@ def strip_alpha2(
                 np.interp(target, two_theta[: i + 1], alpha1[: i + 1])
             )
             alpha1[i] = intensity[i] - ratio * alpha1_companion
+
+    # Stability guard: reject stripping when the recursion produced
+    # unphysical negative excursions beyond the tolerance (Kα1-only data,
+    # see _NEGATIVE_EXCURSION_TOL).  Return the input unchanged instead of
+    # a ringing-corrupted profile.
+    if n > 0:
+        peak_scale = float(np.max(intensity))
+        if peak_scale > 0.0 and float(np.min(alpha1)) < -_NEGATIVE_EXCURSION_TOL * peak_scale:
+            logger.debug(
+                "strip_alpha2: negative excursion %.3g exceeds %.1f%% of the "
+                "pattern maximum — pattern is inconsistent with the "
+                "Kα1+Kα2 model; stripping skipped",
+                float(np.min(alpha1)),
+                _NEGATIVE_EXCURSION_TOL * 100.0,
+            )
+            return np.array(intensity, dtype=np.float64, copy=True)
 
     return alpha1

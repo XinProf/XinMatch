@@ -38,6 +38,8 @@ htmlcov/
 .trae/
 # ---- Local agent workspace (not for VCS) ----
 .workbuddy/
+# Diagnostic probe scripts (ad-hoc, promoted into tests/ when worth keeping)
+.scratch/
 
 # ---- OS ----
 .DS_Store
@@ -77,4 +79,5 @@ tests/fixtures/cod/**
 
 # ---- Database backups (large, not for VCS) ----
 data/cod_inorganics.bak-*.db
+data/*.db.bak-*
 

@@ -483,6 +483,68 @@ def test_search_marked_peaks_out_of_range(sm_exp_peaks, sm_conn):
 
 
 # ===========================================================================
+# Hanawalt recall saturation regression (v1.4.0 / task #14)
+# ===========================================================================
+def test_recall_hanawalt_default_survives_dense_card_saturation():
+    """Sparse pattern + dense decoys: default (Hanawalt) recall keeps the truth.
+
+    Regression for the recall saturation defect: with plain match-count
+    recall every dense card matches *all* recall peaks, the tie is broken
+    by ``entry_id`` order, and the ``recall_max_candidates`` cutoff then
+    drops true phases whose id sorts late (e.g. the COD-selected
+    ``96-900-xxxx`` series) before FoM scoring ever sees them.
+    """
+    exp_peaks = [
+        Peak(two_theta=10.0, intensity=100.0),
+        Peak(two_theta=20.0, intensity=50.0),
+        Peak(two_theta=30.0, intensity=25.0),
+        Peak(two_theta=40.0, intensity=10.0),
+    ]
+
+    # Ground truth: perfect match; id sorts AFTER every decoy id.
+    truth = _entry_from_two_theta(
+        "96-900-9999", [10.0, 20.0, 30.0, 40.0], [100.0, 50.0, 25.0, 10.0],
+        formula="Cl Na", space_group="Fm-3m", mineral_name="Halite",
+    )
+    # 900 dense decoys: ids in the 96-2xx series sort before "96-900-..."
+    # (ASCII digit order — the real COD-selected series sits late); a
+    # far-away strongest peak (pruned by the Hanawalt filter) plus weak
+    # peaks covering every experimental window (saturating plain match
+    # counting at 4/4).
+    decoys = [
+        _entry_from_two_theta(
+            f"96-200-{i:04d}",
+            [10.0, 20.0, 30.0, 40.0, 75.0],
+            [40.0, 30.0, 20.0, 10.0, 1000.0],
+            formula="Decoy X", space_group=None,
+        )
+        for i in range(900)
+    ]
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA foreign_keys = ON")
+    create_tables(conn)
+    insert_entries(conn, [truth, *decoys])
+    build_element_index(conn)
+    try:
+        # Old default (plain recall + 800-cap): 900 tied decoys all sort
+        # before the truth by id → truth truncated before FoM scoring.
+        legacy = search_match(
+            exp_peaks, conn, wavelength=WL, top_n=20,
+            recall_strongest_peak=False, recall_max_candidates=800,
+        )
+        assert legacy, "plain recall should still return the 800 capped decoys"
+        assert all(r.entry.entry_id != "96-900-9999" for r in legacy)
+        # New default (Hanawalt): decoys' strongest peaks sit outside every
+        # experimental window → only the truth survives recall, FoM = 1.
+        results = search_match(exp_peaks, conn, wavelength=WL, top_n=20)
+        assert results[0].entry.entry_id == "96-900-9999"
+        assert results[0].fom == pytest.approx(1.0, abs=1e-9)
+    finally:
+        conn.close()
+
+
+# ===========================================================================
 # Performance: 1000 candidates < 2 s
 # ===========================================================================
 def test_perf_1000_candidates_under_2s():

@@ -9,6 +9,9 @@ from xinmatch.core.refine.peak_model import (
     caglioti_fwhm,
 )
 
+# numpy ≥ 2.0 renamed trapz → trapezoid (trapz removed); support both.
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 
 def test_caglioti_pure_w():
     """With U = V = 0, H = sqrt(W) at all 2θ."""
@@ -33,7 +36,7 @@ def test_asymmetric_pv_unit_area():
     x = np.linspace(-50, 50, 200001)
     for asymmetry in (-0.5, 0.0, 0.3):
         y = asymmetric_pseudo_voigt(x, 0.0, 1.0, 0.5, asymmetry=asymmetry)
-        area = np.trapz(y, x)
+        area = _trapz(y, x)
         assert abs(area - 1.0) < 1e-2, f"asymmetry={asymmetry}, area={area}"
 
 
@@ -68,7 +71,7 @@ def test_peak_model_shape_function_scales_intensity():
     pm = PeakModel(eta=0.5, asymmetry=0.0, caglioti_uvw=(0.0, 0.0, 0.01))
     x = np.linspace(-10, 10, 4001)
     y = pm.shape_function(x, 0.0, 0.1, 42.0)
-    assert abs(np.trapz(y, x) - 42.0) < 1e-1
+    assert abs(_trapz(y, x) - 42.0) < 1e-1
 
 
 def test_peak_model_eta_clamped():

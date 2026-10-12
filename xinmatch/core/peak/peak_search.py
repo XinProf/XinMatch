@@ -40,6 +40,45 @@ def _noise_estimate(intensity: np.ndarray) -> float:
     return float(1.4826 * mad / np.sqrt(2.0))
 
 
+def _key_col_prominence(intensity: np.ndarray, idx: int, half_win: int) -> float:
+    """Topographic prominence of the local maximum at *idx*.
+
+    Peak prominence is the height above the highest of the two surrounding
+    *key cols* — the lowest point on the path from the peak to the next
+    higher peak on each side (searched at most *half_win* points out; the
+    same definition ``scipy.signal.find_peaks`` uses).  Unlike a plain
+    windowed minimum this is what separates a real peak from a noise bump
+    riding on a broad structure: on the rising tail of a strong peak (or on
+    background-estimation residue) the uphill key col stays close to the
+    bump, so its prominence collapses to the noise level, while a genuine
+    reflection keeps a large prominence above the surrounding valleys.
+
+    *idx* must point at a local maximum (see the candidate snapping in
+    :func:`find_peaks`).
+    """
+    height = float(intensity[idx])
+    n = intensity.size
+    left_col = height
+    i = idx - 1
+    while i >= 0 and idx - i <= half_win:
+        value = float(intensity[i])
+        if value > height:
+            break
+        if value < left_col:
+            left_col = value
+        i -= 1
+    right_col = height
+    i = idx + 1
+    while i < n and i - idx <= half_win:
+        value = float(intensity[i])
+        if value > height:
+            break
+        if value < right_col:
+            right_col = value
+        i += 1
+    return height - max(left_col, right_col)
+
+
 def find_peaks(
     two_theta: np.ndarray,
     intensity: np.ndarray,
@@ -91,8 +130,19 @@ def find_peaks(
     min_prominence = preset_prom
 
     noise = _noise_estimate(intensity)
-    if noise <= 0.0:
-        noise = max(intensity.std() * 0.01, 1e-12)
+    # The MAD estimate collapses on (near-)noiseless data — synthetic
+    # patterns, heavily smoothed data, or background-subtracted flat
+    # regions that are exactly zero.  Every numerical residue (SNIP
+    # overshoot, smoothing ringing) then passes the SNR / prominence tests
+    # and the peak list fills with artifacts, which in turn poisons the
+    # search-match FoM scoring (P_npeaks rewards dense junk reference
+    # cards that happen to correlate with the artifacts).  Guard: when the
+    # estimate is negligible relative to the signal scale, fall back to a
+    # signal-relative floor (1% of the pattern std, which is peak-dominated
+    # for diffraction patterns).
+    signal = float(intensity.std())
+    if noise <= max(1e-9, 1e-3 * signal):
+        noise = max(signal * 0.01, 1e-12)
 
     # First derivative (central differences, interior points).
     dy = np.gradient(intensity)
@@ -101,19 +151,38 @@ def find_peaks(
 
     candidates: list[tuple[int, float]] = []
     # A peak is where the first derivative crosses from + to - and the
-    # second derivative is negative (concave down).
+    # second derivative is negative (concave down).  The crossing can land
+    # one point off the apex (central differences), so snap each candidate
+    # to the local maximum first — this also collapses flank crossings of
+    # the same summit into one candidate.
     for i in range(1, two_theta.size - 1):
         zero_crossing = (dy[i - 1] > 0.0 >= dy[i]) or (
             dy[i - 1] >= 0.0 and dy[i] < 0.0
         )
         if zero_crossing and d2y[i] < 0.0:
-            candidates.append((i, float(intensity[i])))
+            j = i
+            while j + 1 < two_theta.size and intensity[j + 1] > intensity[j]:
+                j += 1
+            while j - 1 >= 0 and intensity[j - 1] > intensity[j]:
+                j -= 1
+            candidates.append((j, float(intensity[j])))
 
     if not candidates:
         return []
 
     # Sort by descending height to greedily pick the strongest peaks first.
     candidates.sort(key=lambda c: c[1], reverse=True)
+
+    # Prominence search half-window in points.  The search must reach the
+    # valley around a reflection of the candidate's own width — a broad
+    # weak line (FWHM 0.3° ≈ 15 points at 0.02°/step) would otherwise show
+    # only a noise-level prominence and be dropped — while staying narrow
+    # for sharp noise bumps riding on broad tails (their uphill key col
+    # then collapses the prominence to the noise level).  Floor 5 points
+    # (0.1° at the typical step); cap 50 points (1°) bounds the walk.
+    step = float(two_theta[1] - two_theta[0]) if two_theta.size > 1 else 1.0
+    if step <= 0.0:
+        step = 1.0
 
     accepted: list[Peak] = []
     used_indices: list[int] = []
@@ -124,25 +193,29 @@ def find_peaks(
         # SNR threshold.
         if height < snr_threshold * noise:
             continue
-        # Prominence: height above the local minimum in a window.
-        half_win = max(min_distance, 3)
-        lo = max(0, idx - half_win)
-        hi = min(two_theta.size, idx + half_win + 1)
-        local_min = float(intensity[lo:hi].min())
-        prominence = height - local_min
+        # Width-adaptive prominence half-window (points).
+        fwhm_pts = 0.0
+        if d2y[idx] < 0.0 and height > 0.0:
+            d2y_deg = float(d2y[idx]) / (step ** 2)
+            if d2y_deg < 0.0:
+                sigma = np.sqrt(-height / d2y_deg)
+                fwhm_pts = 2.0 * np.sqrt(2.0 * np.log(2.0)) * sigma / step
+        prom_half_win = int(min(50, max(5, round(fwhm_pts / 2.0))))
+        # Prominence above the surrounding key cols.
+        prominence = _key_col_prominence(intensity, idx, prom_half_win)
         if prominence < min_prominence * noise:
             continue
 
         # Estimate FWHM from the second derivative (Gaussian apex):
         # For a Gaussian G(x), G''(c) = -A / σ^2, and FWHM = 2√(2 ln2) σ.
         # => FWHM = 2√(2 ln2) * sqrt(-A / G''(c)).  Here A ≈ height.
+        # (d2y is per-point; d2y_deg converts to per-degree.)
         fwhm = None
-        if d2y[idx] < 0.0:
-            step = float(two_theta[1] - two_theta[0]) if two_theta.size > 1 else 1.0
-            # d2y is per-point; convert to per-degree.
-            d2y_deg = d2y[idx] / (step ** 2)
-            sigma = np.sqrt(-height / d2y_deg) if height > 0 else 0.0
-            fwhm = float(2.0 * np.sqrt(2.0 * np.log(2.0)) * sigma)
+        if d2y[idx] < 0.0 and height > 0.0:
+            d2y_deg = float(d2y[idx]) / (step ** 2)
+            if d2y_deg < 0.0:
+                sigma = np.sqrt(-height / d2y_deg)
+                fwhm = float(2.0 * np.sqrt(2.0 * np.log(2.0)) * sigma)
 
         accepted.append(
             Peak(

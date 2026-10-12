@@ -203,7 +203,7 @@ def search_match(
     recall_top_k: int = 20,
     recall_min_matches: int = 2,
     recall_max_candidates: int = 800,
-    recall_strongest_peak: bool = False,
+    recall_strongest_peak: bool = True,
 ) -> list[CandidateResult]:
     """Run a full peak-based search-match (Phase 6 / T6.4).
 
@@ -267,13 +267,19 @@ def search_match(
         ranking by match count).  Bounds the per-candidate correlation
         cost on large databases.
     recall_strongest_peak:
-        Hanawalt-style recall (default ``False``): when ``True`` only
-        entries whose strongest reference peak falls inside an
-        experimental strong-peak window are kept.  On full COD-scale
-        databases this prunes the false positives that dominate plain
-        match counting on dense multi-phase patterns while keeping the
-        true phases.  When enabled, ``recall_max_candidates`` is
-        ignored (the Hanawalt filter itself bounds the candidate set).
+        Hanawalt-style recall (default ``True``): only entries whose
+        strongest reference peak falls inside an experimental strong-peak
+        window are kept.  On full COD-scale databases this prunes the
+        false positives that dominate plain match counting on dense
+        multi-phase patterns while keeping the true phases.  Plain
+        match-count recall (``False``) saturates on sparse patterns: when
+        the pattern has few peaks, hundreds of dense cards match *all* of
+        them, the ``recall_max_candidates`` cutoff then truncates the
+        tied candidates by ``entry_id`` order, and true phases whose id
+        sorts late (e.g. the ``96-900-xxxx`` COD-selected series) are
+        dropped before FoM scoring ever sees them.  When enabled,
+        ``recall_max_candidates`` is ignored (the Hanawalt filter itself
+        bounds the candidate set).
 
     Returns
     -------
@@ -291,7 +297,10 @@ def search_match(
         # Candidate recall uses the strongest experimental peaks only —
         # fast on full COD-scale databases, and the most discriminating
         # peaks drive the d-value window query.  FoM scoring below still
-        # uses the complete experimental peak set.
+        # uses the complete experimental peak set.  The Hanawalt
+        # strongest-peak filter (default) is what keeps the candidate set
+        # both bounded and free of the dense-card false positives that
+        # plain match counting admits.
         strong_peaks = sorted(
             exp_peaks, key=lambda p: (p.intensity if p.intensity is not None else 0.0),
             reverse=True,
