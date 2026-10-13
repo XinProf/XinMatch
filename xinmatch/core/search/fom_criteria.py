@@ -20,7 +20,7 @@ engineered in T0.8 / T6.10):
 
 ``P_peakpos`` = exp(−mean(Δ2θ²) / σ_pos²)
     Gaussian penalty on the 2θ mismatch of correlated peak pairs;
-    ``σ_pos`` defaults to 0.1°.  Δ2θ = (2θ_exp − 2θ_ref) for each
+    ``σ_pos`` defaults to 0.15°.  Δ2θ = (2θ_exp − 2θ_ref) for each
     matched pair (reference 2θ derived from *d* and the wavelength
     via :func:`~xinmatch.core.search.correlate.d_to_two_theta`).
 
@@ -148,7 +148,7 @@ def compute_p_values(
         the positional criterion.
     sigma_pos:
         Width (degrees 2θ) of the Gaussian positional-error model.
-        Default 0.1°.
+        Default 0.15°.
     sigma_intensity:
         Width (normalised-to-100 intensity units) of the Gaussian
         intensity-error model.  Default 10.
