@@ -14,6 +14,7 @@
 | 推荐方案 | **单文件双 schema（Dual-Schema）**：一个 `.sqlite` 内同时含两套表，两项目各读各的表，互不干扰（§2） |
 | 峰口径 | 两套表**分表存放**，可用同一份 gemmi 计算结果双写，无需 pymatgen（§5） |
 | 代码改动 | 两项目**均零改动**；只需一个新构建脚本（独立工具，不动现有代码）+ 把产物放到约定路径（§7） |
+| 索引瘦身版 | 双 schema 文件的**天然形态**（`cif_gz` 恒 NULL + `variant` meta），一份产物同时满足 XinMatch 挂载与 PolyXRD 瘦身索引优先，见 §11 |
 
 ---
 
@@ -210,6 +211,78 @@ cod_entries(cod_id INTEGER PK, file TEXT, mineral_name, formula, formula_red,
 
 ---
 
+## 11. 索引瘦身版（`COD_inorganics_index.sqlite`）打包规范
+
+### 11.1 是什么、怎么实现的
+
+PolyXRD v0.14.0 起**瘦身索引式优先**：无机库默认加载 `COD_inorganics_index.sqlite`（实测 379 MB），完整内嵌版 `COD_inorganics.sqlite`（实测 1,252 MB，≈3.3 倍）降级为回退；两者**数据逐行一致**，唯一差别是 `phases.cif_gz` 一列。
+
+官方实现（`PolyXRD/scripts/build_inorg_index_db.py`，默认 dry-run，`--apply` 实构）只有三步：
+
+1. **整库文件复制**（`shutil.copy2`，保留全部表/索引/`sqlite_stat1`）；
+2. **`UPDATE phases SET cif_gz = NULL`**（71,199 行全置空，其中 43 行原本即空）；
+3. **`VACUUM`** 回收空闲页（1.19 GB → ~360 MB），补 4 个 meta 键，`integrity_check` + 行数校验。
+
+与 COD 全库**同形态**：`cod_index.sqlite` 的 `cod_entries.cif_gz` 实测 **113,223 行全 NULL**——全库索引本来就不内嵌 CIF。
+
+### 11.2 运行时契约（打包必须满足，否则 PolyXRD 行为异常）
+
+| 契约 | 实测依据 |
+|---|---|
+| `meta.variant` 值**以 `slim-index` 开头** | `cod_local._inorg_is_slim()`：`SELECT value FROM meta WHERE key='variant'` → `startswith('slim-index')`；探测失败按原库处理（安全默认） |
+| `meta.cif_embedded='0'` | 构建脚本写入，与 `variant` 共同标识瘦身形态 |
+| `has_cif` 语义切换 | 瘦身 → SQL 片段 `(1)`（全部按“可获取”）；原库 → `(cif_gz IS NOT NULL)`。⚠️ **若置空了 cif_gz 却不写 variant，检索会被 has_cif 过滤直接清空** |
+| 文件名优先级 | `get_cod_db_path()`：默认目录依次找 `COD_inorganics_index.sqlite` → `COD_inorganics.sqlite`，再用户目录；用户导入路径优先。**同目录放两个文件时瘦身版永远生效** |
+| CIF 回退链 | 库内 `cif_gz`（完整版）→ 本地 `cod/cif/{d}/{dd}/{dd}/{id}.cif` 四级目录 → COD REST 在线下载（15s 超时）。瘦身版只走后两级 |
+
+### 11.3 前置条件（硬门槛：四象限审计）
+
+对每条目统计 `(cif_gz 非空, cod/cif 文件存在)` 的四组合，**`gz_only` 必须为 0**：
+
+| 组合 | 现有库实测 | 处置 |
+|---|---|---|
+| both（内嵌+文件都有） | 71,156 | 置 NULL 零损失 |
+| **gz_only（仅内嵌、无文件）** | **0** | **>0 时置 NULL = 永久丢失 CIF，脚本直接 ABORT** |
+| file_only（仅文件） | 0 | — |
+| neither（两者皆无） | 43（=`meta.cif_missing`） | 两版本都取不到 CIF，UI 需容错（既有事实） |
+
+从官方 CIF 集合**直构时天然 `gz_only=0`**（本来就不写 cif_gz），审计必过。
+
+### 11.4 两条构建路径
+
+**路径 A（推荐，适配“从 CIF 集合重打包”场景）**
+1. 按 §4–§6 构建双 schema 文件时，`phases.cif_gz` 一列**恒写 NULL**（不内嵌）；
+2. 收尾写入 meta 四键：
+   `variant='slim-index: cif_gz 全部置 NULL, CIF 由 cod/cif 目录按需读取'`、`cif_embedded='0'`、`slim_build_time`、`slim_from`；
+3. `VACUUM` + `integrity_check`。
+
+→ 一次产出**同时是**：XinMatch 挂载库 + PolyXRD 瘦身索引（XinMatch schema 本就没有 cif_gz 列，双 schema 与瘦身天然合一）。
+
+**路径 B（已有完整内嵌版时的派生）**
+- 在 PolyXRD 仓库直接 `python scripts/build_inorg_index_db.py --apply`；或对自建完整版复刻同样三步（复制 → 置 NULL → VACUUM + meta）。
+
+### 11.5 验收清单
+
+- [ ] `phases` / `cod_atomic_sites` 行数与完整版**逐行一致**（71,199 / 311,126）；除 `cif_gz` 外各列填充率一致（`peaks_d`/`peaks_i`/`peaks_top_*`/`ref_id`/`display_id`/`record_*` NULL=0）
+- [ ] `cif_gz` 非空残留 = 0
+- [ ] `meta.variant` 以 `slim-index` 开头；`cif_embedded='0'`；`slim_build_time`/`slim_from` 存在
+- [ ] `PRAGMA integrity_check` = ok；体积 ≈ 完整版 1/3（实测 1,252 → 380 MB，比值 0.30）
+- [ ] `journal_mode=DELETE`、无残留 `-wal/-shm`（外挂只读必需）
+- [ ] PolyXRD 实开冒烟：`_inorg_is_slim()` 为 True；按 formula / 元素过滤检索**有结果**（证明 `(1)` 生效、未被清空）
+- [ ] 抽 10 条 cod_id：本地 `cod/cif` 四级路径存在（或 REST 可达），CIF 可取
+- [ ] `sqlite_stat1` 存在（ANALYZE 已执行）
+
+### 11.6 风险与注意事项
+
+1. **离线能力丧失**：瘦身版不含 CIF，部署必须随附 `cod/cif` 四级目录，或接受运行时联网 REST；分发给无归档的用户 = 结构视图/精修不可用。
+2. **CIF 文件名必须 7 位零填充**：PolyXRD `_cif_file_path` 用 `str(cod_id)` 不填充，XinMatch `cod_cif_path` 用 `zfill(7)`；官方归档均为 7 位（如 `1/00/00/1000005.cif`），保持零填充两边路径才能重合。
+3. **同目录双文件陷阱**：想临时用完整版，必须把瘦身版移走/改名，否则加载的永远是瘦身版。
+4. **`record_offset` / `record_size`** 在瘦身版中为遗留值（原指向完整版内嵌记录的归档偏移），勿在新代码中依赖。
+5. **`neither` 条目数**应记入 `meta.cif_missing` 并作为验收基线；若打包时 `cod/cif` 目录更全，该数字应减少。
+6. **全库同样适用**：`cod_index.sqlite` 实测 cif_gz 全 NULL，即“索引形态”；重打包 COD-Full 时保持 cif_gz 不内嵌 + 写全库 meta（§4.3/§4.4）即可，无需额外瘦身步骤。
+
+---
+
 ## 附：关键常量速查
 
 ```
@@ -223,4 +296,11 @@ combo 哈希      sha1(",".join(sorted(elements)))[:16]
 top-64 BLOB     np.asarray(v, dtype='<f8').tobytes()  # 小端裸字节
 CIF 布局        {d}/{XX}/{XX}/{id:07d}.cif
 journal         DELETE（外挂强制）
+
+# 瘦身索引版（§11）
+variant         meta.variant 以 'slim-index' 开头 + cif_embedded='0'
+has_cif         瘦身版=(1)   完整版=(cif_gz IS NOT NULL)
+文件名优先      COD_inorganics_index.sqlite > COD_inorganics.sqlite（同目录瘦身版恒生效）
+体积比          实测 1252MB → 380MB（0.30）
+硬门槛          gz_only 必须为 0（仅内嵌无文件的条目置 NULL 会丢 CIF）
 ```
