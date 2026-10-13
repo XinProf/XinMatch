@@ -188,7 +188,7 @@ def _row_to_entry(row: sqlite3.Row, *, dmin: float, max_peaks: int) -> Entry | N
     peaks = compute_peaks_from_cif(cif, dmin=dmin, max_peaks=max_peaks)
     if peaks is None:
         return None
-    d_arr, i_arr = peaks
+    d_arr, i_arr = peaks[0], peaks[1]
 
     a = row["a"]
     cell = None

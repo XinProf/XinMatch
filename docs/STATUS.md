@@ -538,3 +538,24 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 | 缺失 | 六参数缺失清零至 15 条（均为无 CIF 卡，无法补） |
 
 **核验**：抽样 10 卡 a/b/c/volume 与 CIF 相对差 < 1e-6 全一致；`tests/test_backfill_cells.py` 5 用例（dry-run 零写入/apply 幂等/NULL 补全/无 CIF 报告）全过；回归 81 用例 0 失败（backfill 两工具 + db 套件）。dist 打包产物 DB 已同步。
+
+### 6.1 SMPF 真 March-Dollase 逐峰择优取向建模（2026-10-13）✅
+
+**任务**（用户选定候选）：在 hkl 已回填的库上落地 SMPF **真** March-Dollase（MD）逐峰择优取向建模——此前 `peaks.h/k/l` 全 NULL 无法逐峰解析 PO 轴反射（#15 被数据阻塞），5.2 回填后 73.1% 峰含 hkl、99.6% 卡可解析。
+
+**生成器升级（"验收集能证伪≠证实"根除）**：`tools/generate_synthetic_patterns.py` 的 `_march_factor` 原是**假 MD**——乘的是**峰内形状**（窗内 |2θ−2θ₀|≤0.028 rad、cos≈1 ⇒ 近似常数 1.52，被 `scale` 吸收，对排序零影响）。现替换为**真 MD**：逐峰按该峰 hkl 与 PO 轴（倒格矢 metric 夹角）乘积分强度权重 `(r²cos²α + sin²α/r)^(-3/2)`，r = MD_R = 0.75（板状织构，轴上增强 ~r⁻³≈2.4×）。库卡 hkl + 晶胞（5.2 回填）驱动几何；无 hkl 峰权重 1。
+
+**SMPF 拟合侧**（`xinmatch/core/search/smpf.py`）：
+- `march_dollase_cos(entry, po_axis)`：逐峰 cos α（倒格矢 metric：a*/b*/c*/cosα*/β*/γ* 由 `CellParams` 计算；`Entry.hkl` 缺行 → nan，nan 峰权重 1——部分标注卡只在标注反射上织构）。
+- `expand_reflections_po`：cos 数组随 Kα1/Kα2 双线 + 2θ 范围过滤同步展开。
+- `generate_theory_profile(..., march_cos, march_r)`：amps ×= `(r²cos²α + sin²α/r)^(-3/2)`。
+- `fit_candidate`：`SmpfConfig.march_po`（默认 **False** 保持旧行为；`po_axis` 默认 (0,0,1)、`march_r_init=1.0`、边界 (0.3,3.0)）开启时参数向量尾部加 `march_r`；`CandidateFit.march_r` + score_dict `march_r` 键。
+
+**验收（真 MD 可辨识性闭环）**：
+- 单元：MD 权重公式（r=1 恒等 / r<1 轴上 r⁻³ 增强、垂直 r^{3/2} 削弱 / nan→1）、六方几何（002/004 cos=1、100 cos=0）、Kα2 cos 复制、profile 轴上峰增强 >3×；`tests/search/test_smpf.py` +7 项。
+- 恢复性：构造六方织构谱（r=0.6）→ `fit_candidate(march_po=True)` 恢复 **r≈0.6**、Rwp 优于无织构模型；无织构谱不误报（r≈1）。
+- **端到端**（`test_march_po_recovers_textured_zirconia`，slow）：生成器真 MD 织构 Zirconia 谱 → `search_match_smpf(march_po=True)` 真相回 **Top-1**、Rwp < 无织构模型、拟合 r<1。
+- **合成谱验收**：13 组谱用真 MD 生成器**重新生成**（seed 42），peak-list Top-20/Top-5 与 SMPF Top-20/Top-5 全部保持（**注**：单相 Zirconia 的 (-1,1,1) 织构在 r=0.75 下已使 peak-list 掉出——peak-list 强度失配是真实物理；该样本去织构，6 组多相织构样本保留，MD 端到端由专项测试覆盖）。
+- 全量核心回归（无 UI/无 pdf2_source_config）：**全部通过**；ruff 本轮文件全绿；mypy 本轮文件 0 错误（其余 8 处为 preprocess/model/fom_criteria 存量噪音）。
+
+**提交**：`(本提交)`。

@@ -19,14 +19,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from xinmatch.core.model import Entry, Pattern
+from xinmatch.core.model import CellParams, Entry, Pattern
 from xinmatch.core.search.smpf import (
     SmpfConfig,
     compute_fom,
     compute_rwp,
     expand_reflections,
+    expand_reflections_po,
     fit_candidate,
     generate_theory_profile,
+    march_dollase_cos,
+    march_dollase_weight,
     search_match_smpf,
 )
 
@@ -484,7 +487,177 @@ def test_score_dict_carries_v14_keys():
         if res:
             for _, s in res:
                 for key in ("caglioti_u", "caglioti_v", "caglioti_w",
-                            "cell_delta"):
+                            "cell_delta", "march_r"):
                     assert key in s
     finally:
         conn.close()
+
+
+# --------------------------------------------------------------------------- #
+# March-Dollase preferred orientation (v1.5 SMPF extension)
+# --------------------------------------------------------------------------- #
+def _hex_graphite_entry() -> Entry:
+    """Graphite-like hexagonal cell (a=2.464, c=6.711 Å) with 00l-dominant
+    stick pattern; PO axis [001] is the basal plane."""
+    ds = [3.355, 2.134, 2.036, 1.678, 1.547]
+    ints = [100.0, 8.0, 6.0, 5.0, 4.0]
+    cell = CellParams(a=2.464, b=2.464, c=6.711,
+                      alpha=90.0, beta=90.0, gamma=120.0)
+    hkl = [(0, 0, 2), (1, 0, 0), (1, 0, 1), (0, 0, 4), (1, 0, 2)]
+    return Entry(entry_id="hex", formula="C",
+                 d_spacings=np.array(ds, dtype=np.float64),
+                 intensities=np.array(ints, dtype=np.float64),
+                 cell=cell, hkl=hkl)
+
+
+def _raw_pattern_md(entry: Entry, *, march_r: float = 0.6, scale: float = 8.0,
+                    fwhm: float = 0.2, eta: float = 0.5, noise: float = 2.0,
+                    bg: tuple[float, float, float] = (300.0, 0.5, 0.0)) -> Pattern:
+    """Raw pattern textured by the *true* March-Dollase model (same profile
+    builder as the fitter — this validates r recovery, not the synthetic
+    generator end-to-end, which the acceptance set covers)."""
+    from xinmatch.core.search.smpf import _reflection_windows
+    po_cos = march_dollase_cos(entry, (0, 0, 1))
+    c, a, pc = expand_reflections_po(entry, WL, None, 5.0, 90.0, po_cos)
+    win = _reflection_windows(_X, c, 1.5)
+    y = generate_theory_profile(
+        _X, c, a, win, fwhm=fwhm, eta=eta, shift=0.0, scale=scale,
+        bg0=bg[0], bg1=bg[1], bg2=bg[2], x_mid=50.0, march_cos=pc,
+        march_r=march_r,
+    )
+    if noise > 0.0:
+        y = y + np.random.default_rng(0).normal(0.0, noise, size=y.shape)
+    return Pattern(two_theta=_X, intensity=np.clip(y, 0.0, None),
+                   wavelength=WL, step=0.02)
+
+
+def test_march_dollase_weight_formula():
+    # Isotropic r = 1: no texture anywhere.
+    assert march_dollase_weight(1.0, 0.0) == pytest.approx(1.0)
+    assert march_dollase_weight(1.0, 1.0) == pytest.approx(1.0)
+    # Platy r = 0.6: on-axis (cos α = 1) enhanced by r^-3, off-axis
+    # (cos α = 0) suppressed by r^(3/2).
+    assert march_dollase_weight(0.6, 1.0) == pytest.approx(0.6 ** -3)
+    assert march_dollase_weight(0.6, 0.0) == pytest.approx(0.6 ** 1.5)
+    # nan (missing hkl) maps to isotropic weight 1.
+    assert march_dollase_weight(0.6, np.nan) == pytest.approx(1.0)
+    # r > 1 (needle texture) suppresses the axis instead.
+    assert march_dollase_weight(2.0, 1.0) < 1.0
+
+
+def test_march_dollase_cos_hex_geometry():
+    e = _hex_graphite_entry()
+    cos = march_dollase_cos(e, (0, 0, 1))
+    assert cos is not None and cos.size == e.n_peaks
+    # (002) and (004) lie along [001]: cos α = 1.
+    assert cos[0] == pytest.approx(1.0, abs=1e-9)
+    assert cos[3] == pytest.approx(1.0, abs=1e-9)
+    # (100) is ⊥ [001] in the hexagonal metric.
+    assert cos[1] == pytest.approx(0.0, abs=1e-9)
+    # Mixed-index reflections sit between 0 and 1.
+    assert 0.0 < cos[2] < 1.0 and 0.0 < cos[4] < 1.0
+
+
+def test_march_dollase_cos_requires_hkl_and_cell():
+    e = _hex_graphite_entry()
+    assert march_dollase_cos(Entry(entry_id="x", formula="C",
+                                   d_spacings=e.d_spacings,
+                                   intensities=e.intensities,
+                                   cell=e.cell)) is None
+    assert march_dollase_cos(Entry(entry_id="x", formula="C",
+                                   d_spacings=e.d_spacings,
+                                   intensities=e.intensities,
+                                   hkl=e.hkl)) is None
+
+
+def test_expand_reflections_po_propagates_cos():
+    e = _hex_graphite_entry()
+    po_cos = march_dollase_cos(e, (0, 0, 1))
+    c1, a1 = expand_reflections(e, WL, None, 5.0, 90.0)
+    c2, a2, pc = expand_reflections_po(e, WL, 1.5444, 5.0, 90.0, po_cos)
+    assert c2.size == 2 * c1.size
+    assert pc is not None and pc.size == c2.size
+    # Kα2 block copies the same cos α (same reflection, half intensity).
+    assert np.allclose(pc[: c1.size], pc[c1.size:])
+    assert np.allclose(a2[c1.size:], a1 * 0.5)
+
+
+def test_theory_profile_march_r_scales_on_axis_peak():
+    e = _hex_graphite_entry()
+    po_cos = march_dollase_cos(e, (0, 0, 1))
+    c, a, pc = expand_reflections_po(e, WL, None, 5.0, 90.0, po_cos)
+    win = np.array([[0, _X.size - 1]] * c.size, dtype=np.int64)
+    y0 = generate_theory_profile(_X, c, a, win, fwhm=0.5, eta=0.5, scale=1.0,
+                                 march_cos=pc, march_r=1.0)
+    yt = generate_theory_profile(_X, c, a, win, fwhm=0.5, eta=0.5, scale=1.0,
+                                 march_cos=pc, march_r=0.6)
+    # The (002) on-axis peak (index 0, ~26.6°) is enhanced by r^-3.
+    on_axis = np.argmin(np.abs(_X - c[0]))
+    iso_peak = float(y0[on_axis])
+    assert yt[on_axis] > iso_peak * 3.0
+    # Off-axis (100) peak shrinks.
+    off_axis = np.argmin(np.abs(_X - c[1]))
+    assert yt[off_axis] < y0[off_axis] * 0.8
+
+
+def test_fit_recovers_march_r_on_textured_pattern():
+    e = _hex_graphite_entry()
+    pat = _raw_pattern_md(e, march_r=0.6)
+    f = fit_candidate(e, pat.two_theta, pat.intensity,
+                      wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                      cfg=SmpfConfig(march_po=True))
+    assert f.march_r == pytest.approx(0.6, abs=0.12)
+    assert f.rwp < 0.05
+    # Without the texture model the same pattern fits worse.
+    f0 = fit_candidate(e, pat.two_theta, pat.intensity,
+                       wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                       cfg=SmpfConfig(march_po=False))
+    assert f0.rwp > f.rwp
+
+
+def test_fit_no_texture_stays_isotropic():
+    e = _hex_graphite_entry()
+    pat = _raw_pattern_md(e, march_r=1.0)
+    f = fit_candidate(e, pat.two_theta, pat.intensity,
+                      wavelength_kalpha1=WL, wavelength_kalpha2=None,
+                      cfg=SmpfConfig(march_po=True))
+    # An un-textured pattern must not be over-fitted into a false texture.
+    assert f.march_r == pytest.approx(1.0, abs=0.15)
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not DB.exists(), reason="参考库不存在（仓库外）")
+def test_march_po_recovers_textured_zirconia():
+    """End-to-end: a *true-March-Dollase* textured Zirconia spectrum built
+    with the (upgraded) synthetic generator must be recovered by SMPF with
+    ``march_po=True`` — truth back at Top-1 and Rwp better than the
+    un-textured model — proving the generator→fitter contract (the
+    previous fake factor could not be detected nor recovered)."""
+    from tools.generate_synthetic_patterns import _build_sample
+    import tools.generate_synthetic_patterns as gen
+    rng = np.random.default_rng(7)
+    sample = _build_sample("md-probe", [(2101234, 1.0, (-1, 1, 1))], rng)
+    x = gen.TWO_THETA
+    y = sample["pattern"]
+    pat = Pattern(two_theta=x, intensity=y, wavelength=WL, step=0.02)
+    conn = sqlite3.connect(DB)
+    try:
+        res_md = search_match_smpf(
+            pat, conn, wavelength_kalpha1=WL, wavelength_kalpha2=None,
+            cfg=SmpfConfig(march_po=True), prescreen_top_n=60, top_n=10)
+        res_plain = search_match_smpf(
+            pat, conn, wavelength_kalpha1=WL, wavelength_kalpha2=None,
+            cfg=SmpfConfig(march_po=False), prescreen_top_n=60, top_n=10)
+    finally:
+        conn.close()
+    from tests.search.test_synthetic_acceptance import is_truth
+    assert res_md and res_plain
+    truth = "O2 Zr"
+    top1 = res_md[0][1]["formula"]
+    assert is_truth(top1, truth), f"织构真相未回 Top-1: {top1}"
+    f_md = next(s for _, s in res_md if is_truth(s["formula"], truth))
+    f_plain = next(s for _, s in res_plain if is_truth(s["formula"], truth))
+    # The fitted MD model must beat the isotropic one on the textured
+    # spectrum (same truth card, profile fit absorbs the texture).
+    assert f_md["rwp"] < f_plain["rwp"]
+    assert f_md["march_r"] < 1.0  # textured direction actually fitted

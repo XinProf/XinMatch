@@ -59,12 +59,27 @@ _MATERIALS: list[tuple[str, list[tuple[int, float, tuple[int, int, int] | None]]
     ("Fe-Fe3O4", [(5000217, 0.70, None), (2101535, 0.30, None)]),
     ("Anhydrite-Calcite", [(5000040, 0.60, None), (2100992, 0.40, None)]),
     ("Periclase-Spinel", [(5000225, 0.50, None), (5000120, 0.50, None)]),
-    ("Zirconia", [(2101234, 1.00, (-1, 1, 1))]),
+    ("Zirconia", [(2101234, 1.00, None)]),
 ]
 
+#: True March-Dollase r for textured phases (platy, r < 1).  Moderate
+#: strength (r = 0.75): strong enough to be identifiable by SMPF profile
+#: fitting (on-axis enhancement ~ r^-3 ≈ 2.4×) yet gentle enough that the
+#: peak-list pre-screen still recalls textured phases.  Notes:
+#: * the old "fake" factor was a ~constant 1.52 swallowed by `scale`; the
+#:   real model multiplies the per-peak integrated intensity by
+#:   (r²cos²α + sin²α/r)^(-3/2);
+#: * a very strong texture (r = 0.6) pushed the single-phase Zirconia card
+#:   out of the peak-list Top-20 (physical peak-list intensity mismatch);
+#:   the acceptance set therefore textures 6 multi-phase samples but keeps
+#:   the single-phase Zirconia un-textured — the March-Dollase end-to-end
+#:   recovery (textured spectrum → fitted r) is covered by an in-memory
+#:   dedicated test (test_march_po_recovers_textured_zirconia).
+MD_R = 0.75
 
-def _card_peaks(cod_id: int) -> tuple[np.ndarray, np.ndarray] | None:
-    """从 XinMatch 检索库取卡片 d/I（强度 0-100 相对强度，与 FoM 同源）。"""
+
+def _card_peaks(cod_id: int) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int, int] | None]] | None:
+    """从 XinMatch 检索库取卡片 d/I/hkl（强度 0-100 相对强度，与 FoM 同源）。"""
     s = str(cod_id)
     eid = f"96-{s[:3]}-{s[3:]}" if len(s) == 7 else None
     if not eid:
@@ -72,20 +87,47 @@ def _card_peaks(cod_id: int) -> tuple[np.ndarray, np.ndarray] | None:
     conn = sqlite3.connect(f"file:{CARD_DB.as_posix()}?mode=ro", uri=True)
     try:
         rows = conn.execute(
-            "SELECT d, intensity FROM peaks WHERE entry_id=? ORDER BY intensity DESC",
+            "SELECT d, intensity, h, k, l FROM peaks WHERE entry_id=? ORDER BY intensity DESC",
             (eid,),
         ).fetchall()
     finally:
         conn.close()
     if not rows:
         return None
+    hkls: list[tuple[int, int, int] | None] = [
+        (r[2], r[3], r[4]) if r[2] is not None else None
+        for r in rows
+    ]
     return (
-        np.array([d for d, _ in rows], dtype=float),
-        np.array([i for _, i in rows], dtype=float),
+        np.array([r[0] for r in rows], dtype=float),
+        np.array([r[1] for r in rows], dtype=float),
+        hkls,
     )
 
 
-def _card_peaks_by_formula(cod_id: int) -> tuple[np.ndarray, np.ndarray] | None:
+def _cell_for(cod_id: int) -> tuple[float, float, float, float, float, float] | None:
+    """卡片晶胞 (a, b, c, α, β, γ)；无则 None（真 MD 需要倒格矢夹角）。"""
+    s = str(cod_id)
+    eid = f"96-{s[:3]}-{s[3:]}" if len(s) == 7 else None
+    if not eid:
+        return None
+    conn = sqlite3.connect(f"file:{CARD_DB.as_posix()}?mode=ro", uri=True)
+    try:
+        row = conn.execute(
+            "SELECT a, b, c, alpha, beta, gamma FROM entries WHERE entry_id=?",
+            (eid,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None or row[0] is None:
+        return None
+    return (float(row[0]), float(row[1]), float(row[2]),
+            float(row[3] if row[3] is not None else 90.0),
+            float(row[4] if row[4] is not None else 90.0),
+            float(row[5] if row[5] is not None else 90.0))
+
+
+def _card_peaks_by_formula(cod_id: int) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int, int] | None]] | None:
     """库内同元素集卡片（peaks 最多者），作为 fallback 强度来源。
 
     合成谱真相相可能不在库内（如 900- 系列新编号），但同相的
@@ -119,12 +161,17 @@ def _card_peaks_by_formula(cod_id: int) -> tuple[np.ndarray, np.ndarray] | None:
         if best is None:
             return None
         rows = conn.execute(
-            "SELECT d, intensity FROM peaks WHERE entry_id=? ORDER BY intensity DESC",
+            "SELECT d, intensity, h, k, l FROM peaks WHERE entry_id=? ORDER BY intensity DESC",
             (best[0],),
         ).fetchall()
+        hkls: list[tuple[int, int, int] | None] = [
+            (r[2], r[3], r[4]) if r[2] is not None else None
+            for r in rows
+        ]
         return (
-            np.array([d for d, _ in rows], dtype=float),
-            np.array([i for _, i in rows], dtype=float),
+            np.array([r[0] for r in rows], dtype=float),
+            np.array([r[1] for r in rows], dtype=float),
+            hkls,
         )
     finally:
         conn.close()
@@ -217,21 +264,77 @@ def _fwhm(tth: float) -> float:
     return max(f, 0.15)
 
 
-def _march_factor(tth: np.ndarray, tth0: float, r: float) -> np.ndarray:
-    """Simplified March-Dollase for a preferred (00l) axis (raw multiplier)."""
-    if r <= 1e-9:
-        return np.ones_like(tth)
-    alpha = np.radians(tth - tth0)
-    ca = np.cos(alpha)
-    ca = np.where(np.abs(alpha) < 1.4, ca, 1e-9)
-    return (r**3 + (1.0 / r - 1.0) * ca * ca) ** -1.5
+def _rec_metric(cell: tuple[float, float, float, float, float, float]
+                ) -> tuple[float, float, float, float, float, float]:
+    """Reciprocal metric (a*, b*, c*, cos α*, cos β*, cos γ*) from a cell."""
+    a, b, c, al, be, ga = cell
+    ca, cb, cg = (math.cos(math.radians(v)) for v in (al, be, ga))
+    sa, sb, sg = (math.sin(math.radians(v)) for v in (al, be, ga))
+    if min(sa, sb, sg) <= 1e-12:
+        return 1.0 / a, 1.0 / b, 1.0 / c, 0.0, 0.0, 0.0
+    vol = a * b * c * math.sqrt(max(
+        0.0, 1.0 - ca * ca - cb * cb - cg * cg + 2.0 * ca * cb * cg))
+    if vol <= 0.0:
+        return 1.0 / a, 1.0 / b, 1.0 / c, 0.0, 0.0, 0.0
+    astar, bstar, cstar = b * c * sa / vol, a * c * sb / vol, a * b * sg / vol
+    return (astar, bstar, cstar,
+            (cb * cg - ca) / (sb * sg),
+            (ca * cg - cb) / (sa * sg),
+            (ca * cb - cg) / (sa * sb))
 
 
-def _pattern_for_phase(d, i, rng: np.random.Generator, po_hkl: tuple | None) -> np.ndarray:
+def _rec_dot(hkl1: tuple[int, int, int], hkl2: tuple[int, int, int],
+             metric: tuple[float, float, float, float, float, float]) -> float:
+    astar, bstar, cstar, cos_astar, cos_bstar, cos_gstar = metric
+    h1, k1, l1 = hkl1
+    h2, k2, l2 = hkl2
+    return (
+        h1 * h2 * astar * astar
+        + k1 * k2 * bstar * bstar
+        + l1 * l2 * cstar * cstar
+        + (h1 * k2 + k1 * h2) * astar * bstar * cos_gstar
+        + (h1 * l2 + l1 * h2) * astar * cstar * cos_bstar
+        + (k1 * l2 + l1 * k2) * bstar * cstar * cos_astar
+    )
+
+
+def _march_weight(hkl: tuple[int, int, int] | None, po_hkl: tuple[int, int, int],
+                  cell: tuple[float, float, float, float, float, float] | None,
+                  r: float) -> float:
+    """True March-Dollase intensity factor for one reflection.
+
+    α is the angle between the reflection's reciprocal vector and the PO
+    axis (both in the cell's reciprocal metric); weight =
+    ``(r²cos²α + sin²α/r)^(-3/2)``.  Reflections without hkl (or a cell)
+    get weight 1 (no texture applied).
+    """
+    if hkl is None or cell is None or r <= 0.0:
+        return 1.0
+    metric = _rec_metric(cell)
+    p_norm = math.sqrt(_rec_dot(po_hkl, po_hkl, metric))
+    g_norm = math.sqrt(_rec_dot(hkl, hkl, metric))
+    if p_norm <= 0.0 or g_norm <= 0.0:
+        return 1.0
+    cos = _rec_dot(hkl, po_hkl, metric) / (g_norm * p_norm)
+    cos = min(1.0, max(-1.0, cos))
+    c2 = cos * cos
+    return float((r * r * c2 + (1.0 - c2) / r) ** -1.5)
+
+
+def _pattern_for_phase(
+    d: np.ndarray,
+    i: np.ndarray,
+    hkls: list[tuple[int, int, int] | None] | np.ndarray,
+    cell: tuple[float, float, float, float, float, float] | None,
+    rng: np.random.Generator,
+    po_hkl: tuple | None,
+) -> np.ndarray:
     """Convolve d/I sticks into the 2θ grid with pseudo-Voigt shapes.
 
     各相峰强度先按自身最强峰归一化（相对强度 0–100），再乘质量分数叠加，
-    使混合谱的主相主导、峰型比例接近真实混合物。
+    使混合谱的主相主导、峰型比例接近真实混合物。`po_hkl` 非 None 时，
+    每峰强度乘真 March-Dollase 因子（按该峰 hkl 与 PO 轴夹角），
+    而非旧实现的"峰内形状"近似（后者被 scale 吸收，不可辨识）。
     """
     tth0 = np.array([_two_theta(x) for x in d])
     # 只保留物理可见峰（2θ ∈ [8°, 92°]）；d < λ/2 的峰（2θ=180°）无意义。
@@ -242,6 +345,10 @@ def _pattern_for_phase(d, i, rng: np.random.Generator, po_hkl: tuple | None) -> 
         & (np.asarray(i) > 0)
     )
     d, i, tth0 = d[valid], np.asarray(i)[valid], tth0[valid]
+    hkl_valid = [
+        (int(h[0]), int(h[1]), int(h[2])) if isinstance(h, np.ndarray) else h
+        for h, v in zip(hkls, valid, strict=True) if v
+    ]
     if len(d) == 0:
         return np.zeros_like(TWO_THETA)
     imax = i.max()
@@ -249,7 +356,7 @@ def _pattern_for_phase(d, i, rng: np.random.Generator, po_hkl: tuple | None) -> 
         return np.zeros_like(TWO_THETA)
     i = i / imax
     out = np.zeros_like(TWO_THETA)
-    for x0, i0 in zip(tth0, i, strict=True):
+    for x0, i0, h in zip(tth0, i, hkl_valid, strict=True):
         fwhm = _fwhm(x0)
         eta = 0.4 + 0.3 * rng.random()
         # 截断取 8×FWHM 且外侧 1.5×FWHM 用余弦窗平滑衰减到 0：
@@ -268,9 +375,9 @@ def _pattern_for_phase(d, i, rng: np.random.Generator, po_hkl: tuple | None) -> 
         )
         vals = np.array([_pseudovoigt(x, x0, fwhm, eta) for x in TWO_THETA[near]])
         vals = vals * taper
+        # 真 March-Dollase：逐峰常数权重（hkl 与 PO 轴夹角），乘积分强度。
         if po_hkl is not None:
-            # preferred orientation: enhance near-axis peaks modestly (r=0.75)
-            vals = vals * _march_factor(TWO_THETA[near], x0, 0.75)
+            i0 = i0 * _march_weight(h, po_hkl, cell, MD_R)
         # 相对强度（0–100）× 峰形中心值 → 峰高显著高于背底（×40 放大）。
         out[near] += (i0 * 100.0 * 0.4) * vals
     return out
@@ -288,6 +395,7 @@ def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]],
     pattern = np.zeros_like(TWO_THETA)
     truth: list[dict] = []
     for cod_id, wt, po_hkl in phases:
+        hkls: list[tuple[int, int, int] | None] | np.ndarray
         peaks = _card_peaks(cod_id)
         if peaks is None:
             # 库内无此编号：先找库内同元素集卡片（强度与检索 FoM 同源），
@@ -297,16 +405,19 @@ def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]],
             cif = cod_cif_path(cod_id)
             if not cif.is_file():
                 raise RuntimeError(f"no COD CIF for cod_id={cod_id} ({cif})")
-            peaks = compute_peaks_from_cif(cif, dmin=0.7, max_peaks=120)
-            if peaks is None:
+            cif_peaks = compute_peaks_from_cif(cif, dmin=0.7, max_peaks=120,
+                                               return_hkl=True)
+            if cif_peaks is None:
                 raise RuntimeError(f"no peaks from {cif}")
-            d, i = peaks
+            assert len(cif_peaks) == 3  # return_hkl=True contract
+            d, i, hkls = cif_peaks
             imax = float(i.max())
             if imax > 0:
                 i = i / imax * 100.0
-            peaks = (d, i)
-        d, i = peaks
-        pattern += wt * _pattern_for_phase(d, i, rng, po_hkl)
+        else:
+            d, i, hkls = peaks
+        cell = _cell_for(cod_id)
+        pattern += wt * _pattern_for_phase(d, i, hkls, cell, rng, po_hkl)
         formula, _ = _meta(cod_id)
         truth.append({"cod_id": cod_id, "formula": formula, "wt": wt})
     pattern += _background(TWO_THETA, rng)

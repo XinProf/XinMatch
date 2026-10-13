@@ -78,7 +78,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import least_squares
 
-from xinmatch.core.model import Entry, Pattern
+from xinmatch.core.model import CellParams, Entry, Pattern
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.search.search_match import search_match
 
@@ -87,6 +87,9 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "SmpfConfig",
     "expand_reflections",
+    "expand_reflections_po",
+    "march_dollase_cos",
+    "march_dollase_weight",
     "generate_theory_profile",
     "compute_rwp",
     "compute_fom",
@@ -167,6 +170,25 @@ class SmpfConfig:
         zero-point shift.  ``False`` disables the parameter.
     cell_bound:
         Symmetric bound on the relative cell scale Δ (default ±0.5%).
+    march_po:
+        Fit a per-candidate March-Dollase preferred-orientation parameter
+        ``r`` (default off — the legacy profile is restored).  When on and
+        the candidate carries per-peak Miller indices (``Entry.hkl``) plus
+        a unit cell (``Entry.cell``), every reflection's intensity is
+        multiplied by the March-Dollase factor
+        ``(r²·cos²α + sin²α/r)^(-3/2)`` where α is the angle between the
+        reflection's reciprocal vector and the PO axis
+        (``po_axis``, default [001]).  r < 1 models a platy texture that
+        enhances the PO-axis reflections; r > 1 models a needle texture.
+        Requires the hkl-backfilled reference library (HANDOVER §5.2).
+    po_axis:
+        March-Dollase preferred-orientation axis (h, k, l) in reciprocal
+        space (default [001] = basal / platy texture).
+    march_r_init:
+        Initial March-Dollase r (default 1.0 = no texture; the fit starts
+        isotropic and only moves when the pattern demands it).
+    march_r_bounds:
+        Box bounds on the fitted March r (default (0.3, 3.0)).
     fom_sigma:
         σ in the FoM mapping ``FoM = exp(−Rwp/σ)``.  Calibrated so a clean
         synthetic fit (Rwp ≈ 0.08–0.12) gives FoM ≈ 0.6–0.8 while a poor
@@ -195,14 +217,151 @@ class SmpfConfig:
     caglioti_w_bounds: tuple[float, float] = (0.001, 0.5)
     cell_refine: bool = True
     cell_bound: float = 0.005
+    march_po: bool = False
+    po_axis: tuple[int, int, int] = (0, 0, 1)
+    march_r_init: float = 1.0
+    march_r_bounds: tuple[float, float] = (0.3, 3.0)
     fom_sigma: float = 0.25
     window_half_deg: float = 1.5
     max_nfev: int = 60
 
 
 # --------------------------------------------------------------------------- #
+# March-Dollase preferred orientation (per-peak Miller-index texture model)
+# --------------------------------------------------------------------------- #
+def _reciprocal_metric(cell: CellParams) -> tuple[float, float, float,
+                                                  float, float, float]:
+    """Reciprocal-space metric from a direct-space cell.
+
+    Returns ``(a*, b*, c*, cosα*, cosβ*, cosγ*)`` — the standard crystallo-
+    graphic reciprocal-lattice parameters derived from the direct cell.
+    """
+    a, b, c = float(cell.a), float(cell.b), float(cell.c)
+    ca, cb, cg = (math.cos(math.radians(float(v))) for v in
+                  (cell.alpha, cell.beta, cell.gamma))
+    sa, sb, sg = (math.sin(math.radians(float(v))) for v in
+                  (cell.alpha, cell.beta, cell.gamma))
+    if min(sa, sb, sg) <= 1e-12:
+        return 1.0 / a, 1.0 / b, 1.0 / c, 0.0, 0.0, 0.0
+    vol = a * b * c * math.sqrt(max(
+        0.0,
+        1.0 - ca * ca - cb * cb - cg * cg + 2.0 * ca * cb * cg,
+    ))
+    if vol <= 0.0:
+        return 1.0 / a, 1.0 / b, 1.0 / c, 0.0, 0.0, 0.0
+    astar = b * c * sa / vol
+    bstar = a * c * sb / vol
+    cstar = a * b * sg / vol
+    cos_astar = (cb * cg - ca) / (sb * sg)
+    cos_bstar = (ca * cg - cb) / (sa * sg)
+    cos_gstar = (ca * cb - cg) / (sa * sb)
+    return (astar, bstar, cstar, cos_astar, cos_bstar, cos_gstar)
+
+
+def _rec_dot(hkl1: tuple[int, int, int], hkl2: tuple[int, int, int],
+             metric: tuple[float, float, float, float, float, float]) -> float:
+    """Dot product of two reciprocal vectors in the metric of the cell."""
+    astar, bstar, cstar, cos_astar, cos_bstar, cos_gstar = metric
+    h1, k1, l1 = hkl1
+    h2, k2, l2 = hkl2
+    return (
+        h1 * h2 * astar * astar
+        + k1 * k2 * bstar * bstar
+        + l1 * l2 * cstar * cstar
+        + (h1 * k2 + k1 * h2) * astar * bstar * cos_gstar
+        + (h1 * l2 + l1 * h2) * astar * cstar * cos_bstar
+        + (k1 * l2 + l1 * k2) * bstar * cstar * cos_astar
+    )
+
+
+def march_dollase_cos(
+    entry: Entry,
+    po_axis: tuple[int, int, int] = (0, 0, 1),
+) -> np.ndarray | None:
+    """Per-peak cos α between each reflection's reciprocal vector and the PO
+    axis, aligned with ``entry.d_spacings``.
+
+    ``None`` is returned when the entry lacks the Miller indices or the cell
+    needed for the geometry (the caller then falls back to the un-textured
+    profile).  Peaks whose hkl row is missing (the reference library's hkl
+    backfill is ~73 % complete) carry ``nan`` — the profile builder treats
+    ``nan`` as "no texture" (weight 1.0), so a partially-annotated card is
+    textured only on its annotated reflections.
+    """
+    if not entry.hkl or entry.cell is None:
+        return None
+    metric = _reciprocal_metric(entry.cell)
+    p_norm = math.sqrt(_rec_dot(po_axis, po_axis, metric))
+    if p_norm <= 0.0:
+        return None
+    out = np.full(entry.n_peaks, np.nan, dtype=np.float64)
+    for i, hkl in enumerate(entry.hkl):
+        if hkl is None:
+            continue
+        g_norm = math.sqrt(_rec_dot(hkl, hkl, metric))
+        if g_norm <= 0.0:
+            continue
+        cos = _rec_dot(hkl, po_axis, metric) / (g_norm * p_norm)
+        out[i] = min(1.0, max(-1.0, cos))
+    return out
+
+
+def march_dollase_weight(r: float, cos: float | np.ndarray) -> float | np.ndarray:
+    """March-Dollase intensity factor ``(r²cos²α + sin²α/r)^(-3/2)``.
+
+    r = 1 (isotropy) gives 1 everywhere; r < 1 enhances the PO-axis
+    reflections (cos ≈ 1) and suppresses the rest.  ``nan`` input (missing
+    hkl) maps to 1.0.
+    """
+    if r <= 0.0:
+        return 1.0
+    c = np.asarray(cos, dtype=np.float64)
+    w = (r * r * c * c + (1.0 - c * c) / r) ** -1.5
+    # nan (missing hkl) maps to the isotropic weight 1.
+    w = np.where(np.isnan(c), 1.0, w)
+    return float(w) if np.ndim(w) == 0 else w
+
+
+# --------------------------------------------------------------------------- #
 # Reflection expansion (Bragg + Kα1/Kα2 doublet)
 # --------------------------------------------------------------------------- #
+def _expand_core(
+    ds: np.ndarray,
+    ints: np.ndarray,
+    po_cos: np.ndarray | None,
+    wavelength_kalpha1: float,
+    wavelength_kalpha2: float | None,
+    tth_lo: float,
+    tth_hi: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Shared d–I–(cos) → 2θ expansion; see :func:`expand_reflections`."""
+    sin_t1 = wavelength_kalpha1 / (2.0 * ds)
+    ok1 = (sin_t1 >= -1.0) & (sin_t1 <= 1.0)
+    c1 = 2.0 * np.degrees(np.arcsin(sin_t1[ok1]))
+    a1 = ints[ok1]
+    pc1 = po_cos[ok1] if po_cos is not None else None
+
+    if wavelength_kalpha2 is not None:
+        sin_t2 = wavelength_kalpha2 / (2.0 * ds)
+        ok2 = (sin_t2 >= -1.0) & (sin_t2 <= 1.0)
+        c2 = 2.0 * np.degrees(np.arcsin(sin_t2[ok2]))
+        a2 = ints[ok2] * 0.5
+        centres = np.concatenate([c1, c2])
+        amps = np.concatenate([a1, a2])
+        if po_cos is not None:
+            pc = np.concatenate([pc1, po_cos[ok2]])
+        else:
+            pc = None
+    else:
+        centres, amps = c1, a1
+        pc = pc1
+
+    in_range = (centres >= tth_lo - 1.0) & (centres <= tth_hi + 1.0)
+    if pc is not None:
+        pc = pc[in_range]
+    return centres[in_range], amps[in_range], pc
+
+
 def expand_reflections(
     entry: Entry,
     wavelength_kalpha1: float,
@@ -220,26 +379,37 @@ def expand_reflections(
     """
     if entry.n_peaks == 0:
         return np.empty(0), np.empty(0)
-    ds = np.asarray(entry.d_spacings, dtype=np.float64)
-    ints = np.asarray(entry.intensities, dtype=np.float64)
+    centres, amps, _ = _expand_core(
+        np.asarray(entry.d_spacings, dtype=np.float64),
+        np.asarray(entry.intensities, dtype=np.float64),
+        None,
+        wavelength_kalpha1, wavelength_kalpha2, tth_lo, tth_hi,
+    )
+    return centres, amps
 
-    sin_t1 = wavelength_kalpha1 / (2.0 * ds)
-    ok1 = (sin_t1 >= -1.0) & (sin_t1 <= 1.0)
-    c1 = 2.0 * np.degrees(np.arcsin(sin_t1[ok1]))
-    a1 = ints[ok1]
 
-    if wavelength_kalpha2 is not None:
-        sin_t2 = wavelength_kalpha2 / (2.0 * ds)
-        ok2 = (sin_t2 >= -1.0) & (sin_t2 <= 1.0)
-        c2 = 2.0 * np.degrees(np.arcsin(sin_t2[ok2]))
-        a2 = ints[ok2] * 0.5
-        centres = np.concatenate([c1, c2])
-        amps = np.concatenate([a1, a2])
-    else:
-        centres, amps = c1, a1
-
-    in_range = (centres >= tth_lo - 1.0) & (centres <= tth_hi + 1.0)
-    return centres[in_range], amps[in_range]
+def expand_reflections_po(
+    entry: Entry,
+    wavelength_kalpha1: float,
+    wavelength_kalpha2: float | None,
+    tth_lo: float,
+    tth_hi: float,
+    po_cos: np.ndarray | None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Like :func:`expand_reflections` but also propagates the per-peak
+    March-Dollase cos α array (aligned with ``entry.d_spacings``) through the
+    same Kα1/Kα2 doubling and 2θ-range filtering.  Returns
+    ``(centres, amps, po_cos_expanded)`` (``None`` when ``po_cos`` is
+    ``None``).
+    """
+    if entry.n_peaks == 0:
+        return np.empty(0), np.empty(0), None
+    return _expand_core(
+        np.asarray(entry.d_spacings, dtype=np.float64),
+        np.asarray(entry.intensities, dtype=np.float64),
+        po_cos,
+        wavelength_kalpha1, wavelength_kalpha2, tth_lo, tth_hi,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -263,6 +433,8 @@ def generate_theory_profile(
     cell_delta: float = 0.0,
     tan_theta: np.ndarray | None = None,
     fwhm_bounds: tuple[float, float] = (0.08, 0.6),
+    march_cos: np.ndarray | None = None,
+    march_r: float = 1.0,
 ) -> np.ndarray:
     """Calculate a full profile on grid ``x`` for pre-expanded reflections.
 
@@ -302,6 +474,14 @@ def generate_theory_profile(
         by ``uvw`` and ``cell_delta``.
     fwhm_bounds:
         Width clamp for the Caglioti model.
+    march_cos:
+        Per-reflection March-Dollase cos α, shape ``(M,)``, aligned with
+        ``centres``/``amps`` (see :func:`expand_reflections_po`).  When
+        given, each amplitude is multiplied by the March-Dollase factor
+        ``(r²cos²α + sin²α/r)^(-3/2)`` for the current ``march_r``.  ``nan``
+        entries (reflections without Miller indices) get weight 1.
+    march_r:
+        March-Dollase parameter; 1.0 = isotropic (no texture).
     """
     t = x - x_mid
     yc = bg0 + bg1 * t + bg2 * t * t
@@ -310,6 +490,10 @@ def generate_theory_profile(
     tt: np.ndarray = tan_theta if tan_theta is not None else np.empty(0)
     if (uvw is not None or cell_delta != 0.0) and tan_theta is None:
         raise ValueError("uvw / cell_delta require tan_theta")
+    if march_cos is not None:
+        if march_cos.size != centres.size:
+            raise ValueError("march_cos must be aligned with centres/amps")
+        amps = amps * march_dollase_weight(march_r, march_cos)
 
     # Per-reflection width (Caglioti array or constant) and effective centres.
     if uvw is not None:
@@ -447,6 +631,9 @@ class CandidateFit:
     #: Fitted global relative cell scale Δ (``d → d·(1+Δ)``); 0 when the
     #: cell refinement is disabled.
     cell_delta: float = 0.0
+    #: Fitted March-Dollase r (1.0 = no texture; only meaningful when
+    #: ``SmpfConfig.march_po`` is on and the entry has hkl + cell).
+    march_r: float = 1.0
     rwp: float = float("inf")
     rexp: float = float("inf")
     gof: float = float("inf")
@@ -476,12 +663,21 @@ def fit_candidate(
       triple ``u, v, w`` (``cfg.caglioti=True``, default);
     * ``cell_delta`` when ``cfg.cell_refine=True`` (default): a global
       relative cell scale whose 2θ signature grows as tanθ and is hence
-      identifiable against the constant zero-point shift.
+      identifiable against the constant zero-point shift;
+    * ``march_r`` when ``cfg.march_po=True`` **and** the entry carries
+      per-peak Miller indices plus a cell (partial hkl coverage is fine:
+      un-annotated reflections keep weight 1).
     """
     lo, hi = float(x.min()), float(x.max())
-    centres, amps = expand_reflections(
-        entry, wavelength_kalpha1, wavelength_kalpha2, lo, hi
+    po_cos = (
+        march_dollase_cos(entry, cfg.po_axis)
+        if cfg.march_po
+        else None
     )
+    centres, amps, po_cos_exp = expand_reflections_po(
+        entry, wavelength_kalpha1, wavelength_kalpha2, lo, hi, po_cos
+    )
+    use_march = cfg.march_po and po_cos_exp is not None
     out = CandidateFit(entry_id=entry.entry_id, formula=entry.formula)
     if centres.size == 0:
         out.fom = 0.0
@@ -552,6 +748,10 @@ def fit_candidate(
         p0 += [0.0]
         lo_b += [-cfg.cell_bound]
         hi_b += [cfg.cell_bound]
+    if use_march:
+        p0 += [cfg.march_r_init]
+        lo_b += [cfg.march_r_bounds[0]]
+        hi_b += [cfg.march_r_bounds[1]]
 
     def residuals(p: np.ndarray) -> np.ndarray:
         scale, shift = p[0], p[1]
@@ -567,12 +767,16 @@ def fit_candidate(
         eta, bg0, bg1, bg2 = p[k], p[k + 1], p[k + 2], p[k + 3]
         k += 4
         cell_delta = p[k] if use_cell else 0.0
+        k += int(use_cell)
+        march_r = p[k] if use_march else 1.0
         yc = generate_theory_profile(
             x, centres, amps, windows,
             fwhm=fwhm, eta=eta, shift=shift, scale=scale,
             bg0=bg0, bg1=bg1, bg2=bg2, x_mid=x_mid,
             uvw=uvw, cell_delta=cell_delta, tan_theta=tan_theta,
             fwhm_bounds=cfg.fwhm_bounds,
+            march_cos=po_cos_exp if use_march else None,
+            march_r=march_r,
         )
         r = np.zeros_like(y)
         ym = y[mask]
@@ -606,6 +810,8 @@ def fit_candidate(
     eta, bg0, bg1, bg2 = p[k], p[k + 1], p[k + 2], p[k + 3]
     k += 4
     cell_delta = p[k] if use_cell else 0.0
+    k += int(use_cell)
+    march_r = p[k] if use_march else 1.0
     yc = generate_theory_profile(
         x, centres, amps, windows,
         fwhm=cfg.fwhm_init if use_uvw else fwhm,
@@ -614,6 +820,8 @@ def fit_candidate(
         uvw=(u, v, w) if use_uvw else None,
         cell_delta=cell_delta, tan_theta=tan_theta,
         fwhm_bounds=cfg.fwhm_bounds,
+        march_cos=po_cos_exp if use_march else None,
+        march_r=march_r,
     )
     rwp, rexp, gof = compute_rwp(y, yc)
     out.scale = float(scale)
@@ -633,6 +841,7 @@ def fit_candidate(
     out.bg1 = float(bg1)
     out.bg2 = float(bg2)
     out.cell_delta = float(cell_delta)
+    out.march_r = float(march_r)
     out.rwp = float(rwp)
     out.rexp = float(rexp)
     out.gof = float(gof)
@@ -770,6 +979,7 @@ def search_match_smpf(
             "caglioti_v": f.v,
             "caglioti_w": f.w,
             "cell_delta": f.cell_delta,
+            "march_r": f.march_r,
             "rwp": f.rwp,
             "rexp": f.rexp,
             "gof": f.gof,
