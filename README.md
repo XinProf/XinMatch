@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/icons/logo_256.png" alt="XinMatch logo" width="200">
+</div>
+
 # XinMatch
 
 Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
