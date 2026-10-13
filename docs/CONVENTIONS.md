@@ -56,6 +56,6 @@
 
 ## 8. Dependencies & licensing
 
-- No GPL-licensed runtime dependencies (would taint the MIT project).
+- No GPL-licensed runtime dependencies (would conflict with XinMatch's dual Academic + Commercial license).
 - Prefer MIT / BSD / LGPL / Apache-2.0.
 - LGPL deps (e.g. PySide6) are fine as long as we link dynamically.
