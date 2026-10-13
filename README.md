@@ -80,6 +80,13 @@ XinMatch is **not** a fork of, and contains no code or proprietary database
 files from, any commercial powder XRD analysis software. See [docs/00_TECH_STACK_ANALYSIS.md](docs/00_TECH_STACK_ANALYSIS.md)
 for the detailed compliance boundary.
 
-## License
+## License / 授权许可
 
-MIT — see [LICENSE](LICENSE).
+本软件采用**双许可**模式（学术许可 + 商业许可），与上游 PolyXRD 项目一致。
+This software is distributed under a **dual license** (Academic + Commercial), consistent with the upstream PolyXRD project.
+
+- **English（英文）**: [LICENSE](LICENSE)
+- **中文（简体）**: [LICENSE-CN](LICENSE-CN)
+
+学术用途可依据【学术许可】免费使用；任何商业用途须事先联系版权持有人取得独立书面【商业授权】（详见许可证正文）。
+Academic use is free under the Academic License; any commercial use requires a separate written Commercial License from the copyright holder (see license text).

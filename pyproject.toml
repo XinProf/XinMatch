@@ -8,13 +8,13 @@ version = "1.4.0"
 description = "XinMatch — Open-source powder XRD phase analysis platform (clean-room implementation guided by publicly documented XRD phase-analysis workflows)"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "Dual License (Academic + Commercial) — see LICENSE / LICENSE-CN" }
 authors = [{ name = "XinMatch Contributors" }]
 keywords = ["XRD", "powder diffraction", "phase analysis", "Rietveld", "search-match"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
