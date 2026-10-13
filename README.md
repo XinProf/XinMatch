@@ -4,9 +4,10 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v1.3.1.** Core computation kernel + full GUI + dual-mode search-match
-> (peak-list FoM / SMPF full-profile fitting) + GSAS-II refinement pipeline are
-> complete and packaged (Windows onedir). See [ROADMAP_v3.md](ROADMAP_v3.md)
+> ✅ **v1.4.0.** Core computation kernel + full GUI + dual-mode search-match
+> (peak-list FoM / SMPF full-profile fitting) + GSAS-II refinement pipeline +
+> quantitative Rietveld (main-phase wt% < 3 on certified samples) are complete
+> and packaged (Windows onedir). See [ROADMAP_v3.md](ROADMAP_v3.md)
 > for the full implementation plan and [docs/STATUS.md](docs/STATUS.md) for
 > current progress.
 

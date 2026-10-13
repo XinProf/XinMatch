@@ -474,3 +474,21 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 - `tests/quant/test_maud_to_prm.py`（新，4 用例）+ `test_rietveld_quant.py`：三个 cod_po 真实数据测试窗口 20°→10°、4-1 **Brucite 断言 <6%→<3%**、docstring 沉淀 #17 修复逻辑。
 
 **回归**：`tests/quant/test_maud_to_prm.py` 4/4；`test_rietveld_quant.py` 非 slow 7/7；slow cod_po 三用例 3/3（junit `.scratch/v17_slow.xml`）；ruff 改动文件全绿；mypy 无新增错误（存量 9 处为 entry/background/smoothing/fom_criteria）。
+
+---
+
+## #18 v1.4.0 小项打包（2026-10-13）✅
+
+**任务**：版本号五处同步 + 全量验证 + PyInstaller 打包 + 推送 GitHub。
+
+**版本号同步**（v1.3.1 → v1.4.0）：
+- `pyproject.toml` `version`、`xinmatch.spec` `APP_VERSION`/`VERSION_TUPLE`/**`COLLECT name`**（首次构建曾漏改 COLLECT name，产物误落到 `dist/xinmatch-1.3.1`，修正后重建并清理残留）、`tools/build_exe.ps1` `$Version`/输出路径/注释、`pip install -e . --no-deps` 刷新 metadata（`xinmatch.__version__ == "1.4.0"` 实测）、`README.md` 状态行。
+- `docs/STATUS.md` / `HANDOVER-20261013.md` 中 v1.3.1 历史记录保留（历史文档不改写）。
+
+**全量验证**：
+- 核心套件（`tests` 除 UI，含 slow）：**1013 用例 3 失败 0 错误 46 跳过**——3 个失败全部为 venv 缺 `pyyaml`（pyproject 正式依赖未装），`pip install pyyaml` 后 `tests/test_batch_runner.py` 4/4 全过（非代码回归）。
+- UI 套件（python310）：**205 用例 0 失败 0 错误**（358.6s）。
+
+**打包产物**：`dist/xinmatch-1.4.0/`（**1186 MB**）——`XinMatch.exe` 7.2 MB（FileVersion/ProductVersion = 1.4.0 实测）、`data/cod_inorganics.db` 512.3 MB 外置、`_internal/`。CLI 冒烟：`search --help`/`import --help` usage OK；`run` 5-1 真实样本 → top_candidate 96-901-3321（SiO₂）+ report.html（13,982 B）+ JSON 输出正常。
+
+**推送**：6 个提交（`62909cd`→`a1a3040`）已推送 GitHub `PolyXRD/XinMatch` master，本地与远端 0/0 同步。
