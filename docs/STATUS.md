@@ -520,3 +520,21 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 **核验**：Sylvite 实卡最强峰 d=3.2110 Å ↔ hkl=(0,2,0) ↔ 晶胞 a=6.422 Å（d=a/2 自洽）；`tests/test_backfill_hkl.py` 8 用例（return_hkl 契约、d 匹配、同 d 强度消歧、空重算、dry-run 零写入、apply 幂等）全过；ruff 全绿。
 
 **关联**：下一步 SMPF 择优取向（March-Dollase 真逐峰 hkl 建模）可在 hkl 填充的库上落地；逐晶胞参数（a/b/c）精修的晶胞数据本就完备（entries.a/b/c 缺失仅 15/71,206）。
+
+### 5.2b 逐晶胞参数（a/b/c/α/β/γ/volume）精修（2026-10-13）✅
+
+**任务**（HANDOVER §5.2「同批可做」）：`entries` 晶胞与 COD CIF 权威值对齐 + 补全缺失 + 校正 volume。
+
+**探查**：抽样 500 卡——a/b/c 相对差 p50 = 0.000%、max ~0.15%（dump 与 CIF 基本一致）；**volume 大面积失真**（与 CIF 差 >1% 的卡 1,890/71,206 按存储值口径）；15 条六参数全缺（均为无 CIF 卡，属 43 条 CIF 缺失）。
+
+**实现**：`tools/backfill_cells.py`（新）——逐卡读 CIF（gemmi `SmallStructure.cell`）重写 `entries` 的 a/b/c/α/β/γ/volume（CIF 权威），幂等、`--dry-run`/`--no-backup`/`--limit`、备份在首次写入前。
+
+**结果**（正式应用，backup `data/cod_inorganics.db.bak-cells-20261013-112431`，含 hkl 回填结果）：
+
+| 指标 | 值 |
+|---|---|
+| 更新 | 71,163 / 71,206（43 条无 CIF 保留 dump 值并报告） |
+| 实质变动 | 1,890 卡（a/b/c 或 volume 相对差 >0.1% / >1%） |
+| 缺失 | 六参数缺失清零至 15 条（均为无 CIF 卡，无法补） |
+
+**核验**：抽样 10 卡 a/b/c/volume 与 CIF 相对差 < 1e-6 全一致；`tests/test_backfill_cells.py` 5 用例（dry-run 零写入/apply 幂等/NULL 补全/无 CIF 报告）全过；回归 81 用例 0 失败（backfill 两工具 + db 套件）。dist 打包产物 DB 已同步。
