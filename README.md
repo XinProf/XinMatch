@@ -78,12 +78,6 @@ pip install -e ".[dev,gui]"
 pytest
 ```
 
-## Compliance
-
-XinMatch is **not** a fork of, and contains no code or proprietary database
-files from, any commercial powder XRD analysis software. See [docs/00_TECH_STACK_ANALYSIS.md](docs/00_TECH_STACK_ANALYSIS.md)
-for the detailed compliance boundary.
-
 ## License / 授权许可
 
 本软件采用**双许可**模式（学术许可 + 商业许可），与上游 PolyXRD 项目一致。
