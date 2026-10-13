@@ -492,3 +492,31 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 **打包产物**：`dist/xinmatch-1.4.0/`（**1186 MB**）——`XinMatch.exe` 7.2 MB（FileVersion/ProductVersion = 1.4.0 实测）、`data/cod_inorganics.db` 512.3 MB 外置、`_internal/`。CLI 冒烟：`search --help`/`import --help` usage OK；`run` 5-1 真实样本 → top_candidate 96-901-3321（SiO₂）+ report.html（13,982 B）+ JSON 输出正常。
 
 **推送**：6 个提交（`62909cd`→`a1a3040`）已推送 GitHub `PolyXRD/XinMatch` master，本地与远端 0/0 同步。
+
+---
+
+## 5.2 hkl 回填迁移（2026-10-13）✅
+
+**任务**（HANDOVER §5.2 新立项，SMPF 择优取向前置）：`peaks.h/k/l` 全 NULL（6,214,072 行 / 71,206 卡），真 March-Dollase 无法落地——逐峰 Miller 指数缺失。
+
+**探查**：
+- `peaks` 表已有 h/k/l INTEGER 列（全 NULL）；`entries.entry_id` 全为 `96-` 前缀可反推 COD id（`ref_id_to_cod_id`）；CIF 存档缺失 43 条（0.06%）。
+- **库峰表来源**：抽样 4 矿物（Halite/Periclase/Sylvite/Tenorite）库峰 d 与本地 CIF gemmi 重算**全对齐**（d 相对差 < 5e-5）——同管线输出；但全库 dry-run 显示 **26.9% 峰未匹配**：59.8% 是 **d < 1.0 Å**（库 dump 的 dmin 深于本地重算的 1.0 Å），其余 d ≥ 1.0 未匹配系 **PolyXRD dump 与本地 COD CIF 的晶胞/管线差异**（相对 d 漂移 p50 = 0.45%，非浮点噪声；CIF 无 `_refln` 表可对照）。
+- **匹配策略安全边界**：1e-4 相对容差 → 只给「d 完全一致」的峰写 hkl，绝不猜测错配邻近反射；未匹配峰留 NULL。
+
+**实现**：
+- `tools/build_cod_full_xinmatch.py`：`compute_peaks_from_cif` 新增 `return_hkl=True`（返回 (d, i, hkl) 三元组，默认 False 保持双元组契约）。
+- `tools/backfill_hkl.py`（新）：幂等回填——逐卡重算（dmin=1.0、Cu Kα、非偏振 LP、top-100）+ d 对齐（searchsorted + 同 d 多解按强度消歧）+ 分批 UPDATE（2000 行/事务）+ `--dry-run` / `--no-backup` / `--limit`；备份 `cod_inorganics.db.bak-hkl-*`。
+
+**结果**（正式回填，backup `data/cod_inorganics.db.bak-hkl-20261013-084416`）：
+
+| 指标 | 值 |
+|---|---|
+| 回填行 | **4,526,901 / 6,194,488（73.1%）** |
+| 覆盖卡 | 70,956 / 71,206（**99.6%**，至少 1 峰回填） |
+| 未匹配 | 1,667,587：d<1.0 Å 910,706（超出重算 dmin 范围）+ d≥1.0 756,881（晶胞/管线差异，留 NULL） |
+| CIF 缺失 | 216 条（含重算失败，0.3%） |
+
+**核验**：Sylvite 实卡最强峰 d=3.2110 Å ↔ hkl=(0,2,0) ↔ 晶胞 a=6.422 Å（d=a/2 自洽）；`tests/test_backfill_hkl.py` 8 用例（return_hkl 契约、d 匹配、同 d 强度消歧、空重算、dry-run 零写入、apply 幂等）全过；ruff 全绿。
+
+**关联**：下一步 SMPF 择优取向（March-Dollase 真逐峰 hkl 建模）可在 hkl 填充的库上落地；逐晶胞参数（a/b/c）精修的晶胞数据本就完备（entries.a/b/c 缺失仅 15/71,206）。

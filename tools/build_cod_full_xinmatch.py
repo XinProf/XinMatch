@@ -81,7 +81,8 @@ def compute_peaks_from_cif(
     dmin: float = DEFAULT_DMIN,
     wavelength: float = DEFAULT_WAVELENGTH,
     max_peaks: int = DEFAULT_MAX_PEAKS,
-) -> tuple[np.ndarray, np.ndarray] | None:
+    return_hkl: bool = False,
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray] | None:
     """Compute a d–I powder pattern from a CIF with gemmi.
 
     Unique reflections are selected with a reciprocal-space asymmetry unit
@@ -89,10 +90,17 @@ def compute_peaks_from_cif(
     :class:`gemmi.StructureFactorCalculatorX` and weighted by the standard
     unpolarized Lorentz-polarization factor.
 
+    Parameters
+    ----------
+    return_hkl:
+        When true, also return the Miller indices of each reflection as a
+        third ``(N, 3)`` int64 array (row ``i`` ↔ ``d_arr[i]`` / ``i_arr[i]``).
+        Defaults to false so existing callers keep the 2-tuple contract.
+
     Returns
     -------
-    (d, i):
-        Two float64 arrays sorted by descending intensity, truncated to the
+    (d, i) or (d, i, hkl):
+        Float64 arrays sorted by descending intensity, truncated to the
         strongest *max_peaks*.  ``None`` when the CIF cannot be parsed or
         yields no reflections.
     """
@@ -153,6 +161,9 @@ def compute_peaks_from_cif(
     items = sorted(acc.items(), key=lambda kv: -kv[1])[:max_peaks]
     d_arr = np.array([cell.calculate_d(hkl) for hkl, _ in items], dtype=np.float64)
     i_arr = np.array([v for _, v in items], dtype=np.float64)
+    if return_hkl:
+        hkl_arr = np.array([hkl for hkl, _ in items], dtype=np.int64)
+        return d_arr, i_arr, hkl_arr
     return d_arr, i_arr
 
 
