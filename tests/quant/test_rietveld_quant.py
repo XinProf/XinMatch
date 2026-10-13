@@ -369,11 +369,12 @@ def test_rietveld_4_1(tmp_path: Path) -> None:
 # the main phase lands within ~1-1.5 wt%.
 #
 # Acceptance thresholds below are the *measured* bounds, not relaxed to hide
-# failure.  CPD-1c / 3-1 main phase (ZnO ~93.6%) is <3 wt%; 4-1's textured,
-# light-absorbing Brucite (36.26 wt%) sits at ~-4.3 wt% and is documented as a
-# residual gap (single-parameter March-Dollase along [001] does not fully
-# model its platy texture / microabsorption locally) rather than asserted to a
-# value it does not meet.
+# failure.  All three samples (CPD-1c / 3-1 / 4-1) gate every phase at the
+# #17 main-phase bar of <3 wt%.  Two #17 fixes closed the former brucite gap
+# (-4.3 wt%): the fit window opens at 10° (brucite (001) at ~18.6° is the
+# phase's strongest reflection and must be inside the fit), and the MD r
+# parameter starts at 0.7 (platy habit) so the r=1.0 local minimum cannot
+# trap the texture parameter at isotropy.
 # ---------------------------------------------------------------------------
 _COD_CIF = {
     "Al2O3": _FIX / "Al2O3_cod.cif",
@@ -389,9 +390,15 @@ def test_rietveld_cpd1c_cod_po(tmp_path: Path) -> None:
     """CPD-1c with COD-standard CIFs + staged March-Dollase PO.
 
     Certified: Al2O3=5.04%, ZnO=93.59%, CaF2=1.36%.  Measured with the COD
-    CIFs (Rwp ~17%): ZnO ~-1.0 wt%, Al2O3 ~+1.0 wt%, CaF2 ~0 wt% -- the main
-    phase (ZnO, ~94 wt%) is now within <3 wt% (was biased by 7-12 wt% with
+    CIFs (Rwp ~14%): ZnO ~-1.7 wt%, Al2O3 ~+0.7 wt%, CaF2 ~+1.1 wt% -- the
+    main phase (ZnO, ~94 wt%) is within <3 wt% (was biased by 7-12 wt% with
     the hand-built CIFs).
+
+    #17: the fit window opens at 10° (default) rather than 20° -- the
+    low-angle band below 20° carries the strongest reflection of layered
+    phases (brucite (001) ~18.6°) and must not be cut off; the MD PO starts
+    at r0=0.7 (basal/platy habit) so the r=1.0 local minimum cannot trap the
+    texture parameter.
     """
     from xinmatch.core.refine.gsas2_adapter import load_gsas_gss
 
@@ -402,7 +409,7 @@ def test_rietveld_cpd1c_cod_po(tmp_path: Path) -> None:
         pattern, phases, {k: str(v) for k, v in _COD_CIF.items()},
         work_dir=tmp_path,
         options=RefineOptions(
-            max_iter=40, two_theta_range=(20.0, 120.0),
+            max_iter=40, two_theta_range=(10.0, 120.0),
             refine_atoms=True, refine_po=True,
         ),
     )
@@ -427,7 +434,7 @@ def test_rietveld_cpd1c_cod_po(tmp_path: Path) -> None:
 def test_rietveld_3_1_cod_po(tmp_path: Path) -> None:
     """test_xrd 3-1 (same composition as CPD-1c) with COD CIFs + PO.
 
-    Measured: ZnO ~-1.3 wt%, Al2O3 ~+1.3 wt%, CaF2 ~0 wt%.
+    Measured (Rwp ~14%): ZnO ~-1.8 wt%, Al2O3 ~+0.7 wt%, CaF2 ~+1.1 wt%.
     """
     if not _31_PATH.exists():
         pytest.skip("3-1.txt not found")
@@ -439,7 +446,7 @@ def test_rietveld_3_1_cod_po(tmp_path: Path) -> None:
         pattern, phases, {k: str(v) for k, v in _COD_CIF.items()},
         work_dir=tmp_path,
         options=RefineOptions(
-            max_iter=40, two_theta_range=(20.0, 120.0),
+            max_iter=40, two_theta_range=(10.0, 120.0),
             refine_atoms=True, refine_po=True,
         ),
     )
@@ -464,12 +471,15 @@ def test_rietveld_4_1_cod_po(tmp_path: Path) -> None:
     """test_xrd 4-1 four-phase with COD CIFs + March-Dollase PO.
 
     Certified: ZnO=19.94%, Al2O3=21.27%, CaF2=22.53%, Brucite=36.26%.
-    Measured: ZnO ~+0.4, Al2O3 ~+2.8, CaF2 ~+1.1 wt% (all <3 wt%); Brucite
-    ~-4.3 wt% -- the layered Mg(OH)2 phase remains biased because a single
-    March-Dollase [001] parameter does not fully capture its platy texture /
-    microabsorption in this local setup.  ZnO/Al2O3/CaF2 are gated at <3 wt%;
-    Brucite is honestly gated at <6 wt% with this documented residual gap
-    (NOT relaxed to pretend it meets the <3 wt% main-phase bar).
+    Measured (Rwp ~15.7%): ZnO ~-0.8, Al2O3 ~+0.8, CaF2 ~0, Brucite ~+0.1
+    wt% -- every phase is within <3 wt% (main-phase bar of #17).
+
+    #17 fixes for the previous -4.3 wt% brucite gap: (1) the fit window must
+    start at <=10° so brucite's strongest reflection (001) at ~18.6° is
+    inside the fit (a 20° lower bound removed it and left the brucite scale
+    under-constrained); (2) the March-Dollase r parameter starts at 0.7
+    (platy habit) instead of 1.0 -- r=1.0 is a local minimum that traps the
+    texture parameter at isotropy for strongly layered phases.
     """
     if not _41_PATH.exists():
         pytest.skip("4-1.txt not found")
@@ -481,7 +491,7 @@ def test_rietveld_4_1_cod_po(tmp_path: Path) -> None:
         pattern, phases, {k: str(v) for k, v in _COD_CIF.items()},
         work_dir=tmp_path,
         options=RefineOptions(
-            max_iter=40, two_theta_range=(20.0, 120.0),
+            max_iter=40, two_theta_range=(10.0, 120.0),
             refine_atoms=True, refine_po=True,
         ),
     )
@@ -492,16 +502,10 @@ def test_rietveld_4_1_cod_po(tmp_path: Path) -> None:
         print(f"  {name}: meas={wf*100:.2f}% truth={truth*100:.2f}% "
               f"err={(wf-truth)*100:+.2f} wt%")
 
-    # ZnO / Al2O3 / CaF2: <3 wt%.
-    for name in ("ZnO", "Al2O3", "CaF2"):
-        wf = result.weight_fractions[name]
-        truth = _41_WT[name]
-        assert abs(wf - truth) < 0.03, (
-            f"{name}: error {abs(wf-truth)*100:.2f} wt% exceeds 3 wt%"
-        )
-    # Brucite: documented residual textured/microabsorption gap.
-    bru = result.weight_fractions["Brucite"]
-    assert abs(bru - _41_WT["Brucite"]) < 0.06, (
-        f"Brucite residual {abs(bru-_41_WT['Brucite'])*100:.2f} wt% larger than "
-        "the documented textured-phase bound (single-parameter MD [001])"
-    )
+    # Every phase, brucite included, is gated at the #17 main-phase <3 wt% bar.
+    for name, wf in result.weight_fractions.items():
+        truth = _41_WT.get(name)
+        if truth is not None:
+            assert abs(wf - truth) < 0.03, (
+                f"{name}: error {abs(wf-truth)*100:.2f} wt% exceeds 3 wt%"
+            )

@@ -165,6 +165,7 @@ def rietveld_quantify(
     options: RefineOptions | None = None,
     *,
     driver: Callable[..., Any] | None = None,
+    instrument_file: str | os.PathLike[str] | None = None,
 ) -> RietveldQuantResult:
     """基于 Rietveld 精修的定量相分析。
 
@@ -190,6 +191,10 @@ def rietveld_quantify(
         ``build_gsas2_project(pattern, phases, cif_paths, options,
         work_dir, run=True) -> Gsas2Project`` 一致。``None`` 时使用
         默认的 GSAS-II 驱动。
+    instrument_file:
+        可选 GSAS-II 仪器参数文件（``.prm``/``.inst``）。``None`` 时
+        使用内嵌的通用 Bragg-Brentano Cu Kα 参数（T8.3/#17：实测仪器
+        参数可用 :func:`~tools.maud_to_prm` 从 MAUD ``.par`` 提取）。
 
     Returns
     -------
@@ -231,6 +236,7 @@ def rietveld_quantify(
             options=options,
             work_dir=work_dir,
             project_name="rietveld_quant",
+            instrument_file=instrument_file,
             run=True,
         )
 

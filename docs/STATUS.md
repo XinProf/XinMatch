@@ -440,3 +440,37 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 - `xinmatch/core/search/fom_criteria.py`：docstring 与默认值对齐——`sigma_pos` 描述 0.1°→0.15°（L3 追平时实参已改 0.15，文档未同步；行为零变化）。
 - 探针留存 `.scratch/`（gitignore）。**FoM 权重、强度惯例、correlate、peak_search 均未改动**——本次为证据驱动的不动决策，防未来误改。
+
+---
+
+## T0.8 / #17 定量精度：主相 wt% 追 <3%（2026-10-13）🟢达成
+
+**任务**（handover 行动清单第 2 项）：COD 标准 CIF + 实测仪器参数 + 优选取向建模，把主相 wt% 追到 <3%。基线（COD CIF + MD-PO，20-120° 窗口）：4-1 的 ZnO +0.39 / Al₂O₃ +2.78 / CaF₂ +1.14 / **Brucite −4.31 wt%**（唯一超标）。
+
+### 探针结论（证据链）
+
+1. **实测仪器 .prm 无改善（归因证伪）**：MAUD 实测仪器块（Cu Kα1=1.5405982/Kα2=1.5445065、I(Kα2)/I(Kα1)=0.4898、θ-θ、石墨单色器 26.228°、闪烁探测器）经 `tools/maud_to_prm.py` 转 GSAS-II `.prm` 后 4-1 复跑：Rwp 17.54→17.57%，Brucite −4.31→−4.84 wt%——**波长级仪器参数对层状相偏差无贡献**。
+2. **SH 球谐纹理在此工作流不可行**：P-3m1（Laue 3m1）4 阶圆柱 SH 仅 3 系数（C(2,0,0)/C(4,0,0)/C(4,0,3)），且（a）hist 级 `Pref.Ori.[0]='SH'` 触发 SHPOcal，其系数名用 IfLMN=False（缺 C(2,0)）与 phase 级 `General['SH Texture']` 的 IfLMN=True 名不一致 → RefineCore 报 `0:0:C(2,0)` 缺失直接崩；（b）改 phase 级 SH Texture 后 LS 引擎 SVD 奇异（`ouch #2` giving up）。**放弃 SH，聚焦 MD 初始值与窗口**。
+3. **根因 1——窗口切掉 Brucite 最强峰**：默认 20-120° 窗口把 Brucite (001)（2θ≈18.6°，相对强度 100）排除 ⇒ Brucite scale 失去最强峰约束、MD r 不可辨识（收敛 1.0）。
+4. **根因 2——MD r=1.0 是陷阱极小**：层状相（Brucite/ZnO 板状织构）r 必须 <1 增强 (001)；r0=1.0 时 LS 停在各向同性，r0=0.7 时精修收敛 r*≈0.672（4-1 Brucite）且 Rwp 显著改善。
+
+### 结果（r0=0.7 + 窗口 10°）
+
+| 样本 | Rwp | ZnO | Al₂O₃ | CaF₂ | Brucite |
+|---|---|---|---|---|---|
+| 4-1（真值 19.94/21.27/22.53/36.26） | 15.69% | −0.83 | +0.78 | −0.05 | **+0.09** |
+| 3-1（真值 ZnO 93.59%） | 14.26% | −1.80 | +0.70 | +1.11 | — |
+| CPD-1C（真值 ZnO 93.59%） | 14.26% | −1.73 | +0.69 | +1.05 | — |
+
+**全部相 <3 wt%（实际 <2 wt%）**；4-1 Brucite 从 −4.31 改善到 +0.09。全谱（None，5° 起）反而不如 10° 窗口（Brucite +8.67，低角背景/样品效应干扰），故默认窗口定为 (10, 120)。
+
+### 代码变更
+
+- `tools/maud_to_prm.py`（新）：MAUD `.par` 实测仪器块 → GSAS-II `.prm`（ICONS 固定列经 GSASIIfiles.py 规则验证）。
+- `tests/fixtures/gsas2_project/XRD7000_Cu.prm`（新）：实测 XRD-7000 仪器参数 fixture。
+- `xinmatch/core/quant/rietveld_quant.py`：`rietveld_quantify` 新增 `instrument_file=` 参数透传。
+- `xinmatch/core/refine/gsas2_adapter.py`：`RefineOptions` 新增 `po_model`（"md"/"sh"，sh 实验性）与**默认 `two_theta_range=(10,120)`**（10° 下限保留 <20° 强峰；None 仍表示全谱）。
+- `xinmatch/core/refine/gsas2_project.py`：manifest 透传 `po_model`；驱动脚本 MD 阶段 **r0=0.7**（板状织构初始，绕开 r=1.0 陷阱）；SH 分支按 phase 级 `SH Texture` 设置（实验性，P-3m1 下 SVD 不稳）。
+- `tests/quant/test_maud_to_prm.py`（新，4 用例）+ `test_rietveld_quant.py`：三个 cod_po 真实数据测试窗口 20°→10°、4-1 **Brucite 断言 <6%→<3%**、docstring 沉淀 #17 修复逻辑。
+
+**回归**：`tests/quant/test_maud_to_prm.py` 4/4；`test_rietveld_quant.py` 非 slow 7/7；slow cod_po 三用例 3/3（junit `.scratch/v17_slow.xml`）；ruff 改动文件全绿；mypy 无新增错误（存量 9 处为 entry/background/smoothing/fom_criteria）。

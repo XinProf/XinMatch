@@ -462,19 +462,63 @@ def main() -> int:
         gpx.set_Controls("cycles", max(cycles // 2, 2))
         gpx.refine(makeBack=True)
 
-    # PO stage: turn on March-Dollase refinement only after the profile
-    # has converged, so r only fine-tunes texture and cannot drive the MD
-    # integrand NaN on an unconverged profile.
+    # PO stage: turn on preferred-orientation refinement only after the
+    # profile has converged, so the PO parameters only fine-tune texture and
+    # cannot drive the MD integrand NaN on an unconverged profile.  Two
+    # models are supported:
+    #   * "md": one March-Dollase parameter along [0,0,1] (default).  The
+    #     GSAS-II-created 'Pref.Ori.' entry is ['MD', r=1.0, refine=False,
+    #     [0,0,1], 0, {}, [], 0.1]; we flip the refine flag (index 2).
+    #   * "sh": 4th-order spherical harmonics (T8.3/#17).  We set up ONLY the
+    #     phase-level General['SH Texture'] dict -- this is the same path the
+    #     GSAS-II GUI uses for SH texture, and it is what the refinement
+    #     engine's SHTXcal consumes (GSASIIstrMath.GetIntensityCorr prefers
+    #     SHTXcal whenever pfx+'SHorder' is present in the parameter dict).
+    #     We deliberately do NOT touch the histogram-level Pref.Ori. entry:
+    #     flipping Pref.Ori.[0] to 'SH' routes the engine to SHPOcal, whose
+    #     coefficient names are built with IfLMN=False (GSASIIstrIO sets
+    #     controlDict['SHnames'] with IfLMN=False) while the parameter dict is
+    #     populated from General['SH Texture'] with IfLMN=True names -- that
+    #     mismatch makes refinement die with "unable to evaluate initial
+    #     objective function" on e.g. '0:0:C(2,0)'.
     if want_po:
+        po_model = opts.get("po_model", "md")
         for p in phases:
             try:
-                for _hname, hd in p.data.get("Histograms", {}).items():
-                    po = hd.get("Pref.Ori.")
-                    if po is None:
-                        continue
-                    po[0] = "MD"          # March-Dollase model
-                    po[3] = [0, 0, 1]     # PO axis = c-axis (basal texture)
-                    po[2] = True          # refine the March r parameter
+                if po_model == "sh":
+                    from GSASII import GSASIIlattice as G2lat
+                    SGData = p.data["General"]["SGData"]
+                    order = 4
+                    # IfLMN=True (default) matches what the engine generates
+                    # at refine time (GSASIIstrMath.SHTXcal).
+                    cof_names = G2lat.GenSHCoeffT(
+                        SGData["SGLaue"], "0", order
+                    )
+                    coeffs = dict(zip(cof_names, [0.0] * len(cof_names)))
+                    st = p.data["General"].get("SH Texture")
+                    if st is not None:
+                        st["Order"] = order
+                        st["Model"] = "cylindrical"
+                        st["Sample omega"] = [False, 0.0]
+                        st["Sample chi"] = [False, 0.0]
+                        st["Sample phi"] = [False, 0.0]
+                        st["SH Coeff"] = [True, dict(coeffs)]
+                else:
+                    for _hname, hd in p.data.get("Histograms", {}).items():
+                        po = hd.get("Pref.Ori.")
+                        if po is None:
+                            continue
+                        po[0] = "MD"          # March-Dollase model
+                        po[3] = [0, 0, 1]     # PO axis = c-axis (basal texture)
+                        # Start r below 1 (basal/platy habit): the r=1.0
+                        # default is a local minimum of the MD objective for
+                        # strongly layered phases -- with r0=1.0 the
+                        # least-squares step stays at 1.0 and the (001)
+                        # texture enhancement is never modelled (T8.3/#17:
+                        # 4-1 brucite wt% error -4.3 -> +0.1 once r0=0.7 and
+                        # the window opens to 10°).
+                        po[1] = 0.7           # basal/platy habit: start r<1
+                        po[2] = True          # refine the March r parameter
             except Exception:
                 pass
         gpx.set_Controls("cycles", max(cycles // 2, 2))
@@ -687,6 +731,7 @@ def build_gsas2_project(
             "refine_background": bool(options.refine_background),
             "refine_profile": bool(options.refine_profile),
             "refine_po": bool(options.refine_po),
+            "po_model": str(options.po_model),
             "refine_size_strain": bool(options.refine_size_strain),
             "wavelength": float(options.wavelength),
             "two_theta_range": (

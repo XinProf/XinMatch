@@ -85,6 +85,12 @@ class RefineOptions:
         Whether to refine March-Dollase preferred-orientation parameters.
         The GSAS-II driver turns this on only after the profile has
         converged (otherwise the MD integrand can go NaN).
+    po_model:
+        Preferred-orientation model when *refine_po* is ``True``:
+        ``"md"`` = one March-Dollase parameter along the phase's c axis
+        (the default, safe for basal/platy texture); ``"sh"`` = 4th-order
+        spherical harmonics (T8.3/#17: more flexible for strongly layered
+        phases such as brucite, at the cost of more refined parameters).
     refine_size_strain:
         Whether to refine crystallite-size / microstrain broadening
         parameters (isotropic Size + Mustrain).  The GSAS-II backend turns
@@ -94,7 +100,13 @@ class RefineOptions:
         Radiation wavelength in Å.
     two_theta_range:
         Optional ``(2θ_min, 2θ_max)`` window; ``None`` ⇒ fit the whole
-        pattern.
+        pattern.  Default ``(10, 120)``: the low-angle 5-10° band is
+        dominated by background / sample-surface effects in real patterns,
+        and several minerals have their strongest reflection just below
+        20° (e.g. brucite (001) at ~18.6° for Cu Kα) -- a 20° lower bound
+        silently removes that peak and biases the phase scale (T8.3/#17:
+        brucite wt% error dropped from -4.3 to +0.1 wt% once the window
+        opened to 10°).
     """
 
     max_iter: int = 50
@@ -102,9 +114,10 @@ class RefineOptions:
     refine_background: bool = True
     refine_profile: bool = True
     refine_po: bool = False
+    po_model: str = "md"
     refine_size_strain: bool = False
     wavelength: float = 1.5406
-    two_theta_range: tuple[float, float] | None = None
+    two_theta_range: tuple[float, float] | None = (10.0, 120.0)
 
 
 @dataclass
