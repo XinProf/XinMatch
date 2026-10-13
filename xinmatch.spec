@@ -31,10 +31,10 @@ Build with::
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 1.4.0) ----
+# ---- Version (read-only mirror of pyproject [project] version = 1.5.0) ----
 APP_NAME = "XinMatch"
-APP_VERSION = "1.4.0"
-VERSION_TUPLE = (1, 4, 0, 0)
+APP_VERSION = "1.5.0"
+VERSION_TUPLE = (1, 5, 0, 0)
 
 # ---- Collect non-.py assets for packages that ship them at runtime ----
 datas = []
@@ -50,7 +50,10 @@ hiddenimports += _pg_h
 # Project data files (see module docstring for why these exact destinations).
 datas += [
     ("xinmatch/core/db/schema.sql", "xinmatch/core/db"),
-    ("data/cod_inorganics.db", "data"),
+    # NOTE (v1.5.0): data/cod_inorganics.db is intentionally NOT collected.
+    # The reference DB (~512 MB) ships as a separate downloadable archive
+    # (data is mountable next to the exe: <exe-dir>/data/cod_inorganics.db,
+    # auto-resolved by multi_db.default_db_path when frozen).
     # Brand assets (logo / splash / icons).  Read at runtime through
     # ``_asset_path`` (``Path(__file__).resolve().parents[2] / "assets"``),
     # which in the onedir bundle resolves to ``_internal/assets`` — so the
@@ -62,7 +65,7 @@ datas += [
     ("xinmatch/ui/assets", "xinmatch/ui/assets"),
 ]
 
-# ---- Windows version resource (FileVersion / ProductVersion = 1.4.0) ----
+# ---- Windows version resource (FileVersion / ProductVersion = 1.5.0) ----
 version_info = vi.VSVersionInfo(
     ffi=vi.FixedFileInfo(
         filevers=VERSION_TUPLE,
@@ -149,5 +152,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="xinmatch-1.4.0",
+    name="xinmatch-1.5.0",
 )

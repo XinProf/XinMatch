@@ -4,15 +4,16 @@
 
 .DESCRIPTION
     1. Runs `pyinstaller xinmatch.spec` (onedir).  Exe icon comes from the
-       committed assets/icons/logo.ico; version resource (1.4.0 + contact
+       committed assets/icons/logo.ico; version resource (1.5.0 + contact
        sshztx@outlook.com) is embedded by the spec.
-    2. Relocates the bundled COD DB from <dist>/_internal/data/ to <dist>/data/
-       (next to the exes) so users can find / copy it easily.
+    2. The COD reference DB is NOT bundled (since v1.5.0 it ships as a
+       separate archive; mount it at <exe-dir>/data/cod_inorganics.db —
+       auto-resolved by multi_db.default_db_path() when frozen).
 
-    Output: dist/xinmatch-1.4.0/
-        XinMatch.exe          single entry (CLI subcommands / GUI dispatcher)
-        data/cod_inorganics.db reference DB
-        _internal/           Qt / Python / gems
+    Output: dist/xinmatch-1.5.0/
+        XinMatch.exe     single entry (CLI subcommands / GUI dispatcher)
+        _internal/       Qt / Python / gems
+        data/            (created only when the user mounts the DB archive)
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools/build_exe.ps1
@@ -24,7 +25,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "1.4.0"
+    [string]$Version = "1.5.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,24 +50,16 @@ Write-Host "==> Output       : $outDir"
 
 # ---- 1. Icon / version resource -----------------------------------------
 # Exe icon comes from the committed assets/icons/logo.ico; version resource
-# (1.4.0 + contact sshztx@outlook.com) is embedded by xinmatch.spec.
+# (1.5.0 + contact sshztx@outlook.com) is embedded by xinmatch.spec.
 
 # ---- 2. Run PyInstaller ---------------------------------------------------
 Write-Host "==> Running PyInstaller (clean build)"
 & $pyExe -m PyInstaller --noconfirm --clean (Join-Path $root "xinmatch.spec")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed (exit $LASTEXITCODE)." }
 
-# ---- 3. Relocate COD DB to top-level data/ next to the exes ---------------
-$bundledDb = Join-Path $outDir "_internal\data\cod_inorganics.db"
-$shipDbDir = Join-Path $outDir "data"
-$shipDb    = Join-Path $shipDbDir "cod_inorganics.db"
-if (Test-Path $bundledDb) {
-    New-Item -ItemType Directory -Force -Path $shipDbDir | Out-Null
-    Move-Item -Force $bundledDb $shipDb
-    Write-Host "==> Relocated DB -> $shipDb"
-} else {
-    Write-Warning "Bundled DB not found at $bundledDb (spec datas may have changed)."
-}
+# ---- 3. DB note (not bundled since v1.5.0) --------------------------------
+# The reference DB (~512 MB) ships separately.  Mount by extracting the DB
+# archive into this directory so it lands at data/cod_inorganics.db.
 
 # ---- Summary --------------------------------------------------------------
 Write-Host ""
@@ -74,15 +67,14 @@ Write-Host "==> Build complete. Contents of $outDir :"
 Get-ChildItem $outDir | Select-Object Mode, Length, Name | Format-Table -AutoSize
 
 $guiExe = Join-Path $outDir "XinMatch.exe"
-foreach ($f in @($guiExe, $shipDb)) {
-    if (Test-Path $f) {
-        $sz = [math]::Round((Get-Item $f).Length / 1MB, 1)
-        Write-Host ("    {0,8} MB  {1}" -f $sz, $f)
-    } else {
-        Write-Warning "MISSING: $f"
-    }
+if (Test-Path $guiExe) {
+    $sz = [math]::Round((Get-Item $guiExe).Length / 1MB, 1)
+    Write-Host ("    {0,8} MB  {1}" -f $sz, $guiExe)
+} else {
+    Write-Warning "MISSING: $guiExe"
 }
 
 $totalMB = [math]::Round(((Get-ChildItem $outDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 0)
 Write-Host ""
 Write-Host "==> Total bundle size: $totalMB MB"
+Write-Host "==> Remember: mount the DB archive (data/cod_inorganics.db) for search to work."
