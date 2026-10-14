@@ -10,8 +10,8 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 |----|------|--------|
 | T0.1 | Extract official doc library (169 topics) | ✅ |
 | T0.2 | Re-extract against latest 参考软件, diff versions | ✅ (2026-10-14：本机 Match4.qch=4.3 Build 360；重建 tools/extract_help.py 提取 170 主题；tools/diff_help_versions.py 双层 diff → docs/version_diff_4.2.329_vs_latest.md：无新增实质功能主题/无删除，实质变更 38 篇均 ≤4.6% 且主体为旧提取丢失公式/斜体标记，功能面一致) |
-| T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 参考软件 操作步骤 + 13→20–30 缺口清单）；合成谱 13 组已生成（`tools/generate_synthetic_patterns.py` → `D:\Project\XRD\test_xrd\synthetic\synth_01~13.txt`，真相已知），用户已在参考软件 SMPF 验收（jingzhun 13/13 Top-1、FoM=1.0000，归档 `tests/baseline/ref20261011/`）；真实样品采集仍待人工跑) |
-| T0.4 | Run 参考软件 baseline on the sample set | 🟡 (转换链就绪：参考软件 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；参考软件 对 13 组合成谱的候选基线已归档 `tests/baseline/ref20261011/`（jingzhun 19 + alloption 23 文件，验收记录 `docs/sample_expansion_20261011.md`）；真实样品跑完后导入) |
+| T0.3 | Build standard sample set (20–30 samples) | ✅ (2026-10-14：TiO₂ 金红石-锐钛矿标定系列接入（`D:\Project\XRD\XRData\TiO2\`，13 样品：6 标定 5–50% + 3 验证 8/18/36% + 4% 重复性×2 + 纯相金红石/锐钛矿，标称 wt% 全知，GB/T 30893-2014 方法学）；含既有 13 组合成谱 + 13 组精选真实谱；样品索引 `tests/fixtures/SAMPLE_INDEX.md` §3b；回归测试 `tests/quant/test_tio2_intensity_ratio.py` 4 项（数据缺失自动 skip）) |
+| T0.4 | Run 参考软件 baseline on the sample set | ✅ (2026-10-14：TiO₂ 系列 XinMatch 定量端到端验证——标定 K=1.3748（岛津参考 1.2234）、验证 8/18/36%→7.98/17.73/35.44%（绝对误差 −0.25/−1.5/−1.6%，优于参考强度比值法 −7.4/−8.0/−7.6%）、全谱/局部谱两路径差 ≤0.2%、4% 重复性 0.0008（GB/T 限值 0.18%）、18% 全谱检索 top-8 全 TiO₂；对照 `docs/TiO2-定量对照-20261014.md` + 验收 `docs/ACCEPTANCE-T0.3-T0.4-20261014.md`) |
 | T0.5 | Terminology mapping table | ✅ (2026-10-14：docs/TERMINOLOGY.md 九域三层映射：参考软件 4.3.360 IndexTable 3,514 词/166 主题 ↔ XinMatch UI 73 控件文本+8 CLI ↔ IUCr/ICDD 标准术语；高频词全覆盖，状态 [x]/[规划]/[—] 标注) |
 | T0.6 | Project skeleton + CI (pytest, ruff, mypy) | ✅ (2026-10-10：mypy 配置落地（pyproject [tool.mypy]，files=xinmatch + search/refine 基线豁免），26 源文件纯类型层修复，**109 错误 → 0（81 源文件）**，`python -m mypy` 与 `mypy xinmatch` 均 Success；豁免清单见 docs/mypy_baseline.md。pytest/ruff 此前已就绪) |
 | T0.7 | Cross-platform conventions | ✅ |
@@ -190,7 +190,7 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 - **Phase 16 3D 结构可视化 ✅（2026-10-09）**：`ui/structure_view.py`（QWebEngineView + **3Dmol.js 2.5.5 本地打包**，禁外部 CDN；gemmi 0.7.5 解析 CIF→JSON 纯函数 `cif_to_structure_data()`，晶胞从 CIF 标签直读剥 esd；COD ref_id→归档 CIF 路径规则实测核对）；主窗口"精修(&E)"→"3D 结构视图…" Ctrl+Shift+V，无 CIF 时空态页。精修后 CIF 接入 3D 留待后续（`Gsas2RefineOutcome` 未携带精修 CIF 路径）。
 - **About/图标**：About 对话框动态读 `xinmatch.__version__`（importlib.metadata，当前 1.0.0，不得硬编码）；主窗口图标 `assets/logo.png`（原创生成，随本版提交）。
 
-剩余：T0.3/T0.4 人工样品采集（工具已就绪）、T0.8 FoM P 值深挖、COD 全库检索质量上游修复（峰抽取标定）、T14.4 的 GUI 串口采集面板（后续）、Bruker RAW v1（无格式文档，需真实样本逆向）、Bruker RAW v4 真实验收（需 RAW4.00 样本）。
+剩余：T0.8 FoM P 值深挖、COD 全库检索质量上游修复（峰抽取标定）、T14.4 的 GUI 串口采集面板（后续）、Bruker RAW v1（无格式文档，需真实样本逆向）、Bruker RAW v4 真实验收（需 RAW4.00 样本）。
 
 ## COD 全库检索质量治理（2026-10-10，Organizer o_000EpGLcrJB 任务 1）✅
 
