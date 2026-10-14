@@ -339,8 +339,107 @@ def write_raw2(path: Path, pat: Pattern) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Rigaku RINT-2000 binary
+# Bruker RAW ver. 3 (RAW1.01)
 # ---------------------------------------------------------------------------
+def write_raw3(path: Path, pat: Pattern, *, n_blocks: int = 1) -> None:
+    """Write a Bruker RAW ver. 3 binary file (magic ``RAW1.01``).
+
+    Mirrors the layout read by :func:`xinmatch.core.io.bruker_raw.
+    read_bruker_raw_v3`: 712-byte fixed header, then one or more blocks
+    each with headLen/nSteps at +0/+4, start double at +8, step double at
+    +176, and float32 intensities after the headLen-prefixed data area.
+    """
+    start = float(pat.two_theta[0])
+    step = float(pat.step) if pat.step else 0.02
+    n = len(pat)
+
+    buf = bytearray(b"RAW1.01")
+    buf += b"\x00" * 5
+    buf += struct.pack("<i", n_blocks)
+    buf = buf.ljust(564, b"\x00")
+    buf[564:568] = struct.pack("<f", 250.0)          # gonio radius
+    buf = buf.ljust(608, b"\x00")
+    buf[608:612] = b"Cu\x00\x00"                     # anode @608
+    buf = buf.ljust(616, b"\x00")                    # pad to the Ka block
+    buf[616:656] = struct.pack(
+        "<5d", 1.5406, 1.5406, 1.54439, 1.492, 0.5
+    )
+    buf = buf.ljust(712, b"\x00")
+    assert len(buf) == 712
+
+    # Real RAW1.01 header field: 304 for multi-block files, but single-block
+    # files store 304−40 in the field (readers add 40 back for block==1).
+    field_head_len = 304 if n_blocks > 1 else 304 - 40
+    for _ in range(n_blocks):
+        buf += struct.pack("<ii", field_head_len, n)  # +0/+4
+        buf += struct.pack("<d", start)            # +8 start2Th
+        buf += b"\x00" * (176 - 16)
+        buf += struct.pack("<d", step)             # +176 step
+        buf += b"\x00" * (256 - 184)
+        buf += struct.pack("<i", 0)                # +256 extra word
+        buf += b"\x00" * (304 - 260)               # rest of block header
+        buf += struct.pack(f"<{n}f", *[float(v) for v in pat.intensity])
+    path.write_bytes(bytes(buf))
+
+
+# ---------------------------------------------------------------------------
+# Bruker RAW ver. 4 (RAW4.00)
+# ---------------------------------------------------------------------------
+def write_raw4(path: Path, pat: Pattern) -> None:
+    """Write a minimal Bruker RAW ver. 4 segmented file (magic ``RAW4.00``).
+
+    Layout follows the GSAS-II-documented v4 reader: 61-byte preamble,
+    an X-ray-source segment (type 30), and one powder-data bank with a
+    scan-header segment (type 50) followed by float32 intensities.
+    """
+    start = float(pat.two_theta[0])
+    step = float(pat.step) if pat.step else 0.02
+    n = len(pat)
+
+    buf = bytearray(b"RAW4.00")
+    buf += b"\x00" * 5
+    buf += b"01/01/2026\x00\x00"[:12].ljust(12, b"\x00")   # date @12
+    buf += b"12:00:00\x00\x00"[:10].ljust(10, b"\x00")     # time @24
+    buf = buf.ljust(61, b"\x00")
+
+    # Segment 30: X-ray source (body must be exactly seg30_len bytes)
+    seg30_len = 120
+    buf += struct.pack("<II", 30, seg30_len)
+    buf += b"\x00" * 64
+    buf += struct.pack("<5d", 1.5406, 1.5406, 1.54439, 1.492, 0.5)
+    buf += b"\x00" * 4
+    buf += b"Cu\x00\x00"
+    buf += b"\x00" * (seg30_len - 112)  # 64 + 40 + 4 + 4 = 112 already written
+
+    # Powder data bank: fixed field layout (offsets per GSAS-II reader).
+    # The scan-header segment (type 50) is skipped by the reader, so its
+    # payload is arbitrary padding of the right length.
+    hdr_seg = b"\x00" * 64
+    hdr_size = len(hdr_seg)
+    datum_size = 4
+
+    # segtype 0 marks the bank; payload has the fixed field layout.
+    bank_len = 156 + hdr_size + datum_size * n
+    buf += struct.pack("<II", 0, bank_len)
+    buf += b"\x00" * 28
+    buf += b"Locked Coupled\x00".ljust(24, b"\x00")
+    buf += b"\x00" * 16
+    buf += struct.pack("<d", start)       # startAngle @ +68
+    buf += struct.pack("<d", step)        # stepSize   @ +76
+    buf += struct.pack("<I", n)           # Nsteps     @ +84
+    buf += struct.pack("<f", 1.0)         # stepTime   @ +88
+    buf += b"\x00" * 4
+    buf += struct.pack("<f", 40.0)        # kV         @ +96
+    buf += struct.pack("<f", 40.0)        # mA         @ +100
+    buf += b"\x00" * 4
+    buf += struct.pack("<d", 1.5406)      # usedWave   @ +108
+    buf += b"\x00" * 16
+    buf += struct.pack("<I", datum_size)  # datumSize  @ +132
+    buf += struct.pack("<I", hdr_size)    # hdrSize    @ +136
+    buf += b"\x00" * 16
+    buf += hdr_seg
+    buf += struct.pack(f"<{n}f", *[float(v) for v in pat.intensity])
+    path.write_bytes(bytes(buf))
 def write_rigaku_raw(path: Path, pat: Pattern) -> None:
     """Write a Rigaku RINT-2000 binary file (magic ``FI\\x00\\x00``).
 

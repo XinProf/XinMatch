@@ -8,7 +8,8 @@ Submodules:
 * :mod:`detect` — format auto-detection.
 * :mod:`free` — free (vendor-neutral) ASCII formats.
 * :mod:`panalytical` — PANalytical/Philips ``.rd``/``.udf``/``.udi``.
-* :mod:`bruker` — Bruker/Siemens ``.uxd``/``.brml`` (``.raw`` TODO).
+* :mod:`bruker` — Bruker/Siemens ``.uxd``/``.brml``.
+* :mod:`bruker_raw` — Bruker RAW ver. 3/4 binary (``.raw``).
 * :mod:`exporters` — ASCII profile & peak-list writers.
 """
 
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from xinmatch.core.io import detect
 from xinmatch.core.io.bruker import read_brml, read_raw, read_uxd
+from xinmatch.core.io.bruker_raw import read_bruker_raw_v3, read_bruker_raw_v4
 from xinmatch.core.io.detect import detect_format
 from xinmatch.core.io.free import (
     read_ascii_profile_2col,
@@ -57,6 +59,8 @@ _READERS = {
     detect.FMT_SHIMADZU_RAW: read_shimadzu_raw,
     detect.FMT_SHIMADZU_TXT: read_shimadzu_txt,
     detect.FMT_RAW2: read_raw2,
+    detect.FMT_RAW3: read_bruker_raw_v3,
+    detect.FMT_RAW4: read_bruker_raw_v4,
     detect.FMT_RIGAKU_RAW: read_rigaku_raw,
     detect.FMT_RAW: read_raw,
 }
@@ -84,6 +88,8 @@ __all__ = [
     "read_shimadzu_raw",
     "read_shimadzu_txt",
     "read_raw2",
+    "read_bruker_raw_v3",
+    "read_bruker_raw_v4",
     "read_rigaku_raw",
     "read_raw",
 ]

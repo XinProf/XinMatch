@@ -35,7 +35,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T2.1 | Format auto-detection | ✅ |
 | T2.2 | Free formats (6) | ✅ |
 | T2.3 | PANalytical (.rd/.udf/.udi) | ✅ |
-| T2.4 | Bruker (.uxd/.brml; .raw TODO) | 🟡 |
+| T2.4 | Bruker (.uxd/.brml; .raw v1/v3) | ✅ (`.uxd/.brml` 此前完成；**2026-10-14 补齐 RAW v3/v4**：`core/io/bruker_raw.py` `read_bruker_raw_v3`（RAW1.01 多块容器，真实 data035 WC 残余应力谱 10 块验证、文件完全消费）+ `read_bruker_raw_v4`（RAW4.00 段式容器，含 seg30 光源段 Ka/anode 解析）；detect 新增 FMT_RAW3/RAW4 + `load_pattern` 分发；**v1（magic `RAW `）结论：无公开格式文档 + GSAS-II 官方拒绝支持 → 不可实现**（与 GSAS-II 同结论，验收文档声明）；12 新测试 + tests/io 100 全绿；验收 `docs/ACCEPTANCE-T2.4-20261014.md`） |
 | T2.8 | Exporters (ASCII profile + peak list) | ✅ |
 | T2.9 | Unified `load_pattern()` entry | ✅ |
 | T2.10 | 全谱图格式补齐（对齐 PolyXRD 可解析全集，2026-10-10） | ✅ (`core/io/xrdml.py` XRDML、`mdi.py` MDI（丢首点校正）、`shimadzu_txt.py` 岛津文本导出、`vendor_misc.py` RAS/CPI/PLV/ESG/GDF；detect 修复二进制魔数限定 .raw 扩展名，文本型 .raw 保留文本签名路径；22 格式全 dispatch，真实 4-1.mdi 峰位与 .dat 对齐 <0.02°) |
@@ -190,7 +190,7 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 - **Phase 16 3D 结构可视化 ✅（2026-10-09）**：`ui/structure_view.py`（QWebEngineView + **3Dmol.js 2.5.5 本地打包**，禁外部 CDN；gemmi 0.7.5 解析 CIF→JSON 纯函数 `cif_to_structure_data()`，晶胞从 CIF 标签直读剥 esd；COD ref_id→归档 CIF 路径规则实测核对）；主窗口"精修(&E)"→"3D 结构视图…" Ctrl+Shift+V，无 CIF 时空态页。精修后 CIF 接入 3D 留待后续（`Gsas2RefineOutcome` 未携带精修 CIF 路径）。
 - **About/图标**：About 对话框动态读 `xinmatch.__version__`（importlib.metadata，当前 1.0.0，不得硬编码）；主窗口图标 `assets/logo.png`（原创生成，随本版提交）。
 
-剩余：T0.3/T0.4 人工样品采集（工具已就绪）、T0.2 版本 diff、T0.5 术语映射表、T0.8 FoM P 值深挖、T2.4 Bruker RAW v1/v3 完整支持、COD 全库检索质量上游修复（峰抽取标定）、T14.4 的 GUI 串口采集面板（后续）。
+剩余：T0.3/T0.4 人工样品采集（工具已就绪）、T0.2 版本 diff、T0.5 术语映射表、T0.8 FoM P 值深挖、COD 全库检索质量上游修复（峰抽取标定）、T14.4 的 GUI 串口采集面板（后续）、Bruker RAW v1（无格式文档，需真实样本逆向）、Bruker RAW v4 真实验收（需 RAW4.00 样本）。
 
 ## COD 全库检索质量治理（2026-10-10，Organizer o_000EpGLcrJB 任务 1）✅
 

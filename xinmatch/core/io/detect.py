@@ -51,6 +51,8 @@ FMT_RAW = "raw"              # Generic / vendor raw (.raw)
 FMT_SHIMADZU_RAW = "shimadzu_raw"  # Shimadzu XRD binary (.raw)
 FMT_SHIMADZU_TXT = "shimadzu_txt"  # Shimadzu XRD ASCII export (.txt/.smz)
 FMT_RAW2 = "raw2"            # RAW2 fixed-header binary (.raw)
+FMT_RAW3 = "raw3"            # RAW1.01 fixed-header multi-block (.raw)
+FMT_RAW4 = "raw4"            # RAW4.00 segmented container (.raw)
 FMT_RIGAKU_RAW = "rigaku_raw"  # Rigaku RINT-2000 binary (.raw)
 
 # Extensions that map 1:1 to a format
@@ -138,6 +140,12 @@ def detect_format(path: str | Path) -> str:
         # RAW2 fixed-header binary (IUCr round-robin .raw etc.)
         if raw.startswith(b"RAW2"):
             return FMT_RAW2
+        # Bruker RAW ver. 3 (RAW1.01) / ver. 4 (RAW4.00) — "RAW " (ver. 1)
+        # is undocumented and unsupported (see bruker_raw module docstring).
+        if raw.startswith(b"RAW1.01"):
+            return FMT_RAW3
+        if raw.startswith(b"RAW4.00"):
+            return FMT_RAW4
         # Rigaku RINT-2000 binary .raw
         if raw.startswith(b"FI\x00\x00"):
             return FMT_RIGAKU_RAW
