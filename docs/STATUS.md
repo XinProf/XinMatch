@@ -1,4 +1,4 @@
-# Implementation status
+﻿# Implementation status
 
 Tracks progress against [ROADMAP_v3.md](../ROADMAP_v3.md).
 
@@ -9,10 +9,10 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | ID | Task | Status |
 |----|------|--------|
 | T0.1 | Extract official doc library (169 topics) | ✅ |
-| T0.2 | Re-extract against latest 参考软件, diff versions | ⬜ |
+| T0.2 | Re-extract against latest 参考软件, diff versions | ✅ (2026-10-14：本机 Match4.qch=4.3 Build 360；重建 tools/extract_help.py 提取 170 主题；tools/diff_help_versions.py 双层 diff → docs/version_diff_4.2.329_vs_latest.md：无新增实质功能主题/无删除，实质变更 38 篇均 ≤4.6% 且主体为旧提取丢失公式/斜体标记，功能面一致) |
 | T0.3 | Build standard sample set (20–30 samples) | 🟡 (辅助工具就绪：`tools/import_match_baseline.py` + `tests/baseline/match/README.md`（人工 参考软件 操作步骤 + 13→20–30 缺口清单）；合成谱 13 组已生成（`tools/generate_synthetic_patterns.py` → `D:\Project\XRD\test_xrd\synthetic\synth_01~13.txt`，真相已知），用户已在参考软件 SMPF 验收（jingzhun 13/13 Top-1、FoM=1.0000，归档 `tests/baseline/ref20261011/`）；真实样品采集仍待人工跑) |
 | T0.4 | Run 参考软件 baseline on the sample set | 🟡 (转换链就绪：参考软件 导出 CSV → `import_match_baseline.py` 规范化 → `tests/baseline/match/`（生产加载器 `load_match_csv` 回读校验，真实 1-1.csv smoke 55 行往返一致）；参考软件 对 13 组合成谱的候选基线已归档 `tests/baseline/ref20261011/`（jingzhun 19 + alloption 23 文件，验收记录 `docs/sample_expansion_20261011.md`）；真实样品跑完后导入) |
-| T0.5 | Terminology mapping table | ⬜ |
+| T0.5 | Terminology mapping table | ✅ (2026-10-14：docs/TERMINOLOGY.md 九域三层映射：参考软件 4.3.360 IndexTable 3,514 词/166 主题 ↔ XinMatch UI 73 控件文本+8 CLI ↔ IUCr/ICDD 标准术语；高频词全覆盖，状态 [x]/[规划]/[—] 标注) |
 | T0.6 | Project skeleton + CI (pytest, ruff, mypy) | ✅ (2026-10-10：mypy 配置落地（pyproject [tool.mypy]，files=xinmatch + search/refine 基线豁免），26 源文件纯类型层修复，**109 错误 → 0（81 源文件）**，`python -m mypy` 与 `mypy xinmatch` 均 Success；豁免清单见 docs/mypy_baseline.md。pytest/ruff 此前已就绪) |
 | T0.7 | Cross-platform conventions | ✅ |
 | T0.8 | Reverse-engineer FoM P-value definitions from baseline CSV | 🟡 |
@@ -190,7 +190,7 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 - **Phase 16 3D 结构可视化 ✅（2026-10-09）**：`ui/structure_view.py`（QWebEngineView + **3Dmol.js 2.5.5 本地打包**，禁外部 CDN；gemmi 0.7.5 解析 CIF→JSON 纯函数 `cif_to_structure_data()`，晶胞从 CIF 标签直读剥 esd；COD ref_id→归档 CIF 路径规则实测核对）；主窗口"精修(&E)"→"3D 结构视图…" Ctrl+Shift+V，无 CIF 时空态页。精修后 CIF 接入 3D 留待后续（`Gsas2RefineOutcome` 未携带精修 CIF 路径）。
 - **About/图标**：About 对话框动态读 `xinmatch.__version__`（importlib.metadata，当前 1.0.0，不得硬编码）；主窗口图标 `assets/logo.png`（原创生成，随本版提交）。
 
-剩余：T0.3/T0.4 人工样品采集（工具已就绪）、T0.2 版本 diff、T0.5 术语映射表、T0.8 FoM P 值深挖、COD 全库检索质量上游修复（峰抽取标定）、T14.4 的 GUI 串口采集面板（后续）、Bruker RAW v1（无格式文档，需真实样本逆向）、Bruker RAW v4 真实验收（需 RAW4.00 样本）。
+剩余：T0.3/T0.4 人工样品采集（工具已就绪）、T0.8 FoM P 值深挖、COD 全库检索质量上游修复（峰抽取标定）、T14.4 的 GUI 串口采集面板（后续）、Bruker RAW v1（无格式文档，需真实样本逆向）、Bruker RAW v4 真实验收（需 RAW4.00 样本）。
 
 ## COD 全库检索质量治理（2026-10-10，Organizer o_000EpGLcrJB 任务 1）✅
 
@@ -575,3 +575,4 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 **验收**（详见 `docs/ACCEPTANCE-T14.4-20261014.md`）：`tests/instrument` 37 + `tests/test_batch_core.py` + `tests/cli/test_cli.py` = 65 passed；`tests/test_batch_runner.py` 4/4（batch.py 改动回归）；ruff 本轮文件全绿；mypy 本轮零新增（全仓剩 12 处已登记存量）；CLI 实跑 scan（空列表 exit 0）/ collect --help 正常。顺带清偿 T14.3 欠账：`batch.py` 3 处 mypy 错误（`pattern_path` 窄化断言、`peaks: list[Any]` 注解、`_resolve` 误用 `config_dir`→`base_dir`）。
 
 **边界**：GUI 串口采集面板留后续（core 的 `on_point` 回调即接入点；本机无真实仪器可验收）；真实硬件联调与二进制/专有协议报文需用户仪器实测样本（core 解析为单函数 `parse_point`，扩展点单一）。
+
