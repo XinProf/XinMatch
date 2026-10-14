@@ -28,6 +28,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from xinmatch.core.batch import load_config as load_batch_config
+from xinmatch.core.batch import run_batch
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Peak, Restraints
 from xinmatch.core.preprocess.auto_pipeline import auto_process
@@ -333,6 +335,18 @@ def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def cmd_batch(args: argparse.Namespace) -> dict[str, Any]:
+    """``xinmatch batch`` — run a JSON/YAML batch config (T14.3).
+
+    Delegates to :mod:`xinmatch.core.batch`; per-sample reports and the
+    batch summary are written to the paths in the config's ``output``
+    block.  Returns the aggregated batch result (JSON when ``--json``).
+    """
+    config, config_dir = load_batch_config(args.config)
+    batch = run_batch(config, config_dir=config_dir)
+    return batch.to_dict()
+
+
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
@@ -508,6 +522,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(p_run)
     p_run.set_defaults(func=cmd_run)
+
+    # --- batch ---
+    p_batch = sub.add_parser(
+        "batch", help="Run a JSON/YAML batch config over multiple samples (T14.3)."
+    )
+    p_batch.add_argument(
+        "config", help="Path to the batch config (.yaml/.yml/.json).",
+    )
+    _add_json_flag(p_batch)
+    p_batch.set_defaults(func=cmd_batch)
 
     return parser
 
