@@ -6,12 +6,14 @@ algorithms are implemented at this layer.
 
 Subcommands
 -----------
-import    Load a diffraction pattern file.
-process   Run the automatic raw-data processing pipeline.
-search    Run peak-based search-match against a reference database.
-quantify  Run RIR quantitative phase analysis.
-report    Render a phase-analysis report (HTML / text / markdown).
-run       One-shot pipeline: import → process → search → quantify → report.
+import     Load a diffraction pattern file.
+process    Run the automatic raw-data processing pipeline.
+search     Run peak-based search-match against a reference database.
+quantify   Run RIR quantitative phase analysis.
+report     Render a phase-analysis report (HTML / text / markdown).
+run        One-shot pipeline: import → process → search → quantify → report.
+batch      Run a JSON/YAML batch config over multiple samples (T14.3).
+instrument Serial instrument control: scan ports / collect data (T14.4).
 
 Every subcommand supports ``--help`` and a global ``--json`` flag that
 switches the output from human-readable text to a structured JSON
@@ -30,6 +32,7 @@ from typing import Any
 
 from xinmatch.core.batch import load_config as load_batch_config
 from xinmatch.core.batch import run_batch
+from xinmatch.core.instrument.collector import DataPoint  # no serial import
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Peak, Restraints
 from xinmatch.core.preprocess.auto_pipeline import auto_process
@@ -348,6 +351,185 @@ def cmd_batch(args: argparse.Namespace) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# instrument (T14.4)
+# ---------------------------------------------------------------------------
+class _LivePlotter:
+    """Minimal matplotlib live-plot helper for ``instrument collect``.
+
+    Appends points as they arrive and refreshes the axes in batches.
+    matplotlib is imported lazily; if it is unavailable the constructor
+    degrades to a no-op (``enabled=False``) instead of raising, so a
+    headless / stripped environment can still collect data.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = False
+        self._xs: list[float] = []
+        self._ys: list[float] = []
+        self._line: Any = None
+        self._fig: Any = None
+        self._ax: Any = None
+        try:
+            import matplotlib  # noqa: PLC0415 — optional dependency
+            import matplotlib.pyplot as plt  # noqa: PLC0415
+
+            if not plt.isinteractive():
+                plt.ion()
+            self._fig, self._ax = plt.subplots(figsize=(8, 4))
+            self._ax.set_xlabel("2θ (°)")
+            self._ax.set_ylabel("Intensity (counts)")
+            self._ax.set_title("XinMatch — serial data stream")
+            (self._line,) = self._ax.plot([], [], "-", lw=1.0)
+            self.enabled = True
+        except ImportError:  # pragma: no cover — env-dependent
+            print(
+                "warning: matplotlib not available — live plot disabled "
+                "(data collection continues)",
+                file=sys.stderr,
+            )
+
+    def append(self, point: DataPoint) -> None:
+        if not self.enabled:
+            return
+        self._xs.append(point.two_theta)
+        self._ys.append(point.intensity)
+        # Refresh in batches to keep the UI responsive on fast streams.
+        if len(self._xs) % 25 == 0:
+            self._line.set_data(self._xs, self._ys)
+            self._ax.relim()
+            self._ax.autoscale_view()
+            self._fig.canvas.draw_idle()
+            self._fig.canvas.flush_events()
+
+    def finish(self) -> None:
+        if not self.enabled or not self._xs:
+            return
+        self._line.set_data(self._xs, self._ys)
+        self._ax.relim()
+        self._ax.autoscale_view()
+        self._fig.canvas.draw()
+        try:
+            import matplotlib.pyplot as plt  # noqa: PLC0415
+
+            plt.show(block=False)
+        except ImportError:  # pragma: no cover
+            pass
+
+
+def cmd_instrument_scan(args: argparse.Namespace) -> dict[str, Any]:
+    """``xinmatch instrument scan`` — enumerate visible serial ports.
+
+    Returns the port list; each entry carries ``device``, ``description``
+    and ``hwid``.  When no serial stack is available the result is an
+    empty list with a warning (not an error), so scripts can degrade
+    gracefully on machines without serial hardware.
+    """
+    from xinmatch.core.instrument import list_serial_ports
+
+    ports = list_serial_ports()
+    return {"ports": [p.to_dict() for p in ports], "count": len(ports)}
+
+
+def cmd_instrument_collect(args: argparse.Namespace) -> dict[str, Any]:
+    """``xinmatch instrument collect`` — stream points from a serial port.
+
+    Opens the port, reads ASCII lines, parses each into (2θ, I) and
+    persists them to ``--out`` (two-column ASCII, one point per line).
+    ``--seconds`` / ``--max-points`` bound the acquisition; Ctrl+C stops
+    early.  When ``--out`` is omitted the points go to stdout as JSON
+    lines (with ``--json``, the full summary is printed at the end).
+    """
+    from xinmatch.core.instrument import (
+        DataPoint,
+        SerialCollector,
+        SerialConfig,
+        open_serial,
+    )
+
+    config = SerialConfig(
+        port=args.port,
+        baudrate=args.baudrate,
+        bytesize=args.bytesize,
+        parity=args.parity,
+        stopbits=args.stopbits,
+        timeout=args.timeout,
+    )
+    serial_obj = open_serial(
+        config.port,
+        baudrate=config.baudrate,
+        bytesize=config.bytesize,
+        parity=config.parity,
+        stopbits=config.stopbits,
+        timeout=config.timeout,
+    )
+    collector: SerialCollector | None = None
+
+    # Optional live plotting (ROADMAP T14.4 acceptance: "能接收串口数据流
+    # 并实时绘制").  matplotlib is lazy-imported; without it the flag degrades
+    # to the verbose progress line instead of failing the acquisition.
+    live_plot = _LivePlotter() if args.live_plot else None
+
+    def _on_point(point: DataPoint) -> None:
+        # Real-time progress on stderr so stdout stays clean for data/JSON.
+        if args.verbose and collector is not None:
+            print(
+                f"\rpoints={collector.n_parsed} skipped={collector.n_skipped} "
+                f"last=({point.two_theta:.4f}, {point.intensity:.4f})",
+                end="",
+                file=sys.stderr,
+            )
+        if live_plot is not None:
+            live_plot.append(point)
+
+    collector = SerialCollector(serial_obj, on_point=_on_point)
+    try:
+        collector.collect(
+            seconds=args.seconds if args.seconds > 0 else None,
+            max_points=args.max_points if args.max_points > 0 else None,
+        )
+    except KeyboardInterrupt:
+        if args.verbose:
+            print(file=sys.stderr)
+    finally:
+        serial_obj.close()
+        if live_plot is not None:
+            live_plot.finish()
+
+    if args.verbose:
+        print(file=sys.stderr)
+
+    # Persist to file (two-column ASCII, importable by XinMatch).
+    if args.out:
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with out_path.open("w", encoding="utf-8", newline="\n") as fh:
+            collector.write_points(fh)
+        data_path = str(out_path)
+    else:
+        data_path = None
+        if args.as_json:
+            for p in collector.points:
+                print(json.dumps(p.to_dict()))
+        else:
+            for p in collector.points:
+                print(f"{p.two_theta:.5f} {p.intensity:.4f}")
+
+    return {
+        "port": config.port,
+        "raw_lines": collector.n_raw_lines,
+        "points": collector.n_parsed,
+        "skipped": collector.n_skipped,
+        "data_file": data_path,
+        "first": (
+            collector.points[0].to_dict() if collector.points else None
+        ),
+        "last": (
+            collector.points[-1].to_dict() if collector.points else None
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
 def _add_json_flag(parser: argparse.ArgumentParser) -> None:
@@ -532,6 +714,45 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(p_batch)
     p_batch.set_defaults(func=cmd_batch)
+
+    # --- instrument (T14.4) ---
+    p_inst = sub.add_parser(
+        "instrument",
+        help="Serial instrument control: scan ports / collect data (T14.4).",
+    )
+    inst_sub = p_inst.add_subparsers(dest="instrument_action", required=True)
+
+    p_scan = inst_sub.add_parser("scan", help="Enumerate visible serial ports.")
+    _add_json_flag(p_scan)
+    p_scan.set_defaults(func=cmd_instrument_scan)
+
+    p_collect = inst_sub.add_parser(
+        "collect", help="Stream (2θ, I) points from a serial port to a file."
+    )
+    p_collect.add_argument("--port", required=True, help="Serial port (COM3 / /dev/ttyUSB0).")
+    p_collect.add_argument("--baud", dest="baudrate", type=int, default=9600,
+                           help="Baud rate (default 9600).")
+    p_collect.add_argument("--bytesize", type=int, default=8,
+                           choices=(5, 6, 7, 8), help="Data bits (default 8).")
+    p_collect.add_argument("--parity", default="N", choices=("N", "E", "O", "M", "S"),
+                           help="Parity (default N).")
+    p_collect.add_argument("--stopbits", type=float, default=1.0,
+                           choices=(1.0, 1.5, 2.0), help="Stop bits (default 1).")
+    p_collect.add_argument("--timeout", type=float, default=1.0,
+                           help="Read-line timeout seconds (default 1.0).")
+    p_collect.add_argument("--seconds", type=float, default=0.0,
+                           help="Stop after N seconds (0 = no time cap).")
+    p_collect.add_argument("--max-points", type=int, default=0,
+                           help="Stop after N parsed points (0 = no cap).")
+    p_collect.add_argument("--out", "-o", default=None,
+                           help="Output two-column ASCII file (default: stdout).")
+    p_collect.add_argument("--verbose", action="store_true",
+                           help="Print live progress to stderr.")
+    p_collect.add_argument("--live-plot", action="store_true",
+                           help="Plot points in real time (matplotlib; "
+                                "degrades gracefully when unavailable).")
+    _add_json_flag(p_collect)
+    p_collect.set_defaults(func=cmd_instrument_collect)
 
     return parser
 

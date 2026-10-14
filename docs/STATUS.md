@@ -162,7 +162,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T14.1 | CLI pipeline (import → process → search → quantify → report) | ✅ |
 | T14.2 | Python API (`xinmatch/__init__.py`) | ✅ |
 | T14.3 | Batch scripting (JSON/YAML config) | ✅ (`tools/batch_runner.py`：配置驱动批量流水线 load→preprocess→search→report（复用 core API 不重写算法）；单样品错误隔离不中断；每样品 HTML/MD/TXT 报告 + 汇总 `batch_summary.md`/`.json`；相对路径相对配置目录解析；CLI `python tools/batch_runner.py config.yaml`；示例 `tools/batch_config.example.yaml`；9 个新测试含 YAML/JSON 端到端) |
-| T14.4 | Serial instrument control | ⬜ |
+| T14.4 | Serial instrument control | ✅ (`xinmatch/core/instrument/`：端口扫描 + 安全打开（pyserial 懒加载、`loop://` URL 兼容）；流式采集器 `SerialCollector`（多分隔符/科学计数解析、on_point 实时回调、EOF/秒数/点数/外部停止、两列 ASCII 落盘且可被 load_pattern 直接导入）；CLI `instrument scan` / `instrument collect`（`--live-plot` 实时绘制，matplotlib 懒加载缺失降级）；pyproject 新增 `pyserial>=3.5`；37 新测试 + batch.py 3 处 mypy 欠账清偿；验收 `docs/ACCEPTANCE-T14.4-20261014.md`。GUI 采集面板留后续，core 的 on_point 回调即 GUI 实时绘制接入点) |
 
 ## Phase 13 — GUI (`ui/` · PySide6)
 
@@ -190,7 +190,7 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 - **Phase 16 3D 结构可视化 ✅（2026-10-09）**：`ui/structure_view.py`（QWebEngineView + **3Dmol.js 2.5.5 本地打包**，禁外部 CDN；gemmi 0.7.5 解析 CIF→JSON 纯函数 `cif_to_structure_data()`，晶胞从 CIF 标签直读剥 esd；COD ref_id→归档 CIF 路径规则实测核对）；主窗口"精修(&E)"→"3D 结构视图…" Ctrl+Shift+V，无 CIF 时空态页。精修后 CIF 接入 3D 留待后续（`Gsas2RefineOutcome` 未携带精修 CIF 路径）。
 - **About/图标**：About 对话框动态读 `xinmatch.__version__`（importlib.metadata，当前 1.0.0，不得硬编码）；主窗口图标 `assets/logo.png`（原创生成，随本版提交）。
 
-剩余：T14.4 serial instrument control、T0.3/T0.4 人工样品采集（工具已就绪）、T0.8 FoM P 值深挖、COD 全库检索质量上游修复（峰抽取标定）。
+剩余：T0.3/T0.4 人工样品采集（工具已就绪）、T0.2 版本 diff、T0.5 术语映射表、T0.8 FoM P 值深挖、T2.4 Bruker RAW v1/v3 完整支持、COD 全库检索质量上游修复（峰抽取标定）、T14.4 的 GUI 串口采集面板（后续）。
 
 ## COD 全库检索质量治理（2026-10-10，Organizer o_000EpGLcrJB 任务 1）✅
 
@@ -559,3 +559,19 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 - 全量核心回归（无 UI/无 pdf2_source_config）：**全部通过**；ruff 本轮文件全绿；mypy 本轮文件 0 错误（其余 8 处为 preprocess/model/fom_criteria 存量噪音）。
 
 **提交**：`(本提交)`。
+
+---
+
+## T14.4 串口仪器控制（2026-10-14）✅
+
+**任务**（路线图 Phase 14 最后一项）：串口配置、数据采集、实时图谱（对应参考软件 Qt5SerialPort，P2 可选）。
+
+**交付**：
+- `xinmatch/core/instrument/serial_port.py`：`list_serial_ports()`（无串口栈时返回空列表 + warning，不抛异常）；`open_serial()`（pyserial 懒加载；用 `serial_for_url` 支持 `loop://` 等 URL 协议，普通 COMx 照常）。
+- `xinmatch/core/instrument/collector.py`：`parse_point`（逗号/空格/TAB/全角逗号/分号/科学计数；注释行/空行/单数/纯文本跳过）；`iter_lines`（EOF / stop_event / max_lines 三停止条件）；`SerialCollector`（流式解析 + `on_point` 逐点回调——GUI 实时绘制的标准接入点；`n_raw_lines/n_parsed/n_skipped` 计数；两列 ASCII 落盘可被 `load_pattern` 直接导入）。
+- CLI：`xinmatch instrument scan`（枚举串口 JSON/文本）；`xinmatch instrument collect --port … [--baud/--bytesize/--parity/--stopbits/--timeout/--seconds/--max-points/--out/--verbose/--live-plot]`（流式采集；`--live-plot` matplotlib 懒加载实时绘制，缺失自动降级不中断采集）。
+- pyproject 正式依赖 + `pyserial>=3.5`（venv 实测 3.5）。
+
+**验收**（详见 `docs/ACCEPTANCE-T14.4-20261014.md`）：`tests/instrument` 37 + `tests/test_batch_core.py` + `tests/cli/test_cli.py` = 65 passed；`tests/test_batch_runner.py` 4/4（batch.py 改动回归）；ruff 本轮文件全绿；mypy 本轮零新增（全仓剩 12 处已登记存量）；CLI 实跑 scan（空列表 exit 0）/ collect --help 正常。顺带清偿 T14.3 欠账：`batch.py` 3 处 mypy 错误（`pattern_path` 窄化断言、`peaks: list[Any]` 注解、`_resolve` 误用 `config_dir`→`base_dir`）。
+
+**边界**：GUI 串口采集面板留后续（core 的 `on_point` 回调即接入点；本机无真实仪器可验收）；真实硬件联调与二进制/专有协议报文需用户仪器实测样本（core 解析为单函数 `parse_point`，扩展点单一）。

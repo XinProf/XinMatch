@@ -283,6 +283,7 @@ def run_sample(
         raise ValueError("sample entry is missing required key 'path'")
 
     pattern_path = _resolve(config_dir, str(rel_path))
+    assert pattern_path is not None  # rel_path is non-empty (checked above)
     sample_name = str(sample_cfg.get("name") or Path(str(rel_path)).stem)
     result = SampleResult(sample_name=sample_name, pattern_path=str(pattern_path))
 
@@ -296,7 +297,7 @@ def run_sample(
     #    raw profile directly and must not strip / smooth it).
     mode = str(search_cfg.get("mode", "peaks")).lower()
     smpf = mode == "smpf"
-    peaks = []
+    peaks: list[Any] = []
     if not smpf:
         _processed, peaks = auto_process(pattern, config=preprocess_cfg)
     result.n_peaks = len(peaks)
@@ -464,7 +465,7 @@ def run_batch(config: dict[str, Any], config_dir: Path | None = None) -> BatchRe
     # the config dir; by default the summary lands *inside* the output dir.
     summary_rel = output_cfg.get("summary")
     summary_path = (
-        _resolve(config_dir, str(summary_rel))
+        _resolve(base_dir, str(summary_rel))
         if summary_rel is not None
         else out_dir / "batch_summary.md"
     )
