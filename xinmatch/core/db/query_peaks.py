@@ -17,6 +17,53 @@ from collections import Counter
 
 logger = logging.getLogger(__name__)
 
+# Module-level cache of each entry's top-K intensities (descending), used
+# by the Hanawalt top-K prefilter to avoid a correlated subquery per
+# window row.  Built lazily from the (entry_id, intensity) index.  The
+# cache is keyed by the database **file path** only: in-memory databases
+# are never cached (their connection-id would be reused across pytest
+# fixtures, corrupting the table).
+_TOP_K_LIMIT = 20
+_top_k_cache: dict[str, dict[str, list[float]]] = {}
+
+
+def _load_top_k_intensities(conn: sqlite3.Connection) -> dict[str, list[float]]:
+    """Return ``{entry_id: [top-20 intensities, descending]}`` (cached).
+
+    Streams the full peaks table ordered by (entry_id, intensity DESC) —
+    served by the ``idx_peaks_entry_intensity`` index — and keeps only the
+    top ``_TOP_K_LIMIT`` intensities per entry.  ~600 MB COD DBs take a
+    few seconds on first use in a process; the result is cached per
+    database (keyed by its file path).  In-memory connections are rebuilt
+    on every call.
+    """
+    row = conn.execute("PRAGMA database_list").fetchone()
+    db_key = row[2] if row and row[2] else None
+    if db_key is not None:
+        cache = _top_k_cache.get(db_key)
+        if cache is not None:
+            return cache
+    cache = {}
+    cur = conn.execute(
+        "SELECT entry_id, intensity FROM peaks "
+        "ORDER BY entry_id, intensity DESC"
+    )
+    cur_eid: str | None = None
+    cur_list: list[float] = []
+    for eid, intensity in cur:
+        if eid != cur_eid:
+            if cur_eid is not None:
+                cache[cur_eid] = cur_list
+            cur_eid = eid
+            cur_list = []
+        if len(cur_list) < _TOP_K_LIMIT:
+            cur_list.append(float(intensity))
+    if cur_eid is not None:
+        cache[cur_eid] = cur_list
+    if db_key is not None:
+        _top_k_cache[db_key] = cache
+    return cache
+
 
 def search_by_d(
     conn: sqlite3.Connection,
@@ -28,6 +75,7 @@ def search_by_d(
     min_matches: int = 1,
     max_candidates: int | None = None,
     strongest_peak_only: bool = False,
+    strongest_k: int = 0,
 ) -> list[tuple[str, float]]:
     """Search reference entries by experimental d-spacings.
 
@@ -55,6 +103,21 @@ def search_by_d(
     distinct peaks and, when given, capped to the top *max_candidates*
     by match count — bounding the downstream FoM scoring cost.
 
+    Hanawalt-style prefiltering (``strongest_k``):
+
+    * ``strongest_k=0`` (default): no Hanawalt constraint.
+    * ``strongest_k=1``: only entries whose **strongest** reference peak
+      (maximum intensity) falls inside an experimental window are kept
+      (identical semantics to the legacy ``strongest_peak_only=True``).
+    * ``strongest_k=K>1``: only entries with **any of their K strongest
+      reference peaks** inside an experimental window are kept.  This
+      relaxes the pure strongest-peak rule for the common multi-phase
+      case where a minor phase's *strongest* line is masked by the
+      major phase's pattern while its 2nd–Kth strongest lines are
+      still observed.
+
+    The score remains the number of matched experimental peaks.
+
     Parameters
     ----------
     conn:
@@ -78,14 +141,14 @@ def search_by_d(
         Optional cap on the number of returned candidates (applied after
         sorting by match count descending).
     strongest_peak_only:
-        Hanawalt-style constraint (default ``False``): when ``True``,
-        only entries whose *strongest* peak (maximum reference
-        intensity) falls inside an experimental window are kept.  This
-        prunes the "many peaks happen to coincide with a dense
-        multi-phase pattern" false positives that dominate pure match
-        counting on full COD-scale databases, and keeps the true phases
-        (their strongest lines are present in the pattern).  The score
-        remains the number of matched experimental peaks.
+        Legacy Hanawalt switch (default ``False``): when ``True``, treated
+        as ``strongest_k=1`` unless *strongest_k* is already set.  Kept for
+        API compatibility.
+    strongest_k:
+        Number of strongest reference peaks eligible for the Hanawalt
+        window test (0 = disabled, 1 = strongest peak only, K = any of
+        the top-K).  When ``strongest_peak_only=True`` and
+        ``strongest_k==0``, this defaults to 1.
 
     Returns
     -------
@@ -95,6 +158,26 @@ def search_by_d(
     """
     if not peak_ds:
         return []
+
+    if strongest_k == 0 and strongest_peak_only:
+        strongest_k = 1
+
+    if strongest_k > 0:
+        # The top-K correlated subquery is served by the
+        # (entry_id, intensity) index.  Create it idempotently; on a
+        # read-only connection (e.g. a mounted DB opened with mode=ro)
+        # the CREATE fails and the query simply runs slower — still
+        # correct.  DDL auto-commits in sqlite3, so no explicit commit
+        # is issued here (avoids clobbering an outer transaction).
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_peaks_entry_intensity "
+                "ON peaks(entry_id, intensity DESC)"
+            )
+        except sqlite3.Error:
+            # Read-only / locked DB: proceed without the index.
+            logger.debug("could not create idx_peaks_entry_intensity "
+                         "(read-only connection?); top-K recall runs unindexed")
 
     def _window(d: float) -> tuple[float, float]:
         if wavelength is None:
@@ -111,21 +194,30 @@ def search_by_d(
         )
 
     scores: Counter[str] = Counter()
-    if strongest_peak_only:
-        # Restrict to entries whose strongest peak falls in a window.
-        # One query per experimental peak; the correlated subquery is
-        # served by the idx_peaks_entry_id index.
+    if strongest_k:
+        # Top-K Hanawalt: keep entries with any of their K strongest
+        # reference peaks inside an experimental window.  Equivalence:
+        # "some window row has intensity >= the entry's K-th strongest"
+        # <=> "window MAX(intensity) >= the entry's K-th strongest".
+        # The per-entry thresholds come from the cached top-K table
+        # (loaded from the (entry_id, intensity) index), so the window
+        # query needs no correlated subquery.
+        thresholds = _load_top_k_intensities(conn)
         for d in peak_ds:
             lo, hi = _window(d)
             cur = conn.execute(
-                "SELECT DISTINCT entry_id FROM peaks p "
-                "WHERE p.d BETWEEN ? AND ? "
-                "AND p.intensity = (SELECT MAX(intensity) FROM peaks "
-                "                     WHERE entry_id = p.entry_id)",
+                "SELECT entry_id, MAX(intensity) FROM peaks "
+                "WHERE d BETWEEN ? AND ? GROUP BY entry_id",
                 (lo, hi),
             )
-            for (entry_id,) in cur:
-                scores[entry_id] += 1
+            for entry_id, maxi in cur:
+                top = thresholds.get(entry_id)
+                if top:
+                    # K may exceed the entry's peak count: compare against
+                    # the weakest stored peak (any-peak recall) then.
+                    k_eff = min(strongest_k, len(top))
+                    if maxi >= top[k_eff - 1]:
+                        scores[entry_id] += 1
     else:
         for d in peak_ds:
             lo, hi = _window(d)

@@ -200,10 +200,11 @@ def search_match(
     window_deg: float = 0.3,
     top_n: int = 20,
     pre_filter: Callable[[list[Peak], sqlite3.Connection], list[str]] | None = None,
-    recall_top_k: int = 20,
+    recall_top_k: int = 40,
     recall_min_matches: int = 2,
-    recall_max_candidates: int = 800,
+    recall_max_candidates: int = 3000,
     recall_strongest_peak: bool = True,
+    recall_strongest_k: int = 5,
 ) -> list[CandidateResult]:
     """Run a full peak-based search-match (Phase 6 / T6.4).
 
@@ -258,28 +259,47 @@ def search_match(
         used for candidate recall via the d-value search.  The full peak
         set is still used for FoM scoring.  Bounding recall keeps the
         d-value query fast on full COD-scale databases; strong peaks are
-        the most discriminating ones (the reference software behaves similarly).
+        the most discriminating ones (the reference software behaves
+        similarly).  Default 40 (T6.0): minor-phase lines with
+        intermediate intensity (e.g. CaCO₃ in 2-1, 50% phase whose
+        strongest lines sit at intensity ranks 21–40) are recalled
+        instead of being cut off at 20.
     recall_min_matches:
         Minimum number of distinct recall peaks an entry must match to
         enter the FoM scoring stage.
     recall_max_candidates:
         Cap on the number of entries sent to FoM scoring (after recall
         ranking by match count).  Bounds the per-candidate correlation
-        cost on large databases.
+        cost on large databases.  Applied in **all** recall modes
+        (including the Hanawalt prefilter — T6.0, previously ignored).
+        Default 3000 (T6.0): FoM scoring of 3000 candidates costs
+        ~0.8 s (fetch ~0.7 s) while the recall query dominates, so the
+        cap is relaxed to keep true minor phases past the match-count
+        cutoff; the historical 800 cap dropped them.
     recall_strongest_peak:
-        Hanawalt-style recall (default ``True``): only entries whose
+        Hanawalt-style recall (default ``True``): keep only entries whose
         strongest reference peak falls inside an experimental strong-peak
-        window are kept.  On full COD-scale databases this prunes the
-        false positives that dominate plain match counting on dense
-        multi-phase patterns while keeping the true phases.  Plain
-        match-count recall (``False``) saturates on sparse patterns: when
-        the pattern has few peaks, hundreds of dense cards match *all* of
-        them, the ``recall_max_candidates`` cutoff then truncates the
-        tied candidates by ``entry_id`` order, and true phases whose id
-        sorts late (e.g. the ``96-900-xxxx`` COD-selected series) are
-        dropped before FoM scoring ever sees them.  When enabled,
-        ``recall_max_candidates`` is ignored (the Hanawalt filter itself
-        bounds the candidate set).
+        window.  On full COD-scale databases this prunes the false
+        positives that dominate plain match counting on dense multi-phase
+        patterns while keeping the true phases.  Plain match-count recall
+        (``False``) saturates on sparse patterns: when the pattern has few
+        peaks, hundreds of dense cards match *all* of them, the
+        ``recall_max_candidates`` cutoff then truncates the tied
+        candidates by ``entry_id`` order, and true phases whose id sorts
+        late (e.g. the ``96-900-xxxx`` COD-selected series) are dropped
+        before FoM scoring ever sees them.
+    recall_strongest_k:
+        Hanawalt top-K strength (default 5).  With
+        ``recall_strongest_peak=True``, entries whose **any of the K
+        strongest reference peaks** falls inside an experimental strong
+        peak window are kept (K=1 ⇔ strongest peak only, the historical
+        behaviour).  K>1 relaxes the strongest-line rule for multi-phase
+        patterns where a minor phase's strongest line is masked by the
+        major phase while its 2nd–Kth lines are still observed (T6.0).
+        Measured on the COD 71k database: CaCO₃ in 2-1 and Al₂O₃ in
+        3-1/4-1 were recalled 0 times at K=1; K=5 recalls them (Al₂O₃
+        cards at candidate rank 14/15/52, match 5–6).  Ignored when
+        ``recall_strongest_peak=False``.
 
     Returns
     -------
@@ -298,9 +318,10 @@ def search_match(
         # fast on full COD-scale databases, and the most discriminating
         # peaks drive the d-value window query.  FoM scoring below still
         # uses the complete experimental peak set.  The Hanawalt
-        # strongest-peak filter (default) is what keeps the candidate set
-        # both bounded and free of the dense-card false positives that
-        # plain match counting admits.
+        # top-K prefilter (default) is what keeps the candidate set both
+        # bounded and free of the dense-card false positives that plain
+        # match counting admits; recall_max_candidates is then applied as
+        # an additional cap in every mode.
         strong_peaks = sorted(
             exp_peaks, key=lambda p: (p.intensity if p.intensity is not None else 0.0),
             reverse=True,
@@ -309,6 +330,7 @@ def search_match(
         if not peak_ds:
             # No usable d-spacings → no candidates.
             return []
+        effective_k = recall_strongest_k if recall_strongest_peak else 0
         ranked_ids = search_by_d(
             conn,
             peak_ds,
@@ -317,8 +339,8 @@ def search_match(
             min_matches=min(recall_min_matches, len(peak_ds))
             if not recall_strongest_peak
             else 1,
-            max_candidates=None if recall_strongest_peak else recall_max_candidates,
-            strongest_peak_only=recall_strongest_peak,
+            max_candidates=recall_max_candidates,
+            strongest_k=effective_k,
         )
         entry_ids = [eid for eid, _ in ranked_ids]
         logger.debug("search_by_d produced %d candidate ids", len(entry_ids))
