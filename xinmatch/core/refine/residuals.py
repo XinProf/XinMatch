@@ -102,7 +102,7 @@ def _estimate_variance(y_obs: np.ndarray, sigma: np.ndarray | None) -> np.ndarra
     y = np.asarray(y_obs, dtype=np.float64)
     if sigma is not None:
         sigma_arr = np.asarray(sigma, dtype=np.float64)
-        return np.maximum(sigma_arr * sigma_arr, 1e-12)
+        return np.maximum(sigma_arr * sigma_arr, 1e-12)  # type: ignore[no-any-return]
     if y.size <= 1:
         return np.full_like(y, 1.0)
     # Match RietveldRefinement._compute_rwp exactly so the residual Rwp

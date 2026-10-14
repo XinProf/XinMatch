@@ -142,7 +142,7 @@ class _ParameterLockedRefinement(RietveldRefinement):
 
     def _initial_vector(self) -> np.ndarray:
         if self._x0_override is not None:
-            return self._x0_override.copy()
+            return self._x0_override.copy()  # type: ignore[no-any-return]
         u0, v0, w0 = self.peak_model.caglioti_uvw
         return np.array(
             [

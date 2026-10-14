@@ -348,10 +348,7 @@ def _expand_core(
         a2 = ints[ok2] * 0.5
         centres = np.concatenate([c1, c2])
         amps = np.concatenate([a1, a2])
-        if po_cos is not None:
-            pc = np.concatenate([pc1, po_cos[ok2]])
-        else:
-            pc = None
+        pc = np.concatenate([pc1, po_cos[ok2]]) if po_cos is not None else None
     else:
         centres, amps = c1, a1
         pc = pc1

@@ -306,7 +306,7 @@ class RefinementWizard(QtWidgets.QDialog):
     # Navigation
     # ------------------------------------------------------------------
     def _current_index(self) -> int:
-        return self._stack.currentIndex()
+        return self._stack.currentIndex()  # type: ignore[no-any-return]
 
     def _go_back(self) -> None:
         if self._current_index() > 0:

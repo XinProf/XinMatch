@@ -214,14 +214,14 @@ def compute_p_values(
     )
     matched_exp_idx = [ei for ei, _ in pairs]
     matched_exp_max = (
-        float(exp_intensities[matched_exp_idx].max()) if matched_exp_idx else 0.0
+        float(np.max(exp_intensities[matched_exp_idx])) if matched_exp_idx else 0.0
     )
     # Fall back to the global max only when no peaks matched (should not
     # happen here, since the empty-pairs branch returned above).
     exp_max = matched_exp_max if matched_exp_max > 0.0 else (
-        float(exp_intensities.max()) if n_exp > 0 else 0.0
+        float(np.max(exp_intensities)) if n_exp > 0 else 0.0
     )
-    ref_max = float(ref_intensities.max()) if n_ref > 0 else 0.0
+    ref_max = float(np.max(ref_intensities)) if n_ref > 0 else 0.0
 
     delta_2th = np.empty(len(pairs), dtype=np.float64)
     delta_intensity = np.empty(len(pairs), dtype=np.float64)

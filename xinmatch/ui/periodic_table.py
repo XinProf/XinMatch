@@ -197,7 +197,7 @@ class PeriodicTableWidget(QtWidgets.QWidget):
 
     def is_enabled(self) -> bool:
         """Return whether three-state filtering is currently active."""
-        return self._toggle.isChecked()
+        return self._toggle.isChecked()  # type: ignore[no-any-return]
 
     def set_toggle_visible(self, visible: bool) -> None:
         """显示 / 隐藏内置"启用元素过滤"开关。
@@ -291,7 +291,7 @@ class PeriodicTablePanel(QtWidgets.QWidget):
 
     def is_enabled(self) -> bool:
         """Return whether three-state filtering is currently active."""
-        return self._enabled_cb.isChecked()
+        return self._enabled_cb.isChecked()  # type: ignore[no-any-return]
 
     def reset(self) -> None:
         """Reset every element to OPTIONAL."""

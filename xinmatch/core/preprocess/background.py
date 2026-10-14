@@ -73,7 +73,7 @@ def _snip(
 
     if log_transform:
         bg = np.exp(bg) + offset - 1.0
-    return bg
+    return bg  # type: ignore[no-any-return]
 
 
 def _asymmetric_polynomial(
@@ -195,7 +195,7 @@ def estimate_background(
     if method == "two_points":
         # Straight line between the first and last data points.
         if intensity.size < 2:
-            return intensity.copy()
+            return intensity.copy()  # type: ignore[no-any-return]
         t0, t1 = two_theta[0], two_theta[-1]
         i0, i1 = intensity[0], intensity[-1]
         if t1 == t0:

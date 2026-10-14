@@ -370,7 +370,6 @@ class _LivePlotter:
         self._fig: Any = None
         self._ax: Any = None
         try:
-            import matplotlib  # noqa: PLC0415 — optional dependency
             import matplotlib.pyplot as plt  # noqa: PLC0415
 
             if not plt.isinteractive():
@@ -440,7 +439,7 @@ def cmd_instrument_collect(args: argparse.Namespace) -> dict[str, Any]:
     lines (with ``--json``, the full summary is printed at the end).
     """
     from xinmatch.core.instrument import (
-        DataPoint,
+        DataPoint,  # noqa: F401 — used in _on_point type annotation
         SerialCollector,
         SerialConfig,
         open_serial,

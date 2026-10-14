@@ -41,7 +41,7 @@ class _ColorRow(QtWidgets.QWidget):
             self._hex.setText(chosen.name())
 
     def color(self) -> str:
-        return self._hex.text()
+        return self._hex.text()  # type: ignore[no-any-return]
 
     def set_color(self, value: str) -> None:
         self._hex.setText(value)

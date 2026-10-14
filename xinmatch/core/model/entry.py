@@ -126,10 +126,10 @@ class Entry:
     def normalized_intensities(self, scale: float = 1000.0) -> np.ndarray:
         """Return intensities normalised to *scale* (the reference software uses 1000)."""
         if self.intensities.size == 0:
-            return self.intensities.copy()
+            return self.intensities.copy()  # type: ignore[no-any-return]
         imax = self.intensities.max()
         if imax == 0:
-            return self.intensities.copy()
+            return self.intensities.copy()  # type: ignore[no-any-return]
         return np.asarray(self.intensities / imax * scale, dtype=np.float64)
 
     def to_dict(self) -> dict[str, Any]:

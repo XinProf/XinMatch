@@ -303,7 +303,7 @@ class LibraryDialog(QtWidgets.QDialog):
         if rows:
             row = rows[0].row()
             if 0 <= row < len(self._ids):
-                return self._ids[row]
+                return self._ids[row]  # type: ignore[no-any-return]
         for rec in self._records:
             if rec.available:
                 return rec.id

@@ -200,7 +200,7 @@ class PeakListTable(QtWidgets.QTableView):
         self.resizeColumnsToContents()
 
     def _source_row(self, proxy_index: QtCore.QModelIndex) -> int:
-        return self._proxy.mapToSource(proxy_index).row()
+        return self._proxy.mapToSource(proxy_index).row()  # type: ignore[no-any-return]
 
     # -- signals / menu --------------------------------------------------
     def _on_double_clicked(self, proxy_index: QtCore.QModelIndex) -> None:

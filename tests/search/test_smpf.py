@@ -633,8 +633,8 @@ def test_march_po_recovers_textured_zirconia():
     ``march_po=True`` — truth back at Top-1 and Rwp better than the
     un-textured model — proving the generator→fitter contract (the
     previous fake factor could not be detected nor recovered)."""
-    from tools.generate_synthetic_patterns import _build_sample
     import tools.generate_synthetic_patterns as gen
+    from tools.generate_synthetic_patterns import _build_sample
     rng = np.random.default_rng(7)
     sample = _build_sample("md-probe", [(2101234, 1.0, (-1, 1, 1))], rng)
     x = gen.TWO_THETA

@@ -43,10 +43,10 @@ from xinmatch.core.model.entry import CellParams
 from xinmatch.core.model.pattern import Pattern
 
 from .peak_model import PeakModel
+from .structure_factor import get_orbit, multiplicity
 
 # numpy ≥ 2.0 renamed trapz → trapezoid (trapz removed); support both.
-_trapz = getattr(np, "trapezoid", None) or np.trapz
-from .structure_factor import get_orbit, multiplicity
+_trapz: Any = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
 
 _DEG2RAD = math.pi / 180.0
 

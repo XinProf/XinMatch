@@ -576,3 +576,16 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **边界**：GUI 串口采集面板留后续（core 的 `on_point` 回调即接入点；本机无真实仪器可验收）；真实硬件联调与二进制/专有协议报文需用户仪器实测样本（core 解析为单函数 `parse_point`，扩展点单一）。
 
+---
+
+## v1.6.0 版本发布（2026-10-15）✅
+
+**版本**：1.5.0 → 1.6.0（增量 = 1.5.0 后全部开发：T6.0 检索预筛 + T14.3 批处理 + T14.4 串口 + T2.4 Bruker RAW + T0.2 版本 diff + T0.5 术语表 + T0.3/T0.4 TiO₂ 定量验证）。
+
+**验证**：核心套件 **1089 passed / 0 failed / 46 skipped**（5668s，含全部 slow）；UI（python310）**209 passed / 0 failed**；ruff 全量 All checks passed；mypy **109 files 0 errors**（本轮清偿 24 处存量：ruff 6 + mypy 18——14 处 Qt/numpy `no-any-return` 标注、fom_criteria 3 处 `arr.max()`→`np.max()`、le_bail np.trapz→getattr 双备、cli matplotlib/DataPoint、backfill_cells numpy、smpf ternary、test_smpf import 排序）。
+
+**产物**：`dist/xinmatch-1.6.0/`（onedir，DB 不内置）+ `dist/xinmatch-cod-db-1.6.0.zip`（210.2 MB，zip 内 `data/cod_inorganics.db`）+ `dist/XinMatch-Setup-1.6.0.exe`（Inno Setup 单文件安装版，DB 单独挂载）+ `dist/XinMatch-Portable-1.6.0.zip`（便携，本地保留）。
+
+**Release**：GitHub `v1.6.0` 上传 Setup exe + DB zip（便携包本地）；验收 `docs/ACCEPTANCE-v1.6.0-20261015.md`。
+
+

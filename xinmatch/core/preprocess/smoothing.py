@@ -64,14 +64,14 @@ def smooth(
 
     n = intensity.size
     if n == 0:
-        return intensity.copy()
+        return intensity.copy()  # type: ignore[no-any-return]
 
     if window < 1:
         raise ValueError(f"window must be >= 1, got {window}")
     if window > n:
         window = n if n % 2 == 1 else n - 1
         if window < 1:
-            return intensity.copy()
+            return intensity.copy()  # type: ignore[no-any-return]
 
     if method == "savgol":
         if window % 2 == 0:
