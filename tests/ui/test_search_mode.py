@@ -40,8 +40,8 @@ from xinmatch.core.model import Entry
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.fpfm import search_match_fpfm
 from xinmatch.ui.main_window import (
-    SEARCH_MODE_PEAKS_FOM,
     SEARCH_MODE_FPFM_FULL,
+    SEARCH_MODE_PEAKS_FOM,
     MainWindow,
     fpfm_results_to_candidates,
 )

@@ -588,4 +588,23 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **Release**：GitHub `v1.6.0` 上传 Setup exe + DB zip（便携包本地）；验收 `docs/ACCEPTANCE-v1.6.0-20261015.md`。
 
+---
+
+## v1.6.1 版本发布（2026-10-16）✅
+
+**版本**：1.6.0 → 1.6.1（小幅版本升级：SMPF 更名为 **FPFM（Full Pattern Fitting Match）**，无功能变更；含 2026-10-15/16 并行会话合并的 March-Dollase 择优取向修正 `33a7f45`）。
+
+**更名范围**（commit `cc12b9c`，30 文件）：模块 `core/search/smpf.py` → `fpfm.py`，全部类/函数/常量更名（`FpfmConfig`、`search_match_fpfm`、`SEARCH_MODE_FPFM_FULL` 等）；UI 文案、术语表（`docs/TERMINOLOGY.md` 词条 50）、README 状态行同步更新；5 处版本号同步（pyproject / spec / build_exe.ps1 / iss / README），`xinmatch.__version__ == 1.6.1` 实测通过。
+
+**向后兼容**（三层，附 3 个回归测试）：
+1. CLI `--mode smpf` 保留为别名，静默归一化为 `fpfm`（帮助文本注明 legacy）；
+2. 批处理 `mode: smpf` 在 `_validate_config` 原位归一化为 `fpfm`；
+3. 持久化配置键 `smpf_kalpha*` 在 `load_config` 合并前迁移为 `fpfm_*`（先迁移再合并，旧用户设置仍优先于新默认值）；`SEARCH_MODE_SMPF_FULL` 值仅运行时使用、不落盘，无需迁移。
+
+**验证**：ruff 全量 All checks passed；mypy 109 files 0 errors；核心套件 + UI/CLI 套件（python310 offscreen）全绿（详见验收文档）。
+
+**产物**：`dist/xinmatch-1.6.1/`（onedir）+ `dist/xinmatch-cod-db-1.6.1.zip` + `dist/XinMatch-Setup-1.6.1.exe` + `dist/XinMatch-Portable-1.6.1.zip`（便携，本地保留）。
+
+**Release**：GitHub `v1.6.1` 上传 Setup exe + DB zip；验收 `docs/ACCEPTANCE-v1.6.1-20261016.md`。
+
 
