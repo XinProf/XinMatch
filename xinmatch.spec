@@ -28,13 +28,34 @@ Build with::
     powershell -File tools/build_exe.ps1
 """
 
+import os
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 1.6.1) ----
+# ---- Version (read-only mirror of pyproject [project] version = 1.7.0) ----
 APP_NAME = "XinMatch"
-APP_VERSION = "1.6.1"
-VERSION_TUPLE = (1, 6, 1, 0)
+APP_VERSION = "1.7.0"
+VERSION_TUPLE = (1, 7, 0, 0)
+
+# ---- Build variant (v1.7.0): release = 正式版（含注册机制） / internal = 内部评估版 ----
+# 由环境变量 XINMATCH_BUILD_VARIANT 指定（tools/build_exe.ps1 -Variant）。
+# 变体以随包分发的 variant.txt 标记固化，运行时由
+# xinmatch.utils.build_variant 读取；缺失标记按 release 处理（fail-safe）。
+BUILD_VARIANT = os.environ.get("XINMATCH_BUILD_VARIANT", "release").strip().lower()
+if BUILD_VARIANT not in ("release", "internal"):
+    BUILD_VARIANT = "release"
+
+_SPEC_DIR = Path(globals().get("SPECPATH") or os.getcwd())
+VARIANT_MARKER = _SPEC_DIR / "build" / "variant.txt"
+VARIANT_MARKER.parent.mkdir(parents=True, exist_ok=True)
+VARIANT_MARKER.write_text(BUILD_VARIANT, encoding="utf-8")
+
+BUNDLE_NAME = (
+    f"xinmatch-{APP_VERSION}" if BUILD_VARIANT == "release"
+    else f"xinmatch-internal-{APP_VERSION}"
+)
 
 # ---- Collect non-.py assets for packages that ship them at runtime ----
 datas = []
@@ -46,6 +67,13 @@ _pg_d, _pg_b, _pg_h = collect_all("pyqtgraph")
 datas += _pg_d
 binaries += _pg_b
 hiddenimports += _pg_h
+
+# v1.7.0 注册机制模块：显式登记，避免只经延迟导入时被裁剪。
+hiddenimports += [
+    "xinmatch.utils",
+    "xinmatch.utils.registration",
+    "xinmatch.utils.build_variant",
+]
 
 # Project data files (see module docstring for why these exact destinations).
 datas += [
@@ -63,9 +91,11 @@ datas += [
     # ``ASSETS_DIR`` = ``ui/assets/3dmol``).  Required for the 3D viewer to
     # work inside the bundle (no CDN at runtime).
     ("xinmatch/ui/assets", "xinmatch/ui/assets"),
+    # v1.7.0 构建变体标记（内容 release / internal），运行时读取。
+    (str(VARIANT_MARKER), "."),
 ]
 
-# ---- Windows version resource (FileVersion / ProductVersion = 1.6.1) ----
+# ---- Windows version resource (FileVersion / ProductVersion = 1.7.0) ----
 version_info = vi.VSVersionInfo(
     ffi=vi.FixedFileInfo(
         filevers=VERSION_TUPLE,
@@ -152,5 +182,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="xinmatch-1.6.1",
+    name=BUNDLE_NAME,
 )

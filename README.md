@@ -8,7 +8,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v1.6.1.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v1.7.0.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + true March-Dollase preferred
 > orientation modeling + GSAS-II refinement pipeline + quantitative Rietveld
 > (main-phase wt% < 3 on certified samples) are complete and packaged
@@ -60,6 +60,7 @@ xinmatch/
 │   └── report/      # report data model + rendering
 ├── ui/              # PySide6 GUI
 ├── cli/             # command-line / batch interface
+├── utils/           # registration + build variant (stdlib only, no Qt)
 tests/               # pytest suite + fixtures + reference baseline
 docs/                # analysis docs (reference help retained externally)
 tools/               # helper scripts (doc extraction, baseline building)
@@ -78,6 +79,28 @@ pip install -e ".[dev,gui]"
 # run the test suite
 pytest
 ```
+
+## Builds & registration / 构建版本与注册
+
+v1.7.0 起同时产出两个二进制（参考数据库均单独挂载，不内置）：
+
+| 构建 | 产物 | 注册机制 | 状态栏最右端 |
+|---|---|---|---|
+| **正式版**（release） | `XinMatch-Setup-<v>.exe`（安装时可选择安装位置） | **有**：每次启动检查注册状态 | `已注册：<单位部门名称>` / `未注册` |
+| **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | `内部评估版本` |
+
+正式版未注册时，每次启动弹出提示：
+
+> 本软件未注册，版权所有，禁止用于商业用途。
+> 如需注册请联系 sshztx@outlook.com
+
+点「**确定**」关闭提示、软件照常使用（下次启动仍会提示）；点「**输入注册码**」粘贴注册码，
+校验通过后即完成注册，此后不再提示。也可随时通过 **帮助 → 输入注册码(&R)…** 注册。
+
+注册码由开发方根据用户提供的「单位部门名称」生成：`PXRD1-XXXX-XXXX-…`（Base32 载荷
+`UTF8(单位名) + HMAC-SHA256[:8]`），软件端重新校验并可还原单位名用于状态栏展示；
+无需联网、无需机器码，同一单位可在多台电脑使用。算法与 PolyXRD 家族统一
+（复用 `D:\Project\XRD\PolyXRD-Reg`，本仓副本 `xinmatch/utils/registration.py`）。
 
 ## License / 授权许可
 

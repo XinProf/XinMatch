@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xinmatch"
-version = "1.6.1"
+version = "1.7.0"
 description = "XinMatch — Open-source powder XRD phase analysis platform (clean-room implementation guided by publicly documented XRD phase-analysis workflows)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -73,6 +73,13 @@ ignore = ["E501"]
 # w:rFonts / w:tblPr / ...), matching python-docx ecosystem style.
 "tools/md_to_docx.py" = ["N806"]
 "tools/merge_docs_to_single_md.py" = ["N806", "B007"]
+
+# v1.7.0: xinmatch/utils/registration.py is vendored byte-identical from the
+# PolyXRD family reference (D:\Project\XRD\PolyXRD-Reg\registration.py) so the
+# two can be diffed when the family mechanism changes.  Its own house style
+# (UTF-8 coding declaration, typing.Optional) predates this repo's ruff
+# settings; exempted here instead of editing the vendored copy.
+"xinmatch/utils/registration.py" = ["UP009", "UP045"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

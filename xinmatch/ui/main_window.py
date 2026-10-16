@@ -47,7 +47,7 @@ from xinmatch.core.search.search_match import search_match
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.busy import run_with_busy
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
-from xinmatch.ui.dialogs.config import load_config, save_config
+from xinmatch.ui.dialogs.config import app_config_dir, load_config, save_config
 from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 from xinmatch.ui.pattern_view import PatternPanel
@@ -60,6 +60,8 @@ from xinmatch.ui.structure_view import (
 )
 from xinmatch.ui.tables import CandidateListTable, MatchListTable, PeakListTable
 from xinmatch.ui.theme import apply_theme, current_theme
+from xinmatch.utils import build_variant
+from xinmatch.utils.registration import RegistrationManager
 
 # 主题图标（并行任务交付；缺失时回退到 Qt 标准 pixmap）。
 try:  # pragma: no cover - 取决于并行任务产物是否落地
@@ -227,6 +229,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.module_actions: dict[str, QtGui.QAction] = {}
 
+        # v1.7.0 注册机制：仅正式版（release）接入；内部评估版不弹提示、
+        # 不出现「输入注册码」菜单，状态栏右端固定显示「内部评估版本」。
+        self._registration: RegistrationManager | None = None
+        self._registration_label: QtWidgets.QLabel | None = None
+        if build_variant.is_release():
+            self._registration = RegistrationManager(
+                "XinMatch", app_config_dir() / "registration.json"
+            )
+
         self._build_actions()
         self._build_menus()
         self._build_toolbar()
@@ -237,6 +248,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # T13.7：默认浅色主题（窗口级 palette + QSS，可被切换）。
         apply_theme(self, "light")
         self._theme_action.setText(f"切换主题（当前：{current_theme()}）")
+        # v1.7.0：启动注册检查（QTimer 保证先完成窗口显示、不阻塞冒烟测试；
+        # 离屏/显式禁用时模块内部自动跳过弹窗）。
+        registration = self._registration
+        if registration is not None:
+            QtCore.QTimer.singleShot(0, lambda: registration.startup_check(self))
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -425,6 +441,9 @@ class MainWindow(QtWidgets.QMainWindow):
         about_action.triggered.connect(self._open_about)
         help_menu.addAction(about_action)
         self.about_action = about_action
+        # v1.7.0：帮助菜单固定提供「输入注册码 (&R)…」（仅正式版）。
+        if self._registration is not None:
+            self._registration.add_help_action(help_menu, self)
 
     def _build_toolbar(self) -> None:
         """Main toolbar mirroring the common XRD-software action layout.
@@ -475,10 +494,36 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar.addAction(self.module_actions["options"])
 
     def _build_statusbar(self) -> None:
-        """Status bar: transient module messages + permanent cursor readout."""
+        """Status bar: transient module messages + permanent cursor readout.
+
+        v1.7.0：最右侧（右对齐）再加一排注册状态——正式版显示
+        「已注册：<单位部门名称>」/「未注册」，内部评估版显示
+        「内部评估版本」。
+        """
         self.statusBar().showMessage("就绪")
         self._cursor_label = QtWidgets.QLabel("2θ=—   I=—   d=—")
         self.statusBar().addPermanentWidget(self._cursor_label)
+        if self._registration is not None:
+            # stretch=1 让标签吃掉剩余空白，单位名始终贴住状态栏右端。
+            self._registration_label = self._registration.attach_status_label(
+                self.statusBar(), self
+            )
+        else:
+            label = QtWidgets.QLabel(build_variant.INTERNAL_STATUS_TEXT)
+            label.setObjectName("internalBuildLabel")
+            label.setAlignment(
+                QtCore.Qt.AlignmentFlag.AlignRight
+                | QtCore.Qt.AlignmentFlag.AlignVCenter
+            )
+            label.setToolTip(build_variant.INTERNAL_STATUS_TEXT)
+            self.statusBar().addPermanentWidget(label, 1)
+            self._registration_label = label
+
+    def registration_status_text(self) -> str:
+        """状态栏最右一排的注册文案（供冒烟/自测读取，不弹窗）。"""
+        if self._registration is not None:
+            return self._registration.state.status_text
+        return build_variant.INTERNAL_STATUS_TEXT
 
     def _build_central(self) -> None:
         """Central widget: the diffraction pattern graphics panel.

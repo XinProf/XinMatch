@@ -27,9 +27,12 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Sequence
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
+
+if TYPE_CHECKING:  # pragma: no cover - typing only (avoids import cycle)
+    from xinmatch.ui.main_window import MainWindow
 
 
 def create_app(argv: Sequence[str] | None = None) -> QtWidgets.QApplication:
@@ -126,6 +129,40 @@ def _run_libraries_selftest() -> None:
     QtWidgets.QApplication.quit()
 
 
+def _run_registration_selftest(window: MainWindow) -> None:
+    """Test-only hook: dump build variant + registration status, then quit.
+
+    Used to verify the two v1.7.0 binaries without driving the GUI:
+
+    * release build → ``registration_enabled`` true, ``status_text`` is
+      ``未注册`` / ``已注册：<单位>``;
+    * internal build → ``registration_enabled`` false, ``status_text`` is
+      ``内部评估版本``.
+    """
+    import json
+    from pathlib import Path
+
+    from xinmatch.utils import build_variant
+
+    out_path = (
+        os.environ.get("XINMATCH_SELFTEST_REG_OUT")
+        or "registration_selftest.json"
+    )
+    reg = getattr(window, "_registration", None)
+    payload = {
+        "variant": build_variant.current_variant(),
+        "registration_enabled": reg is not None,
+        "registered": bool(reg is not None and reg.state.registered),
+        "unit": reg.state.unit if reg is not None else "",
+        "status_text": window.registration_status_text(),
+        "state_path": str(reg.state_path) if reg is not None else "",
+    }
+    Path(out_path).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    QtWidgets.QApplication.quit()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """GUI entry point: build the main window and run the event loop."""
     app = create_app(argv)
@@ -142,6 +179,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         _run_about_selftest(window)
     elif os.environ.get("XINMATCH_SELFTEST_LIBS"):
         QtCore.QTimer.singleShot(0, _run_libraries_selftest)
+    elif os.environ.get("XINMATCH_SELFTEST_REG"):
+        QtCore.QTimer.singleShot(0, lambda: _run_registration_selftest(window))
 
     return int(app.exec())
 

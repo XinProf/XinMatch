@@ -30,6 +30,7 @@ __all__ = [
     "default_config",
     "load_config",
     "save_config",
+    "app_config_dir",
     "config_path",
     "DEFAULTS",
 ]
@@ -132,12 +133,16 @@ def default_config() -> dict[str, Any]:
     return result
 
 
-def config_path() -> Path:
-    """Resolve the default YAML config file path.
+def app_config_dir() -> Path:
+    """Resolve (and create) the per-user configuration directory.
 
-    Prefers :attr:`QStandardPaths.AppConfigLocation`; falls back to a
-    ``config/`` directory next to the project root when the standard path
-    is unavailable (offscreen / headless runs).
+    Same resolution rule as :func:`config_path`: prefer
+    :attr:`QStandardPaths.AppConfigLocation`, fall back to a ``config/``
+    directory next to the project root when the standard path is
+    unavailable (offscreen / headless runs).
+
+    v1.7.0: the registration state file (``registration.json``) lives here
+    too, so both files move together when the user relocates their profile.
     """
     base = QtCore.QStandardPaths.writableLocation(
         QtCore.QStandardPaths.StandardLocation.AppConfigLocation
@@ -147,7 +152,12 @@ def config_path() -> Path:
     fallback = Path(__file__).resolve().parents[3] / "config"
     path = Path(base) if base else fallback
     path.mkdir(parents=True, exist_ok=True)
-    return path / "xinmatch.yaml"
+    return path
+
+
+def config_path() -> Path:
+    """Resolve the default YAML config file path (see :func:`app_config_dir`)."""
+    return app_config_dir() / "xinmatch.yaml"
 
 
 def load_config(path: str | Path | None = None) -> dict[str, Any]:

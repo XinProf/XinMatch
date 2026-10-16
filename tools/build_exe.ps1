@@ -4,19 +4,26 @@
 
 .DESCRIPTION
     1. Runs `pyinstaller xinmatch.spec` (onedir).  Exe icon comes from the
-       committed assets/icons/logo.ico; version resource (1.6.1 + contact
+       committed assets/icons/logo.ico; version resource (1.7.0 + contact
        sshztx@outlook.com) is embedded by the spec.
     2. The COD reference DB is NOT bundled (since v1.6.0 it ships as a
        separate archive; mount it at <exe-dir>/data/cod_inorganics.db —
        auto-resolved by multi_db.default_db_path() when frozen).
 
-    Output: dist/xinmatch-1.6.1/
+    构建变体（v1.7.0 起）：
+      -Variant release  (默认) 正式版：含注册机制，启动时检查注册；
+                        输出 dist/xinmatch-<Version>/，用于 Inno Setup 安装包。
+      -Variant internal          内部评估版：不接入注册机制，状态栏右端显示
+                        「内部评估版本」；输出 dist/xinmatch-internal-<Version>/。
+
+    Output: dist/xinmatch-<Version>/   (或 dist/xinmatch-internal-<Version>/)
         XinMatch.exe     single entry (CLI subcommands / GUI dispatcher)
-        _internal/       Qt / Python / gems
+        _internal/       Qt / Python / gems + variant.txt
         data/            (created only when the user mounts the DB archive)
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools/build_exe.ps1
+    powershell -ExecutionPolicy Bypass -File tools/build_exe.ps1 -Variant internal
 
 .NOTES
     Requires Python 3.10 at D:\Project\XRD\python310\python.exe (override with
@@ -25,7 +32,9 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "1.6.1"
+    [string]$Version = "1.7.0",
+    [ValidateSet("release", "internal")]
+    [string]$Variant = "release"
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,10 +51,18 @@ if (-not (Test-Path $pyExe)) {
 
 $buildDir = Join-Path $root "build"
 $distDir  = Join-Path $root "dist"
-$outDir   = Join-Path $distDir "xinmatch-$Version"
+$outDir   = if ($Variant -eq "internal") {
+    Join-Path $distDir "xinmatch-internal-$Version"
+} else {
+    Join-Path $distDir "xinmatch-$Version"
+}
+
+# 变体通过环境变量传给 xinmatch.spec（spec 把 variant.txt 打进产物）。
+$env:XINMATCH_BUILD_VARIANT = $Variant
 
 Write-Host "==> Project root : $root"
 Write-Host "==> Python       : $pyExe"
+Write-Host "==> Variant      : $Variant"
 Write-Host "==> Output       : $outDir"
 
 # ---- 1. Icon / version resource -----------------------------------------
@@ -56,6 +73,19 @@ Write-Host "==> Output       : $outDir"
 Write-Host "==> Running PyInstaller (clean build)"
 & $pyExe -m PyInstaller --noconfirm --clean (Join-Path $root "xinmatch.spec")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed (exit $LASTEXITCODE)." }
+
+# ---- 2b. Variant marker sanity check --------------------------------------
+# 漏放/错放 variant.txt 会让内部版退化成强制注册版（或反之），构建即校验。
+$marker = $null
+foreach ($p in @((Join-Path $outDir "variant.txt"), (Join-Path $outDir "_internal\variant.txt"))) {
+    if (Test-Path $p) { $marker = $p; break }
+}
+if (-not $marker) { throw "variant.txt missing in $outDir (build variant would silently fall back to release)." }
+$markerText = (Get-Content $marker -Raw).Trim()
+if ($markerText -ne $Variant) {
+    throw "variant.txt content '$markerText' != requested variant '$Variant' ($marker)."
+}
+Write-Host "==> Variant marker OK : $marker = $markerText"
 
 # ---- 3. DB note (not bundled since v1.6.0) --------------------------------
 # The reference DB (~512 MB) ships separately.  Mount by extracting the DB
