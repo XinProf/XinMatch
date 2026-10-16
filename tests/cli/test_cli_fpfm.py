@@ -1,10 +1,10 @@
-"""Tests for ``xinmatch search --mode smpf`` and the Kα doublet switches (v1.3.0).
+"""Tests for ``xinmatch search --mode fpfm`` and the Kα doublet switches (v1.3.0).
 
-Covers the CLI half of the SMPF Kα2 knob:
+Covers the CLI half of the FPFM Kα2 knob:
 
-* ``--mode smpf`` runs full-pattern search-match, reports ``mode`` /
+* ``--mode fpfm`` runs full-pattern search-match, reports ``mode`` /
   ``kalpha`` in the JSON payload and produces **no** peak list
-  (``n_peaks == 0`` — SMPF fits the raw spectrum, it does not seek peaks);
+  (``n_peaks == 0`` — FPFM fits the raw spectrum, it does not seek peaks);
 * ``--single-kalpha`` switches the Kα1/Kα2 doublet off;
 * ``--kalpha1`` overrides the wavelength taken from the pattern file.
 
@@ -52,7 +52,7 @@ def pattern_file(tmp_path: Path) -> Path:
     for centre, height in ((15.0, 1000.0), (25.0, 800.0), (35.0, 600.0), (45.0, 400.0)):
         sigma = 0.12
         intensity += height * np.exp(-0.5 * ((two_thetas - centre) / sigma) ** 2)
-    intensity += 20.0  # flat background; SMPF absorbs it inside the fit
+    intensity += 20.0  # flat background; FPFM absorbs it inside the fit
 
     path = tmp_path / "pattern.txt"
     path.write_text(
@@ -107,31 +107,44 @@ def db_path(tmp_path: Path) -> Path:
     return path
 
 
-def _smpf_run(pattern_file: Path, db_path: Path, *extra: str) -> dict:
-    """Run SMPF search with a small pre-screen and return the parsed payload."""
+def _fpfm_run(pattern_file: Path, db_path: Path, *extra: str) -> dict:
+    """Run FPFM search with a small pre-screen and return the parsed payload."""
     result = run_cli(
         "search", str(pattern_file), "--db", str(db_path),
-        "--mode", "smpf", "--prescreen-n", "2", "--top-n", "2",
+        "--mode", "fpfm", "--prescreen-n", "2", "--top-n", "2",
         *extra, "--json",
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
 
-class TestSmpfMode:
-    def test_smpf_reports_mode_and_no_peaks(
+class TestFpfmMode:
+    def test_fpfm_reports_mode_and_no_peaks(
         self, pattern_file: Path, db_path: Path
     ) -> None:
-        """SMPF fits the raw spectrum: no peak search, so n_peaks stays 0."""
-        data = _smpf_run(pattern_file, db_path)
-        assert data["mode"] == "smpf"
+        """FPFM fits the raw spectrum: no peak search, so n_peaks stays 0."""
+        data = _fpfm_run(pattern_file, db_path)
+        assert data["mode"] == "fpfm"
         assert data["n_peaks"] == 0
         assert data["n_candidates"] >= 1
         assert data["candidates"]
 
+    def test_legacy_smpf_mode_alias_accepted(
+        self, pattern_file: Path, db_path: Path
+    ) -> None:
+        """Pre-v1.6.1 ``--mode smpf`` still runs and reports the new name."""
+        result = run_cli(
+            "search", str(pattern_file), "--db", str(db_path),
+            "--mode", "smpf", "--prescreen-n", "2", "--top-n", "2", "--json",
+        )
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data["mode"] == "fpfm"
+        assert data["n_peaks"] == 0
+
     def test_double_line_is_default(self, pattern_file: Path, db_path: Path) -> None:
         """Default is the Kα1/Kα2 doublet (real laboratory Cu Kα data)."""
-        data = _smpf_run(pattern_file, db_path)
+        data = _fpfm_run(pattern_file, db_path)
         ka = data["kalpha"]
         assert ka["double_line"] is True
         assert ka["kalpha2"] == pytest.approx(1.5444)
@@ -142,18 +155,18 @@ class TestSmpfMode:
         self, pattern_file: Path, db_path: Path
     ) -> None:
         """--single-kalpha: required for CIF-generated / Kα2-stripped patterns."""
-        data = _smpf_run(pattern_file, db_path, "--single-kalpha")
+        data = _fpfm_run(pattern_file, db_path, "--single-kalpha")
         ka = data["kalpha"]
         assert ka["double_line"] is False
         assert ka["kalpha2"] is None
 
     def test_kalpha1_override(self, pattern_file: Path, db_path: Path) -> None:
         """--kalpha1 overrides the pattern wavelength (e.g. for Co targets)."""
-        data = _smpf_run(pattern_file, db_path, "--kalpha1", "1.7903")
+        data = _fpfm_run(pattern_file, db_path, "--kalpha1", "1.7903")
         assert data["kalpha"]["kalpha1"] == pytest.approx(1.7903)
 
     def test_default_mode_still_peaks(self, pattern_file: Path, db_path: Path) -> None:
-        """Regression guard: without --mode smpf the CLI keeps seeking peaks."""
+        """Regression guard: without --mode fpfm the CLI keeps seeking peaks."""
         result = run_cli(
             "search", str(pattern_file), "--db", str(db_path),
             "--top-n", "5", "--json",

@@ -87,7 +87,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.6 | PFSM (full-spectrum fitting FoM) | ✅ |
 | T6.8 | Auto FoM recompute on phase selection | ✅ |
 | T6.9 | L3 acceptance (Top-10 vs 参考软件 baseline) | ✅ (real COD db 71,199 entries: **13/13 samples top1 = ground-truth phase**; vs 参考软件 CSV: Top-5 overlap 67.7% ≥ 60% PASS, Top-1 agreement 69.2% (9/13) < 80% FAIL — 4 mismatches are multi-phase 5-x samples where both sides pick a true phase; FoM weight sweep (4 combos) all stop at 9/13, not reproducible by linear weights; see docs/l3_golden_acceptance_cod.html) |
-| T6.9c | **L3 追平（2026-10-10）** | ✅ Top-1 一致率 **9/13 → 11/13（84.6% ≥ 80% PASS）**、Top-5 重叠 **67.7% → 83.1% PASS**。两处 FoM 算法修正（`core/search/fom_criteria.py`）：① 强度归一化改用「匹配峰最大值」（消除多相次相 I_scale 尺度效应重复惩罚，翻转 5-2/5-2b Hematite）；② sigma_pos 0.1→0.15（修复 4-1 胶着回归，CaF₂ 曾以 0.001 压 ZnO）。终态仅剩 5-1（参考 Magnesite 96-900-0381 快照内容错位为 Teruggite）与 5-3（参考 Kaolinite 96-900-9231 快照缺失）两处不匹配；**13/13 top1 均为真相相**；诊断确认库中这些相正常条目均在、纯排序问题，SMPF 权重模拟崩坏彻底排除权重路线、未补库。详见 docs/l3_traceup_report.md |
+| T6.9c | **L3 追平（2026-10-10）** | ✅ Top-1 一致率 **9/13 → 11/13（84.6% ≥ 80% PASS）**、Top-5 重叠 **67.7% → 83.1% PASS**。两处 FoM 算法修正（`core/search/fom_criteria.py`）：① 强度归一化改用「匹配峰最大值」（消除多相次相 I_scale 尺度效应重复惩罚，翻转 5-2/5-2b Hematite）；② sigma_pos 0.1→0.15（修复 4-1 胶着回归，CaF₂ 曾以 0.001 压 ZnO）。终态仅剩 5-1（参考 Magnesite 96-900-0381 快照内容错位为 Teruggite）与 5-3（参考 Kaolinite 96-900-9231 快照缺失）两处不匹配；**13/13 top1 均为真相相**；诊断确认库中这些相正常条目均在、纯排序问题，FPFM 权重模拟崩坏彻底排除权重路线、未补库。详见 docs/l3_traceup_report.md |
 | T6.9b | COD 全库检索质量核验（2026-10-10） | ✅ (用 `data/cod_full.db` 112,734 条目重跑同基线：Top-1 一致率反而降至 1/13——全库含大量重复/低质量卡片稀释排序。**结论：默认检索保持精选无机库 71,199 正确，全库仅作覆盖性挂载**；L3 追平不靠换库，方向仍是逆向参考软件 FoM 内部逻辑或补条目) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 
@@ -216,7 +216,7 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 
 ## 合成谱 XinMatch 侧检索修复（2026-10-11）✅
 
-**背景**：用户参考软件 SMPF 验收合成谱 13/13（jingzhun 全 Top-1 FoM=1.0000，归档 `tests/baseline/ref20261011/` + `docs/sample_expansion_20261011.md`）；XinMatch 侧标准检索仅 **3/13** 真相相进 Top-20。
+**背景**：用户参考软件 FPFM 验收合成谱 13/13（jingzhun 全 Top-1 FoM=1.0000，归档 `tests/baseline/ref20261011/` + `docs/sample_expansion_20261011.md`）；XinMatch 侧标准检索仅 **3/13** 真相相进 Top-20。
 
 **根因（三条，均不在 FoM 参数）**：
 1. **生成器峰强度用 CIF 结构因子**（`tools/build_cod_full_xinmatch.compute_peaks_from_cif`，动态范围 1e17，如 BaTiO₃ (110) 2.45e21 vs 次强峰 59188）→ 归一化后次峰全部淹没，实验谱强度分布与库卡片（0-100 相对强度）严重不匹配 → FoM `intensity` 失真（真相相 0.133 vs 真实谱 0.86）。
@@ -236,9 +236,9 @@ See [ROADMAP_v3.md](../ROADMAP_v3.md).
 
 FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未动**。剩余：synth_06（BaTiO₃，rank3，intensity 残余差异）、synth_11（CaSO₄/CaCO₃，rank2）。
 
-## SMPF（全谱拟合检索）实现（2026-10-11）✅
+## FPFM（全谱拟合检索）实现（2026-10-11）✅
 
-**交付**：`xinmatch/core/search/smpf.py`（完整流水线：峰列表预筛 150 卡 → 7 参数受限最小二乘全谱拟合精排 → Rwp/GOF/FoM 排序）；`pfsm.py` 保留 `pfsm_score`/`pfsm_rank` 兼容层（签名不变）；`tests/search/test_smpf.py`（单元 + 合成验收 + 真实记录 + 性能守卫）；机制文档 `docs/smpf_mechanism.md`。
+**交付**：`xinmatch/core/search/fpfm.py`（完整流水线：峰列表预筛 150 卡 → 7 参数受限最小二乘全谱拟合精排 → Rwp/GOF/FoM 排序）；`pfsm.py` 保留 `pfsm_score`/`pfsm_rank` 兼容层（签名不变）；`tests/search/test_fpfm.py`（单元 + 合成验收 + 真实记录 + 性能守卫）；机制文档 `docs/fpfm_mechanism.md`。
 
 **关键设计（经实验验证）**：
 1. 背底**内吸收不预扣除**——Rwp 权重 w=1/y，预扣除背底致低强度残差点被过度惩罚（Rwp≈0.42、GOF≈9.4）；改为二次背底基纳入最小二乘，真相 Rwp≈0.09、错误相 0.26–0.28，分离显著。
@@ -258,20 +258,20 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 ## 统一检索入口 + GSAS-II 高级拟合接口（2026-10-11）✅
 
-**A. 统一检索入口（峰列表 FoM / SMPF 双模式）**
+**A. 统一检索入口（峰列表 FoM / FPFM 双模式）**
 
-**交付**：`xinmatch/ui/main_window.py`——工具栏新增检索模式下拉框 `_search_mode_combo`（「峰列表 FoM（寻峰）」「SMPF 全谱拟合（不寻峰）」，切换仅更新内部状态、不自动触发检索）；`_run_search_match` 按模式分支执行；模块级 `smpf_results_to_candidates()` 把 SMPF `(Entry, score_dict)` 适配为 `CandidateResult`（`fom` + `p_values{rwp,rexp,gof}`），`self._candidates` 元素类型不变（精修向导 / 3D 视图 / CIF 导出链路不破）；SMPF 分支不寻峰、不覆盖峰列表（保留上次峰列表）；Kα2 双线（1.5444）留作后续旋钮。新增测试 `tests/ui/test_search_mode.py`（控件存在性/切换行为/纯函数转换/双模式冒烟/SMPF Top-1 命中/`_selected_candidate_results` 回归锚点）。
+**交付**：`xinmatch/ui/main_window.py`——工具栏新增检索模式下拉框 `_search_mode_combo`（「峰列表 FoM（寻峰）」「FPFM 全谱拟合（不寻峰）」，切换仅更新内部状态、不自动触发检索）；`_run_search_match` 按模式分支执行；模块级 `fpfm_results_to_candidates()` 把 FPFM `(Entry, score_dict)` 适配为 `CandidateResult`（`fom` + `p_values{rwp,rexp,gof}`），`self._candidates` 元素类型不变（精修向导 / 3D 视图 / CIF 导出链路不破）；FPFM 分支不寻峰、不覆盖峰列表（保留上次峰列表）；Kα2 双线（1.5444）留作后续旋钮。新增测试 `tests/ui/test_search_mode.py`（控件存在性/切换行为/纯函数转换/双模式冒烟/FPFM Top-1 命中/`_selected_candidate_results` 回归锚点）。
 
 **冒烟结果**（offscreen + 真实默认库 + 合成谱 synth_06）：
 
 | 模式 | 候选数 | Top-5 | 峰列表 |
 |---|---:|---|---|
 | 峰列表 FoM | 20 | 全 "Ba O3 Ti" | 84 行（写入） |
-| SMPF 全谱拟合 | 10（测试限 top_n=10） | Top-3 全 "Ba O3 Ti"（fom 0.701/0.700/0.700） | 保持 84 行（不覆盖） |
+| FPFM 全谱拟合 | 10（测试限 top_n=10） | Top-3 全 "Ba O3 Ti"（fom 0.701/0.700/0.700） | 保持 84 行（不覆盖） |
 
-**SMPF 命中（UI 级，is_truth 元素集+比例口径）**：synth_06 Top-1 = 96-210-0858 "Ba O3 Ti" ✓；synth_09 Top-1 = 96-101-0519 "C 1 2 1"（fom 0.614，第二名 0.044）✓。
+**FPFM 命中（UI 级，is_truth 元素集+比例口径）**：synth_06 Top-1 = 96-210-0858 "Ba O3 Ti" ✓；synth_09 Top-1 = 96-101-0519 "C 1 2 1"（fom 0.614，第二名 0.044）✓。
 
-**验收**：`pytest tests/ui/test_search_mode.py tests/ui/test_main_window.py tests/search/test_synthetic_acceptance.py tests/search/test_smpf.py` = **47 passed / 0 failed**（独立复跑一致）；既有 UI / Search 测试无退化；ruff 全绿；品牌词全仓 0 命中（缓存目录除外）。
+**验收**：`pytest tests/ui/test_search_mode.py tests/ui/test_main_window.py tests/search/test_synthetic_acceptance.py tests/search/test_fpfm.py` = **47 passed / 0 failed**（独立复跑一致）；既有 UI / Search 测试无退化；ruff 全绿；品牌词全仓 0 命中（缓存目录除外）。
 
 **B. GSAS-II 高级拟合接口（择优取向 + 晶粒尺寸/微应变，全委托后端）**
 
@@ -300,8 +300,8 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **v1.2.1 — mypy 全包零豁免 + 品牌自指修复**：`pyproject.toml` 移除 mypy `exclude`（search/refine）与 `[[tool.mypy.overrides]]` 段，18 处注解层修复（`dict[str, str | float]` / `cast` / `Any` / 返回类型包装）；`python -m mypy` → **Success 0 errors / 103 files**；`tests/search+refine+cli+ui` 全量后台验证通过（exit 0）。`docs/mypy_baseline.md` 更新为全包无豁免。HANDOVER 品牌自检命令改为模式串拼接书写（消除文档自指误报）。
 
-**v1.3.0 — SMPF Kα1/Kα2 双线旋钮 + 图标库重绘**：
-- SMPF 旋钮三处收口：Options→Search-Match 页（`smpf_kalpha2_enabled` / `smpf_kalpha1_angstrom` / `smpf_kalpha2_angstrom`，落盘 `config/xinmatch.yaml`）、CLI `search --mode smpf [--single-kalpha] [--kalpha1] [--kalpha2]`、GUI 检索模式 combo 提示当前 Kα 配置；`smpf_kalpha_wavelengths()` 读 YAML（Kα1≤0 时跟随样品波长）。synth_13 单线谱回归锁定（`tests/ui/test_smpf_kalpha2.py`）。
+**v1.3.0 — FPFM Kα1/Kα2 双线旋钮 + 图标库重绘**：
+- FPFM 旋钮三处收口：Options→Search-Match 页（`fpfm_kalpha2_enabled` / `fpfm_kalpha1_angstrom` / `fpfm_kalpha2_angstrom`，落盘 `config/xinmatch.yaml`）、CLI `search --mode fpfm [--single-kalpha] [--kalpha1] [--kalpha2]`、GUI 检索模式 combo 提示当前 Kα 配置；`fpfm_kalpha_wavelengths()` 读 YAML（Kα1≤0 时跟随样品波长）。synth_13 单线谱回归锁定（`tests/ui/test_fpfm_kalpha2.py`）。
 - 图标库：修复 `_build_actions` 把模块 id 当图标名传入导致 14 个动作全部回退通用立方体的 bug（`icons.icon()` 内置 `resolve_icon_name`）；29+ 图标重绘为填充主体 + accent 点缀（数据特征类保留粗描边）；新增多尺寸预渲染 `(16,20,24,32,48)`；主题切换时图标重着色（`_icon_actions` + `_refresh_icons`）。
 
 **v1.3.1 — 五项 GUI 体验迭代 + 忙碌窗口 + 打包**：
@@ -311,7 +311,7 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 4. **谱图轴切换**（`ui/pattern_view.py`）：X 2θ↔d（布拉格 λ/2sinθ），Y 计数↔√↔log₁₀；crosshair 读数恒显物理量；`fit_data_range()` 打开/删除数据/切轴后自适应。
 5. **耗时操作忙碌窗口**（`ui/busy.py`）：`run_with_busy` QThread + `BusyDialog`（走马灯+模态遮罩+重入保护）；检索全链路 busy 化（`_do_search`/`_apply_search_results`/`_show_search_error` 三件套，异常经 on_error 回 GUI 线程提示）。修复两个生产级线程 bug：DirectConnection 跨线程调 QWidget 挂死（信号 receiver 改 BusyDialog 排队槽）、sqlite 主建连 worker 用（`check_same_thread=False`）。
 
-**版本与打包**：pyproject/spec(APP_VERSION+TUPLE+COLLECT name)/build_exe.ps1/PACKAGING.md 五处同步 **1.3.1** + `pip install -e . --no-deps`；产物 `dist/xinmatch-1.3.1/`（exe FileVersion 1.3.1 实测，CLI FoM+SMPF 单线冒烟通过）。
+**版本与打包**：pyproject/spec(APP_VERSION+TUPLE+COLLECT name)/build_exe.ps1/PACKAGING.md 五处同步 **1.3.1** + `pip install -e . --no-deps`；产物 `dist/xinmatch-1.3.1/`（exe FileVersion 1.3.1 实测，CLI FoM+FPFM 单线冒烟通过）。
 
 **验收**：ruff 全绿；mypy 104 files 0 错误；`tests/ui` 轻量 461 passed（新增 `tests/ui/test_v131_ux.py` 15 用例）；heavy 真库冒烟 1m46s 全过；品牌词全仓 0 命中。
 
@@ -339,7 +339,7 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **C. 召回饱和缺陷（默认值翻转修复）**
 
-稀疏谱（5 峰）下数百张密集卡片全部匹配所有窗口，`recall_max_candidates=800` 按 entry_id 字典序截断，`96-900-xxxx` 系列恒被挤出——GUI 峰列表模式实测仅 8/13 命中。修复：`search_match(recall_strongest_peak=True)` 默认翻转（Hanawalt 式召回：只保留最强参考峰落在实验强峰窗内的条目），docstring 补充饱和缺陷说明。实测 13 组合成谱 plain 8/13 → Hanawalt 13/13（12 个 rank 1）。SMPF 路径本就传 True，文档（`docs/smpf_mechanism.md`）早已按 True 描述，翻转后峰列表模式与文档一致。
+稀疏谱（5 峰）下数百张密集卡片全部匹配所有窗口，`recall_max_candidates=800` 按 entry_id 字典序截断，`96-900-xxxx` 系列恒被挤出——GUI 峰列表模式实测仅 8/13 命中。修复：`search_match(recall_strongest_peak=True)` 默认翻转（Hanawalt 式召回：只保留最强参考峰落在实验强峰窗内的条目），docstring 补充饱和缺陷说明。实测 13 组合成谱 plain 8/13 → Hanawalt 13/13（12 个 rank 1）。FPFM 路径本就传 True，文档（`docs/fpfm_mechanism.md`）早已按 True 描述，翻转后峰列表模式与文档一致。
 
 **回归测试（新增）**
 
@@ -355,9 +355,9 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 ---
 
-## v1.4.0 SMPF 剩余扩展（2026-10-13）✅
+## v1.4.0 FPFM 剩余扩展（2026-10-13）✅
 
-**背景**：`docs/smpf_mechanism.md` §8 列了四项局限（择优取向与晶胞微调 / FWHM 全局单值 / 多相解叠 / 峰形不对称）。本次先做**数据可行性核查**再定范围，落地两项、推迟两项（其中一项被数据阻塞）。
+**背景**：`docs/fpfm_mechanism.md` §8 列了四项局限（择优取向与晶胞微调 / FWHM 全局单值 / 多相解叠 / 峰形不对称）。本次先做**数据可行性核查**再定范围，落地两项、推迟两项（其中一项被数据阻塞）。
 
 **选型结论（先查数据，后选模型）**
 
@@ -367,11 +367,11 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 | 晶胞微调 `cell_delta` | ✅ 实现并默认开 | `entries.a/b/c` 仅 15/71206 缺失；2θ 位移 ∝ tanθ，与常数 shift 可区分 |
 | March-Dollase 择优取向 | ⛔ **被数据阻塞** | `peaks.h/k/l` **6,214,072 行全 NULL**（`Entry.hkl` 恒 None）；真 MD 需逐反射 hkl 算面法向夹角，须先做 CIF→hkl 回填迁移 |
 | 峰形不对称 | ⏸ 明确推迟 | η 自 v1.2 起就在拟合向量内（`eta_bounds=(0.05,0.95)`），已吸收一阶不对称；显式校正（Finger–Cox–Jephcoat 类）对"先找到相"排序增益有限 |
-| 多相解叠 | ⏸ 明确推迟 | SMPF 定位是"先找到相"，精修交 GSAS-II；混合谱真相相仍可排到 Top-1，仅 Rwp 偏高 |
+| 多相解叠 | ⏸ 明确推迟 | FPFM 定位是"先找到相"，精修交 GSAS-II；混合谱真相相仍可排到 Top-1，仅 Rwp 偏高 |
 
 附带发现：生成器的 `_march_factor` **不是**真 March-Dollase——它乘的是**峰内形状**（窗内 |2θ−2θ₀| ≤ 8×FWHM ≈ 0.028 rad，cos≈1 ⇒ 近似常数 1.52），被 `scale` 完全吸收，对排序无影响。
 
-**实现**（`xinmatch/core/search/smpf.py`）
+**实现**（`xinmatch/core/search/fpfm.py`）
 
 1. `_caglioti_fwhm(tanθ, u, v, w, fwhm_bounds)`：`H²=U·tan²θ+V·tanθ+W`，H² 先夹 0 再开方（U/V/W 的 box 边界不保证 H²>0，否则 NaN），H 再夹进 `fwhm_bounds`。
 2. `cell_delta`：全局相对晶胞缩放，2θ 位移 `−Δ·(360/π)·tanθ_i`（Bragg 一阶；Δ=0.005 时二阶误差 <0.001°，远小于 0.02° 网格）。开启时按 `cell_bound·(360/π)·tanθ_i` **逐反射加宽评估窗**，避免峰被推出窗而截断。
@@ -391,17 +391,17 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 真相相 6/6 保持 Top-1；真实谱 Rwp 微降（2-1 0.4439→0.4421、5-2b 0.4176→0.4170）。合成谱 Rwp 基本不变（生成器 Caglioti 全程被 0.15° 下限压制 ⇒ 实际常数宽度，两种模型不可区分）。
 
-**回归测试**（`tests/search/test_smpf.py` 新增 8 项）：`test_caglioti_fwhm_formula_and_clamps`、`test_theory_profile_caglioti_widens_high_angle`（细网格高低角 FWHM 比 >1.5）、`test_fit_recovers_caglioti_uvw`、`test_caglioti_beats_global_fwhm_on_angle_dependent_width`（Rwp < 0.5×）、`test_fit_recovers_cell_delta`（+0.003 → +0.00299）、`test_switches_off_identity_encoding`、`test_reflection_windows_extra_margin_widens_high_angle`、`test_score_dict_carries_v14_keys`。
+**回归测试**（`tests/search/test_fpfm.py` 新增 8 项）：`test_caglioti_fwhm_formula_and_clamps`、`test_theory_profile_caglioti_widens_high_angle`（细网格高低角 FWHM 比 >1.5）、`test_fit_recovers_caglioti_uvw`、`test_caglioti_beats_global_fwhm_on_angle_dependent_width`（Rwp < 0.5×）、`test_fit_recovers_cell_delta`（+0.003 → +0.00299）、`test_switches_off_identity_encoding`、`test_reflection_windows_extra_margin_widens_high_angle`、`test_score_dict_carries_v14_keys`。
 
-**等价性验证**：改前把旧文件 `cp` 到 `.scratch/smpf_pre_vectorize.py`，以独立模块名加载，48 组配置（Kα 双线 × 晶胞偏移 × 窗口加宽 × 0.01/0.02 网格）对比 `max|Δ|/max < 1e-12`。
+**等价性验证**：改前把旧文件 `cp` 到 `.scratch/fpfm_pre_vectorize.py`，以独立模块名加载，48 组配置（Kα 双线 × 晶胞偏移 × 窗口加宽 × 0.01/0.02 网格）对比 `max|Δ|/max < 1e-12`。
 
 **验收**（2026-10-13）
 
 - `tests/search` junit 结论：**275 用例 0 失败 0 错误**（2 跳过，166.5s），含新增 8 项、`test_deterministic_single_pattern` 与 `test_single_pattern_under_120s`（43.4s，护栏 120s）；
-- 两个慢验收类（`TestSyntheticSmpfAcceptance` 13 组合成谱 Top-20/Top-5、`TestRealSmpfRecord` 13 组真实谱 record）在 `tests/peak + tests/preprocess + tests/search` 全量跑（47 分钟）中同样到达 100%、进度行无 F/E；
+- 两个慢验收类（`TestSyntheticFpfmAcceptance` 13 组合成谱 Top-20/Top-5、`TestRealFpfmRecord` 13 组真实谱 record）在 `tests/peak + tests/preprocess + tests/search` 全量跑（47 分钟）中同样到达 100%、进度行无 F/E；
 - 2 处 skip 为 `tests/search/test_textbook_phases.py` 对 Sylvite/Periclase 的「仅 Halite 断言 Top-5」预期跳过（v1.4.0 无机库专项既有行为，与本改动无关）；
 - `tests/ui` junit 结论：**205 用例 0 失败 0 错误**（350s，offscreen）；
-- ruff 改动文件全绿；mypy `smpf.py` **0 错误**（其余 9 处为 `entry.py`/`background.py`/`smoothing.py`/`fom_criteria.py` 存量）；
+- ruff 改动文件全绿；mypy `fpfm.py` **0 错误**（其余 9 处为 `entry.py`/`background.py`/`smoothing.py`/`fom_criteria.py` 存量）；
 - 提交 `d6a543c`（5 文件 +538/−47）。
 - 已知环境现象：本环境 pytest 收尾会被沙盒钩子拦截临时目录清理（286 文件 > 50 阈值），汇总行不落盘、退出码非 0——**判定以 junit XML 与进度行的 F/E 为准**。
 
@@ -428,7 +428,7 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 - **量化**：Sylvite 卡 `96-900-3112` 归一化后 (220)/(200)=0.34 vs 教科书 0.55（差 38%），低角→高角系统性衰减更快，符合 COD I_calc（结构因子²，缺洛伦兹-偏振因子）惯例特征。
 - **LP 校正模拟**（卡片强度 ×LP(2θ)=(1+cos²2θ)/(sin²θ·cosθ) 再归一化，本地重算）：**全面破坏**——真实谱 2-1 Top-1 ZnO→Ba₃Er₄O₉、5-2b Fe₂O₃→O₄TaTi；Sylvite 真相 3→20；合成谱真相 rank synth_01 1→4、synth_06 5→40、synth_13 1→9。
 - **根因耦合**：合成谱生成器 `_card_peaks_by_formula()` 直接抄库卡片强度 ⇒ 合成谱 =「库强度」的理想再现（自洽闭环），且人工参考软件验收基线（ref20261011）绑定旧谱。全局改惯例 = 破坏合成谱验收 + 真实谱 Top-1 双损。**库强度与实验谱现状已兼容**（L3 Top-1 10/13 优于 LP 后）。
-- 残余差距归因个案：Sylvite 卡强度表本身偏差 + 0.08% 晶胞差（后者已由 SMPF `cell_delta` 吸收）。
+- 残余差距归因个案：Sylvite 卡强度表本身偏差 + 0.08% 晶胞差（后者已由 FPFM `cell_delta` 吸收）。
 
 ### 结论 3（新增归因）：多相谱次相 Top-10 缺失在 **recall 层**，不在 FoM 层
 
@@ -497,7 +497,7 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 ## 5.2 hkl 回填迁移（2026-10-13）✅
 
-**任务**（HANDOVER §5.2 新立项，SMPF 择优取向前置）：`peaks.h/k/l` 全 NULL（6,214,072 行 / 71,206 卡），真 March-Dollase 无法落地——逐峰 Miller 指数缺失。
+**任务**（HANDOVER §5.2 新立项，FPFM 择优取向前置）：`peaks.h/k/l` 全 NULL（6,214,072 行 / 71,206 卡），真 March-Dollase 无法落地——逐峰 Miller 指数缺失。
 
 **探查**：
 - `peaks` 表已有 h/k/l INTEGER 列（全 NULL）；`entries.entry_id` 全为 `96-` 前缀可反推 COD id（`ref_id_to_cod_id`）；CIF 存档缺失 43 条（0.06%）。
@@ -519,7 +519,7 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **核验**：Sylvite 实卡最强峰 d=3.2110 Å ↔ hkl=(0,2,0) ↔ 晶胞 a=6.422 Å（d=a/2 自洽）；`tests/test_backfill_hkl.py` 8 用例（return_hkl 契约、d 匹配、同 d 强度消歧、空重算、dry-run 零写入、apply 幂等）全过；ruff 全绿。
 
-**关联**：下一步 SMPF 择优取向（March-Dollase 真逐峰 hkl 建模）可在 hkl 填充的库上落地；逐晶胞参数（a/b/c）精修的晶胞数据本就完备（entries.a/b/c 缺失仅 15/71,206）。
+**关联**：下一步 FPFM 择优取向（March-Dollase 真逐峰 hkl 建模）可在 hkl 填充的库上落地；逐晶胞参数（a/b/c）精修的晶胞数据本就完备（entries.a/b/c 缺失仅 15/71,206）。
 
 ### 5.2b 逐晶胞参数（a/b/c/α/β/γ/volume）精修（2026-10-13）✅
 
@@ -539,23 +539,23 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **核验**：抽样 10 卡 a/b/c/volume 与 CIF 相对差 < 1e-6 全一致；`tests/test_backfill_cells.py` 5 用例（dry-run 零写入/apply 幂等/NULL 补全/无 CIF 报告）全过；回归 81 用例 0 失败（backfill 两工具 + db 套件）。dist 打包产物 DB 已同步。
 
-### 6.1 SMPF 真 March-Dollase 逐峰择优取向建模（2026-10-13）✅
+### 6.1 FPFM 真 March-Dollase 逐峰择优取向建模（2026-10-13）✅
 
-**任务**（用户选定候选）：在 hkl 已回填的库上落地 SMPF **真** March-Dollase（MD）逐峰择优取向建模——此前 `peaks.h/k/l` 全 NULL 无法逐峰解析 PO 轴反射（#15 被数据阻塞），5.2 回填后 73.1% 峰含 hkl、99.6% 卡可解析。
+**任务**（用户选定候选）：在 hkl 已回填的库上落地 FPFM **真** March-Dollase（MD）逐峰择优取向建模——此前 `peaks.h/k/l` 全 NULL 无法逐峰解析 PO 轴反射（#15 被数据阻塞），5.2 回填后 73.1% 峰含 hkl、99.6% 卡可解析。
 
 **生成器升级（"验收集能证伪≠证实"根除）**：`tools/generate_synthetic_patterns.py` 的 `_march_factor` 原是**假 MD**——乘的是**峰内形状**（窗内 |2θ−2θ₀|≤0.028 rad、cos≈1 ⇒ 近似常数 1.52，被 `scale` 吸收，对排序零影响）。现替换为**真 MD**：逐峰按该峰 hkl 与 PO 轴（倒格矢 metric 夹角）乘积分强度权重 `(r²cos²α + sin²α/r)^(-3/2)`，r = MD_R = 0.75（板状织构，轴上增强 ~r⁻³≈2.4×）。库卡 hkl + 晶胞（5.2 回填）驱动几何；无 hkl 峰权重 1。
 
-**SMPF 拟合侧**（`xinmatch/core/search/smpf.py`）：
+**FPFM 拟合侧**（`xinmatch/core/search/fpfm.py`）：
 - `march_dollase_cos(entry, po_axis)`：逐峰 cos α（倒格矢 metric：a*/b*/c*/cosα*/β*/γ* 由 `CellParams` 计算；`Entry.hkl` 缺行 → nan，nan 峰权重 1——部分标注卡只在标注反射上织构）。
 - `expand_reflections_po`：cos 数组随 Kα1/Kα2 双线 + 2θ 范围过滤同步展开。
 - `generate_theory_profile(..., march_cos, march_r)`：amps ×= `(r²cos²α + sin²α/r)^(-3/2)`。
-- `fit_candidate`：`SmpfConfig.march_po`（默认 **False** 保持旧行为；`po_axis` 默认 (0,0,1)、`march_r_init=1.0`、边界 (0.3,3.0)）开启时参数向量尾部加 `march_r`；`CandidateFit.march_r` + score_dict `march_r` 键。
+- `fit_candidate`：`FpfmConfig.march_po`（默认 **False** 保持旧行为；`po_axis` 默认 (0,0,1)、`march_r_init=1.0`、边界 (0.3,3.0)）开启时参数向量尾部加 `march_r`；`CandidateFit.march_r` + score_dict `march_r` 键。
 
 **验收（真 MD 可辨识性闭环）**：
-- 单元：MD 权重公式（r=1 恒等 / r<1 轴上 r⁻³ 增强、垂直 r^{3/2} 削弱 / nan→1）、六方几何（002/004 cos=1、100 cos=0）、Kα2 cos 复制、profile 轴上峰增强 >3×；`tests/search/test_smpf.py` +7 项。
+- 单元：MD 权重公式（r=1 恒等 / r<1 轴上 r⁻³ 增强、垂直 r^{3/2} 削弱 / nan→1）、六方几何（002/004 cos=1、100 cos=0）、Kα2 cos 复制、profile 轴上峰增强 >3×；`tests/search/test_fpfm.py` +7 项。
 - 恢复性：构造六方织构谱（r=0.6）→ `fit_candidate(march_po=True)` 恢复 **r≈0.6**、Rwp 优于无织构模型；无织构谱不误报（r≈1）。
-- **端到端**（`test_march_po_recovers_textured_zirconia`，slow）：生成器真 MD 织构 Zirconia 谱 → `search_match_smpf(march_po=True)` 真相回 **Top-1**、Rwp < 无织构模型、拟合 r<1。
-- **合成谱验收**：13 组谱用真 MD 生成器**重新生成**（seed 42），peak-list Top-20/Top-5 与 SMPF Top-20/Top-5 全部保持（**注**：单相 Zirconia 的 (-1,1,1) 织构在 r=0.75 下已使 peak-list 掉出——peak-list 强度失配是真实物理；该样本去织构，6 组多相织构样本保留，MD 端到端由专项测试覆盖）。
+- **端到端**（`test_march_po_recovers_textured_zirconia`，slow）：生成器真 MD 织构 Zirconia 谱 → `search_match_fpfm(march_po=True)` 真相回 **Top-1**、Rwp < 无织构模型、拟合 r<1。
+- **合成谱验收**：13 组谱用真 MD 生成器**重新生成**（seed 42），peak-list Top-20/Top-5 与 FPFM Top-20/Top-5 全部保持（**注**：单相 Zirconia 的 (-1,1,1) 织构在 r=0.75 下已使 peak-list 掉出——peak-list 强度失配是真实物理；该样本去织构，6 组多相织构样本保留，MD 端到端由专项测试覆盖）。
 - 全量核心回归（无 UI/无 pdf2_source_config）：**全部通过**；ruff 本轮文件全绿；mypy 本轮文件 0 错误（其余 8 处为 preprocess/model/fom_criteria 存量噪音）。
 
 **提交**：`(本提交)`。
@@ -582,7 +582,7 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **版本**：1.5.0 → 1.6.0（增量 = 1.5.0 后全部开发：T6.0 检索预筛 + T14.3 批处理 + T14.4 串口 + T2.4 Bruker RAW + T0.2 版本 diff + T0.5 术语表 + T0.3/T0.4 TiO₂ 定量验证）。
 
-**验证**：核心套件 **1089 passed / 0 failed / 46 skipped**（5668s，含全部 slow）；UI（python310）**209 passed / 0 failed**；ruff 全量 All checks passed；mypy **109 files 0 errors**（本轮清偿 24 处存量：ruff 6 + mypy 18——14 处 Qt/numpy `no-any-return` 标注、fom_criteria 3 处 `arr.max()`→`np.max()`、le_bail np.trapz→getattr 双备、cli matplotlib/DataPoint、backfill_cells numpy、smpf ternary、test_smpf import 排序）。
+**验证**：核心套件 **1089 passed / 0 failed / 46 skipped**（5668s，含全部 slow）；UI（python310）**209 passed / 0 failed**；ruff 全量 All checks passed；mypy **109 files 0 errors**（本轮清偿 24 处存量：ruff 6 + mypy 18——14 处 Qt/numpy `no-any-return` 标注、fom_criteria 3 处 `arr.max()`→`np.max()`、le_bail np.trapz→getattr 双备、cli matplotlib/DataPoint、backfill_cells numpy、fpfm ternary、test_fpfm import 排序）。
 
 **产物**：`dist/xinmatch-1.6.0/`（onedir，DB 不内置）+ `dist/xinmatch-cod-db-1.6.0.zip`（210.2 MB，zip 内 `data/cod_inorganics.db`）+ `dist/XinMatch-Setup-1.6.0.exe`（Inno Setup 单文件安装版，DB 单独挂载）+ `dist/XinMatch-Portable-1.6.0.zip`（便携，本地保留）。
 

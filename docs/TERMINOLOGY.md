@@ -26,7 +26,7 @@
 |---|---|---|---|
 | data smoothing / smoothing of raw data | 平滑（`process --smooth`；`core/smoothing.py`）[x] | 平滑（Savitzky-Golay 等数字滤波） | 参数：窗口/多项式阶 |
 | background determination / background subtraction | 背景估计/扣除（`core/background.py`）[x] | 背景扣除（background correction） | Chebyshev 多项式背景 |
-| Alpha2 Stripping (Kα2) | Kα2 剥离（`process --strip-kalpha2`）[x] | Kα2 剥离（Rachinger 法） | SMPF 模式另有伴线处理 |
+| Alpha2 Stripping (Kα2) | Kα2 剥离（`process --strip-kalpha2`）[x] | Kα2 剥离（Rachinger 法） | FPFM 模式另有伴线处理 |
 | automatic raw data processing | 自动预处理管线（`process`）[x] | 自动数据处理 | 平滑→背景→寻峰→剥离 |
 | 2theta error correction | 2θ 误差校正（内标）[规划] | 2θ 零点/位移校正 | 参考软件经 Internal Standard 完成 |
 | internal standard | 内标（定量模块）[x] | 内标法（internal standard） | 定量分析链路已有 |
@@ -38,7 +38,7 @@
 | peak searching | 寻峰（`core/peaks.py`；`process` 自动阶段）[x] | 寻峰（peak search / peak picking） | 灵敏度参数：`rawdata-proc_peaksearch` ↔ XinMatch 寻峰阈值 |
 | Peak Editing in the Diffraction Pattern | 峰编辑（图谱交互）[x] | 峰位/强度编辑 | pattern_view 支持峰拖动 |
 | integrated peak intensities | 积分强度（峰面积）[x] | 积分强度（integrated intensity） | XinMatch 寻峰输出面积 |
-| Profile Fitting | 峰形拟合（SMPF / 单峰拟合）[x] | 峰形拟合（profile fitting） | XinMatch 有 SMPF 全谱拟合与 March-Dollase 择优取向 |
+| Profile Fitting | 峰形拟合（FPFM / 单峰拟合）[x] | 峰形拟合（profile fitting） | XinMatch 有 FPFM 全谱拟合与 March-Dollase 择优取向 |
 | Peak Residuals Calculation | 峰残差（`core/search/` FoM 分量）[x] | 峰残差（residuals） | 参考软件独立功能；XinMatch 在 FoM 内实现 |
 | rescale peak intensities | 峰强度归一（规划）[规划] | 强度标定 | 相对强度标度 XinMatch 在检索内部处理 [x] |
 
@@ -47,7 +47,7 @@
 | 参考软件术语 | XinMatch 术语 | 标准晶体学术语 | 备注 |
 |---|---|---|---|
 | Search-Match | Search-Match（`search`；UI「Search-Match 报告」）[x] | 检索匹配（search-match） | 核心功能 |
-| SMPF (Search-Match using Profile Fitting) | SMPF 模式（`search --mode smpf`）[x] | 全谱拟合检索 | XinMatch 已实现真 March-Dollase 择优取向 SMPF |
+| FPFM (Full Pattern Fitting Match；v1.6.1 前旧称 SMPF) | FPFM 模式（`search --mode fpfm`，旧值 `smpf` 仍接受）[x] | 全谱拟合检索（full-pattern fitting match） | XinMatch 已实现真 March-Dollase 择优取向 FPFM |
 | FoM (Figure of Merit) | FoM 品质因数（`core/search/fom_criteria.py`）[x] | 品质因数 | 五分量（峰位/强度/半高宽/晶胞/密度…） |
 | candidate list | 候选列表（UI 表格）[x] | 候选相列表 | 参考软件 FoM 排序；XinMatch 同 |
 | Selection of Matching Entries | 候选选择/过滤（元素限制等）[x] | 匹配条目选择 | Restraints 加权评分 |
@@ -72,8 +72,8 @@
 |---|---|---|---|
 | Rietveld Refinement | Rietveld 精修向导（`refinement_wizard.py`，GSAS-II 集成）[x] | Rietveld 精修（全谱结构精修） | 集成 GSASIIscriptable |
 | Le Bail method | Le Bail 拟合（规划）[规划] | Le Bail 全谱分解 | 参考软件有；XinMatch 路线图精修阶段 |
-| Pattern decomposition | 谱分解（SMPF 背景）[x] | 谱分解 | SMPF 内部实现 |
-| Crystallite Size Estimation | 微晶尺寸（SMPF 展宽/合成）[x] | 微晶尺寸（crystallite size / domain size） | XinMatch 从峰展宽估计 [x] |
+| Pattern decomposition | 谱分解（FPFM 背景）[x] | 谱分解 | FPFM 内部实现 |
+| Crystallite Size Estimation | 微晶尺寸（FPFM 展宽/合成）[x] | 微晶尺寸（crystallite size / domain size） | XinMatch 从峰展宽估计 [x] |
 | Instrumental Standards | 仪器标准样 [—] | 仪器展宽标准样 | 规划 |
 | crystal structure data / atomic parameters | 结构数据（CIF 解析；3D 结构视图）[x] | 晶体结构/原子参数 | XinMatch 有 CIF/3D 视图 |
 | space group / crystal system | 空间群/晶系（条目元数据）[x] | 空间群/晶系 | CIF 权威值回填 |

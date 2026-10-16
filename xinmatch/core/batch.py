@@ -3,7 +3,7 @@
 Runs the full XinMatch pipeline for a *list* of samples described by a
 JSON or YAML configuration file::
 
-    load_pattern  →  auto_process  →  search (peaks | smpf)  →  Report
+    load_pattern  →  auto_process  →  search (peaks | fpfm)  →  Report
 
 This module is the in-package orchestration layer (the CLI-facing
 ``tools/batch_runner.py`` is a thin wrapper around it for direct script
@@ -34,10 +34,10 @@ Configuration schema
     # Reference-database search parameters.
     search:
       db: data/cod_inorganics.db      # required
-      mode: peaks                     # peaks (default) | smpf
+      mode: peaks                     # peaks (default) | fpfm
       top_n: 20
       window_deg: 0.3
-      # SMPF mode (mode: smpf):
+      # FPFM mode (mode: fpfm):
       kalpha1: 1.5406                 # 0 = follow the pattern's own wavelength
       kalpha2: 1.5444
       single_kalpha: false            # single-line model (synthetic / Kα2-stripped data)
@@ -92,7 +92,7 @@ from xinmatch.core.report.report_model import (
 from xinmatch.core.search import search_match
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.fom_criteria import FomWeights
-from xinmatch.core.search.smpf import search_match_smpf
+from xinmatch.core.search.fpfm import search_match_fpfm
 
 __all__ = [
     "SampleResult",
@@ -228,19 +228,19 @@ def _resolve(base_dir: Path, value: str | Path | None) -> Path | None:
 # --------------------------------------------------------------------------- #
 # Per-sample pipeline
 # --------------------------------------------------------------------------- #
-def _search_smpf(
+def _search_fpfm(
     pattern,
     conn: sqlite3.Connection,
     search_cfg: dict[str, Any],
     top_n: int,
 ) -> list[CandidateResult]:
-    """SMPF-mode search: full-profile fit (no peak picking), Kα model from cfg."""
+    """FPFM-mode search: full-profile fit (no peak picking), Kα model from cfg."""
     ka1 = float(search_cfg.get("kalpha1", 0.0))
     if ka1 <= 0.0:
         ka1 = pattern.wavelength
     ka2 = None if bool(search_cfg.get("single_kalpha", False)) \
         else float(search_cfg.get("kalpha2", 1.5444))
-    raw = search_match_smpf(
+    raw = search_match_fpfm(
         pattern,
         conn,
         wavelength_kalpha1=ka1,
@@ -293,12 +293,14 @@ def run_sample(
     if wavelength is not None:
         pattern.wavelength = float(wavelength)
 
-    # 2. Automatic preprocessing pipeline (peaks mode only — SMPF fits the
+    # 2. Automatic preprocessing pipeline (peaks mode only — FPFM fits the
     #    raw profile directly and must not strip / smooth it).
     mode = str(search_cfg.get("mode", "peaks")).lower()
-    smpf = mode == "smpf"
+    if mode == "smpf":  # legacy alias, kept for configs written pre-v1.6.1
+        mode = "fpfm"
+    fpfm = mode == "fpfm"
     peaks: list[Any] = []
-    if not smpf:
+    if not fpfm:
         _processed, peaks = auto_process(pattern, config=preprocess_cfg)
     result.n_peaks = len(peaks)
 
@@ -318,8 +320,8 @@ def run_sample(
 
     conn = sqlite3.connect(str(db_path))
     try:
-        if smpf:
-            candidates = _search_smpf(pattern, conn, search_cfg, top_n)
+        if fpfm:
+            candidates = _search_fpfm(pattern, conn, search_cfg, top_n)
         else:
             candidates = search_match(
                 peaks,
@@ -386,8 +388,12 @@ def _validate_config(config: dict[str, Any]) -> None:
     if not isinstance(search_cfg, dict) or not search_cfg.get("db"):
         raise ValueError("config['search']['db'] (reference .db path) is required")
     mode = str(search_cfg.get("mode", "peaks")).lower()
-    if mode not in ("peaks", "smpf"):
-        raise ValueError(f"search.mode must be 'peaks' or 'smpf', got {mode!r}")
+    if mode == "smpf":
+        # Pre-v1.6.1 legacy mode name (SMPF → FPFM rename); normalize in place.
+        mode = "fpfm"
+        search_cfg["mode"] = mode
+    if mode not in ("peaks", "fpfm"):
+        raise ValueError(f"search.mode must be 'peaks' or 'fpfm', got {mode!r}")
 
 
 def run_batch(config: dict[str, Any], config_dir: Path | None = None) -> BatchResult:

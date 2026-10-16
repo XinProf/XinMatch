@@ -15,7 +15,7 @@
 | `jingzhun/` | 13 个样品（1-1…7-2） | 精准（必含元素，`元素限定-jingzhun.txt`） | 6,209 |
 | `alloption/` | 13 个样品（1-1…7-2） | 宽松（可能性元素，超轻/轻元素全选，`元素限定-alloption.txt`） | 13,778 |
 
-两套均为人工在 参考软件 4.x 用 **SMPF（search-match using profile fitting，
+两套均为人工在 参考软件 4.x 用 **FPFM（search-match using profile fitting，
 无寻峰、无峰形处理、直接原始谱图）** + 数据库 **COD-Inorg 2025.12.01**
 （`参考软件安装目录\RefDB_COD`）导出，经
 `tools/import_match_baseline.py` 规范化（编码嗅探/欧式小数逗号/FoM 排序），
@@ -42,7 +42,7 @@ Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct
 - 第一行为 banner（解析器不依赖其内容，`sample_id` 取**文件名主干**）。
 - 第二行为固定表头（10 列，顺序固定）。
 - 数据行按 **FoM 降序**。
-- SMPF（Profile Fitting）模式导出时 `P(#peaks)=0.0000`、多个 P 列为 `n.a.`
+- FPFM（Profile Fitting）模式导出时 `P(#peaks)=0.0000`、多个 P 列为 `n.a.`
   属正常现象——L3 比较以 **FoM 排序**为准。
 
 ---
@@ -57,7 +57,7 @@ Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct
 3. **跑 Search-Match**：`Search → Search-Match`（`Ctrl+M`），参考数据库选
    COD（与 `data/cod_inorganics.db` 同源）。
    - 建议同时跑两档设置并分别导出，供宽松/精准对照：
-     - **精准档**（SMPF，默认选项）→ 对应现有 `match-candidate list-jingzhun\`。
+     - **精准档**（FPFM，默认选项）→ 对应现有 `match-candidate list-jingzhun\`。
      - **宽松档**（全部候选选项）→ 对应 `match-candidate list-alloption\`。
 4. **导出候选列表**：`File → Export → Candidate list (CSV)`，
    文件名存为 `{sample_id}.csv`（如 `1-1.csv`、`CPD-1a.csv`）。

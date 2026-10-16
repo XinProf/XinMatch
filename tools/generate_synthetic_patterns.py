@@ -3,7 +3,7 @@
 Purpose
 -------
 扩充基线样品集（T0.3/T0.4）：生成 13 个"真相已知"的合成混合物谱，
-供在参考软件中以 SMPF 流程人工检索对照，严格检验检索一致率。
+供在参考软件中以 FPFM 流程人工检索对照，严格检验检索一致率。
 
 方法
 ----
@@ -63,7 +63,7 @@ _MATERIALS: list[tuple[str, list[tuple[int, float, tuple[int, int, int] | None]]
 ]
 
 #: True March-Dollase r for textured phases (platy, r < 1).  Moderate
-#: strength (r = 0.75): strong enough to be identifiable by SMPF profile
+#: strength (r = 0.75): strong enough to be identifiable by FPFM profile
 #: fitting (on-axis enhancement ~ r^-3 ≈ 2.4×) yet gentle enough that the
 #: peak-list pre-screen still recalls textured phases.  Notes:
 #: * the old "fake" factor was a ~constant 1.52 swallowed by `scale`; the
@@ -260,7 +260,7 @@ def _fwhm(tth: float) -> float:
     t = math.tan(math.radians(tth / 2.0))
     f = math.sqrt(max(0.0, U * t * t + V * t + W))
     # 下限 0.15°：对齐常规实验室 Cu 源的仪器展宽（实测样本峰形 ~0.15–0.25°）。
-    # 早期下限 0.03° 生成 FWHM ~0.1° 的过窄峰，参考软件 SMPF 拟合不稳定。
+    # 早期下限 0.03° 生成 FWHM ~0.1° 的过窄峰，参考软件 FPFM 拟合不稳定。
     return max(f, 0.15)
 
 
@@ -477,7 +477,7 @@ def main() -> None:
             "生成方式：COD 标准 CIF → 结构因子 → pseudo-Voigt 峰形 + 背底 + 噪音，"
             "Cu Kα1 1.5406 Å，10–90°，步进 0.02°。\n"
             "文件格式：Profile Data Ascii Dump (XRD) 兼容（/// banner + 测量条件块 + "
-            "`<2Theta> <I>` 表头，行宽 81 对齐实测样本），可直接在参考软件中导入并跑 SMPF；"
+            "`<2Theta> <I>` 表头，行宽 81 对齐实测样本），可直接在参考软件中导入并跑 FPFM；"
             "强度已整数化。\n\n"
         )
         for r in rows:

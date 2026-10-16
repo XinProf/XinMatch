@@ -11,7 +11,7 @@ The reference software candidate CSV format (semicolon separated)::
     Entry;Qual.;Formula sum;Name;P(peakpos.);P(I/I0);P(#peaks);P(#corr.);I scale fct.;FoM
     96-400-1849;C;Fe Li O4 P;;n.a.;n.a.;0.0000;n.a.;0.7083;1.0000
 
-The reference software runs Search-Match in SMPF (Search-Match using Profile Fitting)
+The reference software runs Search-Match in FPFM (Search-Match using Profile Fitting)
 mode for these exports, so ``P(#peaks)`` is always 0.0000 and several P
 columns are ``n.a.`` — the comparison therefore keys on the **FoM
 ordering** (the ``FoM`` column), exactly as the L3 spec of

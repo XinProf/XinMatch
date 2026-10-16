@@ -201,7 +201,7 @@ def compute_p_values(
     # against a reference card that is itself normalised to 100 on its own
     # strongest peak.  Normalising to the matched-peak maximum makes the
     # intensity comparison a pure *shape* comparison on the peaks that
-    # actually correlate, which is what profile-fitting (SMPF mode) does.
+    # actually correlate, which is what profile-fitting (FPFM mode) does.
     # For single-phase samples the matched peaks are the strong peaks, so
     # matched_max ≈ global_max and the behaviour is unchanged.
     exp_intensities = np.fromiter(

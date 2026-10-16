@@ -1,4 +1,4 @@
-"""Tests for SMPF (Search-Match with Profile Fitting, 全谱拟合检索).
+"""Tests for FPFM (Search-Match with Profile Fitting, 全谱拟合检索).
 
 Covers:
 * unit behaviour of the profile-expansion / theory / scoring primitives;
@@ -20,8 +20,8 @@ import numpy as np
 import pytest
 
 from xinmatch.core.model import CellParams, Entry, Pattern
-from xinmatch.core.search.smpf import (
-    SmpfConfig,
+from xinmatch.core.search.fpfm import (
+    FpfmConfig,
     compute_fom,
     compute_rwp,
     expand_reflections,
@@ -30,7 +30,7 @@ from xinmatch.core.search.smpf import (
     generate_theory_profile,
     march_dollase_cos,
     march_dollase_weight,
-    search_match_smpf,
+    search_match_fpfm,
 )
 
 WL = 1.5406
@@ -91,7 +91,7 @@ def test_expand_empty_entry():
 def test_theory_peak_at_bragg_position():
     e = _entry(_DS, _INTS)
     c, a = expand_reflections(e, WL, None, 5.0, 90.0)
-    from xinmatch.core.search.smpf import _reflection_windows
+    from xinmatch.core.search.fpfm import _reflection_windows
     win = _reflection_windows(_X, c, 1.5)
     y = generate_theory_profile(_X, c, a, win, fwhm=0.2, eta=0.5)
     # The strongest stick should produce a local max near its Bragg angle.
@@ -104,7 +104,7 @@ def test_theory_peak_at_bragg_position():
 def test_theory_zero_background_when_scale_zero():
     e = _entry(_DS, _INTS)
     c, a = expand_reflections(e, WL, None, 5.0, 90.0)
-    from xinmatch.core.search.smpf import _reflection_windows
+    from xinmatch.core.search.fpfm import _reflection_windows
     win = _reflection_windows(_X, c, 1.5)
     y = generate_theory_profile(_X, c, a, win, fwhm=0.2, eta=0.5,
                                scale=0.0, bg0=10.0, bg1=0.0, bg2=0.0)
@@ -147,7 +147,7 @@ def _make_raw_pattern(entry: Entry, *, scale: float, shift: float,
                      fwhm: float, eta: float, bg: tuple[float, float, float],
                      noise: float = 0.0) -> Pattern:
     c, a = expand_reflections(entry, WL, None, 5.0, 90.0)
-    from xinmatch.core.search.smpf import _reflection_windows
+    from xinmatch.core.search.fpfm import _reflection_windows
     win = _reflection_windows(_X, c, 1.5)
     y = generate_theory_profile(_X, c, a, win, fwhm=fwhm, eta=eta,
                                 shift=shift, scale=scale,
@@ -165,7 +165,7 @@ def test_fit_recovers_scale_shift_fwhm():
                             bg=(300.0, 0.5, 0.0), noise=2.0)
     f = fit_candidate(entry, pat.two_theta, pat.intensity,
                      wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                     cfg=SmpfConfig())
+                     cfg=FpfmConfig())
     assert f.scale == pytest.approx(8.0, rel=0.15)
     assert f.shift_deg == pytest.approx(0.1, abs=0.05)
     assert f.fwhm == pytest.approx(0.2, rel=0.2)
@@ -180,10 +180,10 @@ def test_fit_ranks_true_above_wrong():
                    [100.0, 80.0, 60.0, 40.0, 30.0, 20.0], eid="wrong")
     ft = fit_candidate(true_entry, pat.two_theta, pat.intensity,
                        wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                       cfg=SmpfConfig())
+                       cfg=FpfmConfig())
     fw = fit_candidate(wrong, pat.two_theta, pat.intensity,
                        wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                       cfg=SmpfConfig())
+                       cfg=FpfmConfig())
     assert ft.fom > fw.fom
     assert ft.rwp < fw.rwp
 
@@ -195,7 +195,7 @@ def test_search_empty_entries_returns_empty():
     from tools.run_acceptance import build_curated_db
     conn = build_curated_db()
     try:
-        res = search_match_smpf(pat, conn, prescreen_top_n=10, top_n=5)
+        res = search_match_fpfm(pat, conn, prescreen_top_n=10, top_n=5)
         # Curated DB recall may or may not match; just assert no crash and
         # sorted-by-FoM ordering when non-empty.
         foms = [s["fom"] for _, s in res]
@@ -214,7 +214,7 @@ def test_deterministic_single_pattern():
     conn = sqlite3.connect(DB)
     try:
         def run():
-            res = search_match_smpf(pat, conn, wavelength_kalpha1=WL,
+            res = search_match_fpfm(pat, conn, wavelength_kalpha1=WL,
                                     wavelength_kalpha2=None,
                                     prescreen_top_n=60, top_n=5)
             return [(e.entry_id, round(s["fom"], 6)) for e, s in res]
@@ -235,7 +235,7 @@ def synth_results():
     try:
         for name in TRUTH:
             pat = load_pattern(SYNTH_DIR / f"{name}.txt")
-            res = search_match_smpf(pat, conn, wavelength_kalpha1=WL,
+            res = search_match_fpfm(pat, conn, wavelength_kalpha1=WL,
                                     wavelength_kalpha2=None,
                                     prescreen_top_n=150, top_n=20)
             out[name] = [(e.entry_id, s["formula"], s["fom"], s["rwp"])
@@ -246,8 +246,8 @@ def synth_results():
 
 
 @pytest.mark.skipif(not SYNTH_DIR.exists(), reason="合成谱目录不存在（仓库外）")
-class TestSyntheticSmpfAcceptance:
-    """13 组合成谱：任一真相相必须进入 Top-20（SMPF 全谱拟合精排）。"""
+class TestSyntheticFpfmAcceptance:
+    """13 组合成谱：任一真相相必须进入 Top-20（FPFM 全谱拟合精排）。"""
 
     def test_truth_in_top20_for_all(self, synth_results):
         from tests.search.test_synthetic_acceptance import TRUTH, is_truth
@@ -256,7 +256,7 @@ class TestSyntheticSmpfAcceptance:
             top20 = synth_results[name]
             if not any(is_truth(f, tf) for (_, f, _, _) in top20 for tf in truths):
                 failed.append(name)
-        assert not failed, f"SMPF 真相相未进 Top-20: {failed}"
+        assert not failed, f"FPFM 真相相未进 Top-20: {failed}"
 
     def test_truth_in_top5_for_all(self, synth_results):
         from tests.search.test_synthetic_acceptance import TRUTH, is_truth
@@ -265,7 +265,7 @@ class TestSyntheticSmpfAcceptance:
             top5 = synth_results[name][:5]
             if not any(is_truth(f, tf) for (_, f, _, _) in top5 for tf in truths):
                 failed.append(name)
-        assert not failed, f"SMPF 真相相未进 Top-5: {failed}"
+        assert not failed, f"FPFM 真相相未进 Top-5: {failed}"
 
     def test_results_sorted_by_fom(self, synth_results):
         for name, lst in synth_results.items():
@@ -289,7 +289,7 @@ def real_results():
             if not p.exists():
                 continue
             pat = load_pattern(p)
-            res = search_match_smpf(pat, conn, wavelength_kalpha1=WL,
+            res = search_match_fpfm(pat, conn, wavelength_kalpha1=WL,
                                     wavelength_kalpha2=1.5444,
                                     prescreen_top_n=150, top_n=10)
             out[sid] = [(e.entry_id, s["formula"], s["fom"], s["rwp"])
@@ -300,7 +300,7 @@ def real_results():
 
 
 @pytest.mark.skipif(not REAL_DIR.exists(), reason="真实谱目录不存在（仓库外）")
-class TestRealSmpfRecord:
+class TestRealFpfmRecord:
     """13 组真实谱：跑通、候选非空、记录 Top-10（不设硬命中率断言）。"""
 
     def test_all_samples_run(self, real_results):
@@ -323,7 +323,7 @@ def test_single_pattern_under_120s():
     conn = sqlite3.connect(DB)
     t = {}
     try:
-        search_match_smpf(pat, conn, wavelength_kalpha1=WL,
+        search_match_fpfm(pat, conn, wavelength_kalpha1=WL,
                           wavelength_kalpha2=None,
                           prescreen_top_n=150, top_n=20, timing=t)
     finally:
@@ -347,7 +347,7 @@ def _raw_pattern_with(
     bg: tuple[float, float, float] = (300.0, 0.5, 0.0),
 ) -> Pattern:
     """Build a raw pattern from *entry* (optionally cell-scaled by Δ)."""
-    from xinmatch.core.search.smpf import _reflection_windows
+    from xinmatch.core.search.fpfm import _reflection_windows
     if cell_delta != 0.0:
         # 样本晶胞比卡片大 Δ：d 乘 (1+Δ)
         entry = Entry(
@@ -372,7 +372,7 @@ def _raw_pattern_with(
 
 
 def test_caglioti_fwhm_formula_and_clamps():
-    from xinmatch.core.search.smpf import _caglioti_fwhm
+    from xinmatch.core.search.fpfm import _caglioti_fwhm
     tan45 = np.array([math.tan(math.radians(22.5))])
     h = _caglioti_fwhm(tan45, 0.006, -0.004, 0.010, (0.08, 0.6))
     expect = math.sqrt(0.006 * tan45[0] ** 2 - 0.004 * tan45[0] + 0.010)
@@ -399,7 +399,7 @@ def _fwhm_at(x: np.ndarray, y: np.ndarray, centre: float) -> float:
 def test_theory_profile_caglioti_widens_high_angle():
     entry = _entry(_DS, _INTS)
     c, a = expand_reflections(entry, WL, None, 5.0, 90.0)
-    from xinmatch.core.search.smpf import _reflection_windows
+    from xinmatch.core.search.fpfm import _reflection_windows
     # 细网格：峰宽 ~0.1°，0.02° 步进的半高宽量化误差会压过高/低角比值。
     xf = np.arange(5.0, 90.0, 0.005, dtype=np.float64)
     tan = np.clip(np.tan(np.radians(c / 2.0)), 0.0, 8.0)
@@ -420,7 +420,7 @@ def test_fit_recovers_caglioti_uvw():
     pat = _raw_pattern_with(entry, uvw=(0.006, -0.004, 0.010))
     f = fit_candidate(entry, pat.two_theta, pat.intensity,
                       wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                      cfg=SmpfConfig())
+                      cfg=FpfmConfig())
     assert f.u == pytest.approx(0.006, abs=0.003)
     assert f.v == pytest.approx(-0.004, abs=0.003)
     assert f.w == pytest.approx(0.010, abs=0.004)
@@ -432,10 +432,10 @@ def test_caglioti_beats_global_fwhm_on_angle_dependent_width():
     pat = _raw_pattern_with(entry, uvw=(0.05, 0.0, 0.01), noise=1.0)
     f_on = fit_candidate(entry, pat.two_theta, pat.intensity,
                          wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                         cfg=SmpfConfig())
+                         cfg=FpfmConfig())
     f_off = fit_candidate(entry, pat.two_theta, pat.intensity,
                           wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                          cfg=SmpfConfig(caglioti=False, cell_refine=False))
+                          cfg=FpfmConfig(caglioti=False, cell_refine=False))
     # 同一角度依赖宽化谱：Caglioti 拟合必须显著优于全局单 FWHM。
     assert f_on.rwp < 0.5 * f_off.rwp
 
@@ -445,13 +445,13 @@ def test_fit_recovers_cell_delta():
     pat = _raw_pattern_with(entry, cell_delta=0.003)
     f = fit_candidate(entry, pat.two_theta, pat.intensity,
                       wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                      cfg=SmpfConfig())
+                      cfg=FpfmConfig())
     assert f.cell_delta == pytest.approx(0.003, abs=0.0008)
     assert f.rwp < 0.05
     # 不修正时同一谱的 Rwp 显著变差（constant shift 无法吸收 tanθ 差分位移）。
     f2 = fit_candidate(entry, pat.two_theta, pat.intensity,
                        wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                       cfg=SmpfConfig(cell_refine=False))
+                       cfg=FpfmConfig(cell_refine=False))
     assert f.rwp < f2.rwp
 
 
@@ -460,7 +460,7 @@ def test_switches_off_identity_encoding():
     pat = _raw_pattern_with(entry, fwhm=0.2)
     f = fit_candidate(entry, pat.two_theta, pat.intensity,
                       wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                      cfg=SmpfConfig(caglioti=False, cell_refine=False))
+                      cfg=FpfmConfig(caglioti=False, cell_refine=False))
     assert f.u == 0.0 and f.v == 0.0
     assert f.w == pytest.approx(f.fwhm ** 2)
     assert f.cell_delta == 0.0
@@ -468,7 +468,7 @@ def test_switches_off_identity_encoding():
 
 
 def test_reflection_windows_extra_margin_widens_high_angle():
-    from xinmatch.core.search.smpf import _reflection_windows
+    from xinmatch.core.search.fpfm import _reflection_windows
     c = np.array([20.0, 60.0])
     plain = _reflection_windows(_X, c, 1.5)
     extra = np.array([0.0, 0.5])
@@ -483,7 +483,7 @@ def test_score_dict_carries_v14_keys():
     from tools.run_acceptance import build_curated_db
     conn = build_curated_db()
     try:
-        res = search_match_smpf(pat, conn, prescreen_top_n=10, top_n=5)
+        res = search_match_fpfm(pat, conn, prescreen_top_n=10, top_n=5)
         if res:
             for _, s in res:
                 for key in ("caglioti_u", "caglioti_v", "caglioti_w",
@@ -494,7 +494,7 @@ def test_score_dict_carries_v14_keys():
 
 
 # --------------------------------------------------------------------------- #
-# March-Dollase preferred orientation (v1.5 SMPF extension)
+# March-Dollase preferred orientation (v1.5 FPFM extension)
 # --------------------------------------------------------------------------- #
 def _hex_graphite_entry() -> Entry:
     """Graphite-like hexagonal cell (a=2.464, c=6.711 Å) with 00l-dominant
@@ -516,7 +516,7 @@ def _raw_pattern_md(entry: Entry, *, march_r: float = 0.6, scale: float = 8.0,
     """Raw pattern textured by the *true* March-Dollase model (same profile
     builder as the fitter — this validates r recovery, not the synthetic
     generator end-to-end, which the acceptance set covers)."""
-    from xinmatch.core.search.smpf import _reflection_windows
+    from xinmatch.core.search.fpfm import _reflection_windows
     po_cos = march_dollase_cos(entry, (0, 0, 1))
     c, a, pc = expand_reflections_po(entry, WL, None, 5.0, 90.0, po_cos)
     win = _reflection_windows(_X, c, 1.5)
@@ -605,13 +605,13 @@ def test_fit_recovers_march_r_on_textured_pattern():
     pat = _raw_pattern_md(e, march_r=0.6)
     f = fit_candidate(e, pat.two_theta, pat.intensity,
                       wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                      cfg=SmpfConfig(march_po=True))
+                      cfg=FpfmConfig(march_po=True))
     assert f.march_r == pytest.approx(0.6, abs=0.12)
     assert f.rwp < 0.05
     # Without the texture model the same pattern fits worse.
     f0 = fit_candidate(e, pat.two_theta, pat.intensity,
                        wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                       cfg=SmpfConfig(march_po=False))
+                       cfg=FpfmConfig(march_po=False))
     assert f0.rwp > f.rwp
 
 
@@ -620,7 +620,7 @@ def test_fit_no_texture_stays_isotropic():
     pat = _raw_pattern_md(e, march_r=1.0)
     f = fit_candidate(e, pat.two_theta, pat.intensity,
                       wavelength_kalpha1=WL, wavelength_kalpha2=None,
-                      cfg=SmpfConfig(march_po=True))
+                      cfg=FpfmConfig(march_po=True))
     # An un-textured pattern must not be over-fitted into a false texture.
     assert f.march_r == pytest.approx(1.0, abs=0.15)
 
@@ -629,7 +629,7 @@ def test_fit_no_texture_stays_isotropic():
 @pytest.mark.skipif(not DB.exists(), reason="参考库不存在（仓库外）")
 def test_march_po_recovers_textured_zirconia():
     """End-to-end: a *true-March-Dollase* textured Zirconia spectrum built
-    with the (upgraded) synthetic generator must be recovered by SMPF with
+    with the (upgraded) synthetic generator must be recovered by FPFM with
     ``march_po=True`` — truth back at Top-1 and Rwp better than the
     un-textured model — proving the generator→fitter contract (the
     previous fake factor could not be detected nor recovered)."""
@@ -642,12 +642,12 @@ def test_march_po_recovers_textured_zirconia():
     pat = Pattern(two_theta=x, intensity=y, wavelength=WL, step=0.02)
     conn = sqlite3.connect(DB)
     try:
-        res_md = search_match_smpf(
+        res_md = search_match_fpfm(
             pat, conn, wavelength_kalpha1=WL, wavelength_kalpha2=None,
-            cfg=SmpfConfig(march_po=True), prescreen_top_n=60, top_n=10)
-        res_plain = search_match_smpf(
+            cfg=FpfmConfig(march_po=True), prescreen_top_n=60, top_n=10)
+        res_plain = search_match_fpfm(
             pat, conn, wavelength_kalpha1=WL, wavelength_kalpha2=None,
-            cfg=SmpfConfig(march_po=False), prescreen_top_n=60, top_n=10)
+            cfg=FpfmConfig(march_po=False), prescreen_top_n=60, top_n=10)
     finally:
         conn.close()
     from tests.search.test_synthetic_acceptance import is_truth

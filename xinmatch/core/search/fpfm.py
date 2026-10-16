@@ -1,7 +1,7 @@
-"""SMPF — Search-Match with Profile Fitting (全谱拟合检索).
+"""FPFM — Search-Match with Profile Fitting (全谱拟合检索).
 
-SMPF is XinMatch's **full-pattern** retrieval.  Instead of correlating a
-discrete peak list (the classical peak-based search-match), SMPF draws a
+FPFM is XinMatch's **full-pattern** retrieval.  Instead of correlating a
+discrete peak list (the classical peak-based search-match), FPFM draws a
 continuous calculated diffraction profile for each candidate reference
 entry, fits an intensity scale + a small set of instrumental / profile
 parameters against the *whole* experimental pattern, and ranks candidates
@@ -15,7 +15,7 @@ Young, *The Rietveld Method*) and the analytical pseudo-Voigt profile from
 :mod:`xinmatch.core.peak.shapes`.  No proprietary algorithm or code is
 reproduced.
 
-Pipeline (top-level :func:`search_match_smpf`)
+Pipeline (top-level :func:`search_match_fpfm`)
 ----------------------------------------------
 1. **Candidate pre-screen** (performance-critical): the full COD-scale
    reference DB (~70 k entries) cannot be fitted one-by-one.  We run the
@@ -54,7 +54,7 @@ Pipeline (top-level :func:`search_match_smpf`)
    A global (single) FWHM was the v1.2 default: on typical laboratory Cu
    data the Caglioti width is close to constant over the scanned range,
    and one width is far cheaper than a 3-parameter U/V/W fit.  v1.4 keeps
-   both models selectable via :attr:`SmpfConfig.caglioti` (Caglioti on by
+   both models selectable via :attr:`FpfmConfig.caglioti` (Caglioti on by
    default): on synthetic data generated with a *floored* Caglioti width
    the two are indistinguishable (the floor dominates), while on real
    laboratory patterns the angle-dependent form removes the systematic
@@ -63,7 +63,7 @@ Pipeline (top-level :func:`search_match_smpf`)
    monotonic FoM = ``exp(−Rwp/σ_fom)`` mapped into (0, 1].
 
 Determinism: the module is fully deterministic (no random source, no Monte
-Carlo).  See ``docs/smpf_mechanism.md`` for the parameter-decision table,
+Carlo).  See ``docs/fpfm_mechanism.md`` for the parameter-decision table,
 scoring definitions, performance and validation tables.
 """
 
@@ -85,7 +85,7 @@ from xinmatch.core.search.search_match import search_match
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "SmpfConfig",
+    "FpfmConfig",
     "expand_reflections",
     "expand_reflections_po",
     "march_dollase_cos",
@@ -94,7 +94,7 @@ __all__ = [
     "compute_rwp",
     "compute_fom",
     "fit_candidate",
-    "search_match_smpf",
+    "search_match_fpfm",
 ]
 
 # Area-normalised pseudo-Voigt peak-height prefactors (identical to the
@@ -134,8 +134,8 @@ def _caglioti_fwhm(
 # Configuration
 # --------------------------------------------------------------------------- #
 @dataclass
-class SmpfConfig:
-    """Tunable knobs for :func:`search_match_smpf`.
+class FpfmConfig:
+    """Tunable knobs for :func:`search_match_fpfm`.
 
     Attributes
     ----------
@@ -629,7 +629,7 @@ class CandidateFit:
     #: cell refinement is disabled.
     cell_delta: float = 0.0
     #: Fitted March-Dollase r (1.0 = no texture; only meaningful when
-    #: ``SmpfConfig.march_po`` is on and the entry has hkl + cell).
+    #: ``FpfmConfig.march_po`` is on and the entry has hkl + cell).
     march_r: float = 1.0
     rwp: float = float("inf")
     rexp: float = float("inf")
@@ -645,7 +645,7 @@ def fit_candidate(
     *,
     wavelength_kalpha1: float,
     wavelength_kalpha2: float | None,
-    cfg: SmpfConfig,
+    cfg: FpfmConfig,
 ) -> CandidateFit:
     """Refine the profile parameters for one candidate entry.
 
@@ -849,18 +849,18 @@ def fit_candidate(
 # --------------------------------------------------------------------------- #
 # Top-level entry point
 # --------------------------------------------------------------------------- #
-def search_match_smpf(
+def search_match_fpfm(
     exp_pattern: Pattern,
     conn: sqlite3.Connection,
     *,
     wavelength_kalpha1: float = 1.5406,
     wavelength_kalpha2: float | None = None,
-    cfg: SmpfConfig | None = None,
+    cfg: FpfmConfig | None = None,
     prescreen_top_n: int | None = None,
     top_n: int | None = None,
     timing: dict | None = None,
 ) -> list[tuple[Entry, dict[str, str | float]]]:
-    """Run the full SMPF (full-pattern) retrieval.
+    """Run the full FPFM (full-pattern) retrieval.
 
     Parameters
     ----------
@@ -876,7 +876,7 @@ def search_match_smpf(
         data); a value (e.g. 1.5444) enables the Kα1/Kα2 doublet for real
         Cu patterns.
     cfg:
-        Optional :class:`SmpfConfig` (overrides all knobs).
+        Optional :class:`FpfmConfig` (overrides all knobs).
     prescreen_top_n:
         Override ``cfg.prescreen_top_n``.
     top_n:
@@ -897,7 +897,7 @@ def search_match_smpf(
         Caglioti model is active.
     """
     t0 = time.perf_counter()
-    cfg = cfg or SmpfConfig()
+    cfg = cfg or FpfmConfig()
     if prescreen_top_n is not None:
         cfg.prescreen_top_n = int(prescreen_top_n)
     if top_n is not None:

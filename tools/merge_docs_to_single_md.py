@@ -50,10 +50,10 @@ CATEGORIES = [
         ],
     ),
     (
-        "第六部分 · 检索算法（SMPF）",
+        "第六部分 · 检索算法（FPFM）",
         [
-            ("docs/smpf_mechanism.md", "SMPF 机制说明（全谱拟合检索）"),
-            ("docs/smpf_research_notes.md", "SMPF 机制调研笔记"),
+            ("docs/fpfm_mechanism.md", "FPFM 机制说明（全谱拟合检索）"),
+            ("docs/fpfm_research_notes.md", "FPFM 机制调研笔记"),
         ],
     ),
     (

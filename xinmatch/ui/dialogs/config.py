@@ -52,12 +52,12 @@ DEFAULTS: dict[str, Any] = {
         "min_fom": 0.6,
         "correlation_window_deg": 0.3,
         "use_marked_peaks_only": False,
-        # SMPF 全谱拟合的 Kα1/Kα2 双线旋钮 (T16.5)。
-        # ``smpf_kalpha2_enabled`` 关闭时只按 Kα1 单线计算（旧行为）；
+        # FPFM 全谱拟合的 Kα1/Kα2 双线旋钮 (T16.5)。
+        # ``fpfm_kalpha2_enabled`` 关闭时只按 Kα1 单线计算（旧行为）；
         # 波长填 0.0 表示"跟随样品波长配置"，非 0 时强制覆盖。
-        "smpf_kalpha2_enabled": True,
-        "smpf_kalpha1_angstrom": 0.0,
-        "smpf_kalpha2_angstrom": 1.5444,
+        "fpfm_kalpha2_enabled": True,
+        "fpfm_kalpha1_angstrom": 0.0,
+        "fpfm_kalpha2_angstrom": 1.5444,
     },
     # Multi-DB mount: which registered reference library search-match opens.
     # Missing / unknown ids resolve to the bundled default
@@ -154,13 +154,16 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     """Load the YAML config, merged over :data:`DEFAULTS`.
 
     Missing sections / keys fall back to defaults so an older or partial
-    config file never breaks the dialogs.
+    config file never breaks the dialogs.  Keys written by pre-v1.6.1
+    versions (``smpf_*``) are migrated to their ``fpfm_*`` names before the
+    merge, so legacy user settings keep working (and win over defaults).
     """
     file = Path(path) if path is not None else config_path()
     cfg = default_config()
     if file.exists():
         with file.open("r", encoding="utf-8") as fh:
             on_disk = yaml.safe_load(fh) or {}
+        _migrate_legacy_fpfm_keys(on_disk)
         _merge(cfg, on_disk)
     return cfg
 
@@ -180,3 +183,22 @@ def _merge(base: dict[str, Any], override: dict[str, Any]) -> None:
             _merge(base[key], value)
         else:
             base[key] = value
+
+
+def _migrate_legacy_fpfm_keys(node: Any) -> None:
+    """Rename pre-v1.6.1 ``smpf_*`` config keys to ``fpfm_*`` (recursive, in place).
+
+    v1.6.1 renamed the full-pattern fitting match feature from SMPF to FPFM;
+    YAML files written by older versions carry the old key names.  Migration
+    runs on the on-disk dict *before* the merge so an explicitly saved legacy
+    setting still overrides the (new-named) defaults.
+    """
+    if not isinstance(node, dict):
+        return
+    for old in [k for k in node if isinstance(k, str) and k.startswith("smpf_")]:
+        new = "fpfm_" + old[len("smpf_"):]
+        popped = node.pop(old)
+        if new not in node:
+            node[new] = popped
+    for value in node.values():
+        _migrate_legacy_fpfm_keys(value)

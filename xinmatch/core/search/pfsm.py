@@ -12,10 +12,10 @@ correctly beforehand), and no structural parameters are touched — this
 is profile fitting, not Rietveld refinement.
 
 The reference software feature: *Search → Profile-fitting search-match*.  See
-``docs/smpf_mechanism.md`` for the full SMPF design (this module is the
+``docs/fpfm_mechanism.md`` for the full FPFM design (this module is the
 lightweight scale+shift reference used as a compatibility layer; the full
 candidate pre-screen + profile-fitting pipeline lives in
-:mod:`xinmatch.core.search.smpf`).
+:mod:`xinmatch.core.search.fpfm`).
 
 Algorithm source: the reference software PFSM documentation (profile fitting of each
 candidate's calculated pattern to the experimental profile, ranking by
@@ -128,7 +128,7 @@ def fit_scale_shift(
     are filled with zero.
 
     The reference software feature: PFSM refines "the intensity scale factor as well as
-    the 2theta shift" for each candidate (see ``docs/smpf_mechanism.md``).
+    the 2theta shift" for each candidate (see ``docs/fpfm_mechanism.md``).
 
     Parameters
     ----------

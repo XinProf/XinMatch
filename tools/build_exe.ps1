@@ -4,13 +4,13 @@
 
 .DESCRIPTION
     1. Runs `pyinstaller xinmatch.spec` (onedir).  Exe icon comes from the
-       committed assets/icons/logo.ico; version resource (1.6.0 + contact
+       committed assets/icons/logo.ico; version resource (1.6.1 + contact
        sshztx@outlook.com) is embedded by the spec.
     2. The COD reference DB is NOT bundled (since v1.6.0 it ships as a
        separate archive; mount it at <exe-dir>/data/cod_inorganics.db —
        auto-resolved by multi_db.default_db_path() when frozen).
 
-    Output: dist/xinmatch-1.6.0/
+    Output: dist/xinmatch-1.6.1/
         XinMatch.exe     single entry (CLI subcommands / GUI dispatcher)
         _internal/       Qt / Python / gems
         data/            (created only when the user mounts the DB archive)
@@ -25,7 +25,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "1.6.0"
+    [string]$Version = "1.6.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,7 +50,7 @@ Write-Host "==> Output       : $outDir"
 
 # ---- 1. Icon / version resource -----------------------------------------
 # Exe icon comes from the committed assets/icons/logo.ico; version resource
-# (1.6.0 + contact sshztx@outlook.com) is embedded by xinmatch.spec.
+# (1.6.1 + contact sshztx@outlook.com) is embedded by xinmatch.spec.
 
 # ---- 2. Run PyInstaller ---------------------------------------------------
 Write-Host "==> Running PyInstaller (clean build)"

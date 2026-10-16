@@ -36,6 +36,13 @@ from .fom_criteria import (
     compute_p_values,
     score_candidate,
 )
+from .fpfm import (
+    FpfmConfig,
+    expand_reflections,
+    fit_candidate,
+    generate_theory_profile,
+    search_match_fpfm,
+)
 from .hanawalt_fink import (
     build_hanawalt_lookup,
     fink_index,
@@ -66,13 +73,6 @@ from .search_match import (
     fetch_entries_by_ids,
     search_marked_peaks,
     search_match,
-)
-from .smpf import (
-    SmpfConfig,
-    expand_reflections,
-    fit_candidate,
-    generate_theory_profile,
-    search_match_smpf,
 )
 
 __all__ = [
@@ -114,12 +114,12 @@ __all__ = [
     "compute_rwp",
     "pfsm_score",
     "pfsm_rank",
-    # SMPF (full-pattern search-match)
-    "SmpfConfig",
+    # FPFM (full-pattern search-match)
+    "FpfmConfig",
     "expand_reflections",
     "generate_theory_profile",
     "fit_candidate",
-    "search_match_smpf",
+    "search_match_fpfm",
     # Residual-driven FoM recompute (T6.8)
     "recompute_fom_after_selection",
     "build_residual_peaks",

@@ -6,7 +6,7 @@ Background (HANDOVER 2026-10-13 §5.2)
 rows, 71 206 entries): the COD dump that built the library never carried
 Miller indices.  A real March-Dollase preferred-orientation model needs the
 PO axis reflections (e.g. (001) for layered phases) to be resolvable per
-peak, so SMPF refinement cannot start texture work until hkl is populated.
+peak, so FPFM refinement cannot start texture work until hkl is populated.
 
 This tool recomputes each entry's reflection list from its COD CIF with the
 *same* pipeline that built the library (:func:`compute_peaks_from_cif`,

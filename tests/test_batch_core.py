@@ -1,7 +1,7 @@
 """Tests for :mod:`xinmatch.core.batch` and the ``xinmatch batch`` CLI (T14.3).
 
 Covers:
-* the SMPF-mode batch path (config ``search.mode: smpf``) against the real
+* the FPFM-mode batch path (config ``search.mode: fpfm``) against the real
   COD database — the pipeline must fit the raw profile without peak
   picking and rank a ground-truth phase on top;
 * the main-CLI integration (``xinmatch batch config.yaml``) end to end;
@@ -38,24 +38,24 @@ def _formula_norm(f: str) -> str:
     not REAL_DB.exists() or not SYNTH_01.exists(),
     reason="requires the real COD DB and synthetic pattern (dev machine)",
 )
-def test_batch_smpf_mode_ranks_truth(tmp_path: Path):
-    """SMPF batch: no peak picking, truth phase on top for synth_01.
+def test_batch_fpfm_mode_ranks_truth(tmp_path: Path):
+    """FPFM batch: no peak picking, truth phase on top for synth_01.
 
     The synthetic patterns are single-line (Kα1 only), so the config must
     use ``single_kalpha: true`` — a double-line model would depress the
-    true phases (see docs/smpf_mechanism.md §8.1).
+    true phases (see docs/fpfm_mechanism.md §8.1).
     """
     cfg = {
         "samples": [{"name": "synth_01", "path": str(SYNTH_01)}],
         "search": {
             "db": str(REAL_DB),
-            "mode": "smpf",
+            "mode": "fpfm",
             "single_kalpha": True,
             "top_n": 20,
         },
         "output": {"dir": str(tmp_path / "out"), "formats": ["md"]},
     }
-    cfg_path = tmp_path / "batch_smpf.json"
+    cfg_path = tmp_path / "batch_fpfm.json"
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
 
     config, config_dir = load_config(cfg_path)
@@ -66,7 +66,7 @@ def test_batch_smpf_mode_ranks_truth(tmp_path: Path):
     assert sample.ok
     assert sample.top_entry_id is not None
     assert sample.top_fom is not None and sample.top_fom > 0.0
-    # SMPF fits the raw profile — n_peaks stays 0 (no peak picking).
+    # FPFM fits the raw profile — n_peaks stays 0 (no peak picking).
     assert sample.n_peaks == 0
     norm = _formula_norm(sample.top_formula)
     assert any(norm == _formula_norm(t) for t in SYNTH_01_TRUTH), (
@@ -170,5 +170,17 @@ def test_batch_invalid_mode_rejected(tmp_path: Path):
     cfg_path = tmp_path / "bad.json"
     cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
     config, config_dir = load_config(cfg_path)
-    with pytest.raises(ValueError, match="peaks.*smpf"):
+    with pytest.raises(ValueError, match="peaks.*fpfm"):
         run_batch(config, config_dir=config_dir)
+
+
+def test_batch_legacy_smpf_mode_normalized():
+    """``mode: smpf`` (pre-v1.6.1 name) passes validation, normalized in place."""
+    from xinmatch.core.batch import _validate_config
+
+    cfg = {
+        "samples": [{"path": "x.txt"}],
+        "search": {"db": "d.db", "mode": "smpf"},
+    }
+    _validate_config(cfg)
+    assert cfg["search"]["mode"] == "fpfm"

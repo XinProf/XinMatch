@@ -31,10 +31,10 @@ Build with::
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 1.6.0) ----
+# ---- Version (read-only mirror of pyproject [project] version = 1.6.1) ----
 APP_NAME = "XinMatch"
-APP_VERSION = "1.6.0"
-VERSION_TUPLE = (1, 6, 0, 0)
+APP_VERSION = "1.6.1"
+VERSION_TUPLE = (1, 6, 1, 0)
 
 # ---- Collect non-.py assets for packages that ship them at runtime ----
 datas = []
@@ -65,7 +65,7 @@ datas += [
     ("xinmatch/ui/assets", "xinmatch/ui/assets"),
 ]
 
-# ---- Windows version resource (FileVersion / ProductVersion = 1.6.0) ----
+# ---- Windows version resource (FileVersion / ProductVersion = 1.6.1) ----
 version_info = vi.VSVersionInfo(
     ffi=vi.FixedFileInfo(
         filevers=VERSION_TUPLE,
@@ -152,5 +152,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="xinmatch-1.6.0",
+    name="xinmatch-1.6.1",
 )

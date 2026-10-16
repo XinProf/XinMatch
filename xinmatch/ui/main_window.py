@@ -42,8 +42,8 @@ from xinmatch.core.report.report_model import (
     SampleInfo,
 )
 from xinmatch.core.search.fom import CandidateResult
+from xinmatch.core.search.fpfm import search_match_fpfm
 from xinmatch.core.search.search_match import search_match
-from xinmatch.core.search.smpf import search_match_smpf
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.busy import run_with_busy
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
@@ -137,15 +137,15 @@ _TOOLBAR_ICONS: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# 统一检索入口：检索模式（峰列表 FoM / SMPF 全谱拟合）
+# 统一检索入口：检索模式（峰列表 FoM / FPFM 全谱拟合）
 # ---------------------------------------------------------------------------
 SEARCH_MODE_PEAKS_FOM = "peaks_fom"
-SEARCH_MODE_SMPF_FULL = "smpf_full"
+SEARCH_MODE_FPFM_FULL = "fpfm_full"
 
 # 模式下拉框选项：(显示文本, 内部常量)。
 _SEARCH_MODE_ITEMS: tuple[tuple[str, str], ...] = (
     ("峰列表 FoM（寻峰）", SEARCH_MODE_PEAKS_FOM),
-    ("SMPF 全谱拟合（不寻峰）", SEARCH_MODE_SMPF_FULL),
+    ("FPFM 全谱拟合（不寻峰）", SEARCH_MODE_FPFM_FULL),
 )
 
 
@@ -158,7 +158,7 @@ _MODULE_TIPS: dict[str, str] = {
     "peak_list": "寻峰与峰列表：自动寻峰并维护可编辑峰列表；峰位/强度供检索与报告使用。",
     "profile_fitting": "Profile Fitting：多峰同时最小二乘拟合，输出精确峰位 / FWHM / 面积。",
     "search_match": "Search-Match 物相检索：按工具栏右侧下拉框所选模式执行——\n"
-    "峰列表 FoM（先寻峰再匹配）或 SMPF 全谱拟合（不寻峰）。\n"
+    "峰列表 FoM（先寻峰再匹配）或 FPFM 全谱拟合（不寻峰）。\n"
     "检索前请先打开数据并挂载参考数据库（设置→参考数据库…）。",
     "restraints": "限制条件检索：按元素三态（必含/排除/可选）、晶系等条件过滤候选。\n"
     "元素选择在右侧「检索与数据」坞的「限制条件」页。",
@@ -173,18 +173,18 @@ _MODULE_TIPS: dict[str, str] = {
 }
 
 
-def smpf_results_to_candidates(
-    smpf_results: list[tuple[Entry, dict[str, str | float]]],
+def fpfm_results_to_candidates(
+    fpfm_results: list[tuple[Entry, dict[str, str | float]]],
 ) -> list[CandidateResult]:
-    """把 SMPF 的 ``(Entry, score_dict)`` 结果转换为 GUI 候选行。
+    """把 FPFM 的 ``(Entry, score_dict)`` 结果转换为 GUI 候选行。
 
-    SMPF 不产出峰相关量（未寻峰、无峰位/强度 P 值、无关联峰对），因此
+    FPFM 不产出峰相关量（未寻峰、无峰位/强度 P 值、无关联峰对），因此
     ``pairs`` 留空、``i_scale`` 取默认值；剖面拟合质量量（Rwp / Rexp /
     GOF）放进 ``p_values`` 供候选表与下游链路读取。候选表的 P(2θ) /
-    P(I/I₀) 两列在 SMPF 模式下自然显示占位符（—），属预期行为。
+    P(I/I₀) 两列在 FPFM 模式下自然显示占位符（—），属预期行为。
     """
     out: list[CandidateResult] = []
-    for entry, score in smpf_results:
+    for entry, score in fpfm_results:
         out.append(
             CandidateResult(
                 entry=entry,
@@ -454,7 +454,7 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar.addAction(self.peakdetect_action)
         toolbar.addSeparator()
         toolbar.addAction(self.module_actions["search_match"])
-        # 检索模式切换下拉框：峰列表 FoM（寻峰）/ SMPF 全谱拟合（不寻峰）。
+        # 检索模式切换下拉框：峰列表 FoM（寻峰）/ FPFM 全谱拟合（不寻峰）。
         # 切换只更新内部状态，不自动触发检索；下次点击 Search-Match 执行新模式。
         self._search_mode_combo = QtWidgets.QComboBox()
         for text, mode in _SEARCH_MODE_ITEMS:
@@ -806,15 +806,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _refresh_search_mode_combo_tip(self) -> None:
         """根据当前模式刷新下拉框 tooltip（说明当前所选检索模式）。"""
-        if self._search_mode == SEARCH_MODE_SMPF_FULL:
-            ka1, ka2 = self.smpf_kalpha_wavelengths(self._current_pattern)
+        if self._search_mode == SEARCH_MODE_FPFM_FULL:
+            ka1, ka2 = self.fpfm_kalpha_wavelengths(self._current_pattern)
             ka_note = (
                 f"Kα 双线模型：启用（{ka1:.4f} / {ka2:.4f} Å）"
                 if ka2 is not None
                 else f"Kα 双线模型：关闭（单线，{ka1:.4f} Å）"
             )
             detail = (
-                "当前：SMPF 全谱拟合——直接对整条实验谱做剖面拟合精排，"
+                "当前：FPFM 全谱拟合——直接对整条实验谱做剖面拟合精排，"
                 f"不寻峰、不覆盖峰列表。\n{ka_note}"
                 "\n（可在 设置→选项…→Search-Match 页调整）"
             )
@@ -830,7 +830,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """统一 Search-Match 入口：按工具栏所选模式检索参考数据库。
 
         - ``peaks_fom``（默认）：自动寻峰 → 峰列表 FoM 检索（现状行为）；
-        - ``smpf_full``：SMPF 全谱拟合检索（直接拟合原始谱，不寻峰、不覆盖
+        - ``fpfm_full``：FPFM 全谱拟合检索（直接拟合原始谱，不寻峰、不覆盖
           峰列表）。
         两模式结果统一为 :class:`CandidateResult` 列表填充候选列表，
         保证精修向导 / 3D 视图 / CIF 导出等下游链路元素类型不变。
@@ -859,8 +859,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         mode = self._search_mode
         mode_desc = (
-            "SMPF 全谱拟合检索（逐候选剖面拟合，耗时较长）"
-            if mode == SEARCH_MODE_SMPF_FULL
+            "FPFM 全谱拟合检索（逐候选剖面拟合，耗时较长）"
+            if mode == SEARCH_MODE_FPFM_FULL
             else "峰列表 FoM 检索"
         )
 
@@ -881,12 +881,12 @@ class MainWindow(QtWidgets.QMainWindow):
     ) -> tuple[list[CandidateResult], str, list | None]:
         """检索工作体（运行在工作线程，禁止触碰 GUI）。
 
-        返回 ``(候选列表, 模式名, 峰列表)``；SMPF 分支峰列表为 ``None``。
+        返回 ``(候选列表, 模式名, 峰列表)``；FPFM 分支峰列表为 ``None``。
         异常直接上抛，由 :func:`run_with_busy` 转交 GUI 线程提示。
         """
         peaks: list | None = None
-        if mode == SEARCH_MODE_SMPF_FULL:
-            results, mode_label = self._search_smpf(pattern, conn)
+        if mode == SEARCH_MODE_FPFM_FULL:
+            results, mode_label = self._search_fpfm(pattern, conn)
         else:
             peaks = find_peaks(pattern.two_theta, pattern.intensity)
             results = search_match(peaks, conn, pattern.wavelength)
@@ -899,7 +899,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """把检索结果回填候选列表 / 峰列表并更新状态栏（GUI 线程）。"""
         results, mode_label, peaks = payload
         self.set_candidates(results)
-        # SMPF 模式不寻峰：保留上一次峰列表，不覆盖 peak_table。
+        # FPFM 模式不寻峰：保留上一次峰列表，不覆盖 peak_table。
         if peaks is not None:
             self.peak_table.set_peaks(peaks)
         lib_label = self._active_library_id or "默认库"
@@ -919,59 +919,59 @@ class MainWindow(QtWidgets.QMainWindow):
             f"检索过程中出现错误：\n\n{message}",
         )
 
-    def smpf_kalpha_wavelengths(
+    def fpfm_kalpha_wavelengths(
         self, pattern: Pattern | None = None
     ) -> tuple[float, float | None]:
-        """解析 SMPF 的 Kα 波长设置 → ``(kalpha1, kalpha2)``。
+        """解析 FPFM 的 Kα 波长设置 → ``(kalpha1, kalpha2)``。
 
         读 **设置→选项…→Search-Match** 页持久化的三个旋钮：
 
-        * ``smpf_kalpha1_angstrom`` <= 0（默认）时回退到图谱自身波长
+        * ``fpfm_kalpha1_angstrom`` <= 0（默认）时回退到图谱自身波长
           ``pattern.wavelength``；这也让 Co / Mo 等非 Cu 靶数据在不动设置
           的情况下自动跟随正确波长。
-        * ``smpf_kalpha2_enabled`` 为假时返回 ``kalpha2=None``（单线模型）。
+        * ``fpfm_kalpha2_enabled`` 为假时返回 ``kalpha2=None``（单线模型）。
 
         返回 ``(kalpha1, kalpha2)``；``kalpha2`` 为 ``None`` 表示单线。
         """
         cfg = load_config().get("searchmatch", {})
-        ka1 = float(cfg.get("smpf_kalpha1_angstrom", 0.0))
+        ka1 = float(cfg.get("fpfm_kalpha1_angstrom", 0.0))
         if ka1 <= 0.0:
             ka1 = getattr(pattern, "wavelength", 0.0) or 1.5406
-        enabled = bool(cfg.get("smpf_kalpha2_enabled", True))
-        ka2 = float(cfg.get("smpf_kalpha2_angstrom", 1.5444)) if enabled else None
+        enabled = bool(cfg.get("fpfm_kalpha2_enabled", True))
+        ka2 = float(cfg.get("fpfm_kalpha2_angstrom", 1.5444)) if enabled else None
         return ka1, ka2
 
-    def _search_smpf(
+    def _search_fpfm(
         self, pattern: Pattern, conn
     ) -> tuple[list[CandidateResult], str]:
-        """SMPF 全谱拟合分支（v1.3.1 起为纯计算：异常直接上抛）。
+        """FPFM 全谱拟合分支（v1.3.1 起为纯计算：异常直接上抛）。
 
         直接接收原始实验谱（不寻峰、不要求预扣背景）。Kα 双线模型由
         **设置→选项…→Search-Match** 页的三个旋钮控制（v1.3.0）：
 
-        * ``smpf_kalpha2_enabled`` — 是否叠加 Kα2 伴线（默认开，对应真实
+        * ``fpfm_kalpha2_enabled`` — 是否叠加 Kα2 伴线（默认开，对应真实
           实验室 Cu Kα 数据）；由 CIF 生成的合成谱应关闭，否则 Kα2 模型
           与数据失配会压低正确相排名（synth_13 ZrO₂ 单线谱曾错排 YSZ）。
-        * ``smpf_kalpha1_angstrom`` — Kα1 波长；<=0 时跟随 ``pattern.wavelength``。
-        * ``smpf_kalpha2_angstrom`` — Kα2 波长（默认 1.5444 Å）。
+        * ``fpfm_kalpha1_angstrom`` — Kα1 波长；<=0 时跟随 ``pattern.wavelength``。
+        * ``fpfm_kalpha2_angstrom`` — Kα2 波长（默认 1.5444 Å）。
 
         返回 ``(候选列表, 模式名)``。本函数可能在工作线程中被
         :meth:`_do_search` 调用，**禁止**在此弹 QMessageBox——异常统一
         上抛，由忙碌窗口的 ``on_error`` 回调在 GUI 线程提示。
         """
-        ka1, ka2 = self.smpf_kalpha_wavelengths(pattern)
-        raw = search_match_smpf(
+        ka1, ka2 = self.fpfm_kalpha_wavelengths(pattern)
+        raw = search_match_fpfm(
             pattern,
             conn,
             wavelength_kalpha1=ka1,
             wavelength_kalpha2=ka2,
         )
         mode_label = (
-            f"SMPF 全谱拟合（Kα 双线 {ka1:.4f}/{ka2:.4f} Å）"
+            f"FPFM 全谱拟合（Kα 双线 {ka1:.4f}/{ka2:.4f} Å）"
             if ka2 is not None
-            else f"SMPF 全谱拟合（Kα 单线 {ka1:.4f} Å）"
+            else f"FPFM 全谱拟合（Kα 单线 {ka1:.4f} Å）"
         )
-        return smpf_results_to_candidates(raw), mode_label
+        return fpfm_results_to_candidates(raw), mode_label
 
     def _run_report_preview(self) -> None:
         """报告与打印：渲染当前候选 + 峰列表为文本报告并弹出只读预览。"""
