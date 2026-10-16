@@ -40,9 +40,9 @@
 | 版本号 | `import xinmatch` + 五处文件核验 | 1.6.1 ✅ |
 | 静态 | ruff 全量 + mypy 全量 | All checks passed / 0 errors (109 files) |
 | 兼容层 | 3 个专项回归测试 | CLI/batch/config 三路 legacy `smpf` 均通过 |
-| 回归 | 核心 junit + UI/CLI junit（python310） | 全过，0 failed（计数见 STATUS） |
-| 产物 | dist/ 清单 + exe 版本资源 + DB zip 结构回读 | 见 §三 |
-| Release | `gh release view v1.6.1` 资产核对 | Setup exe + DB zip |
+| 回归 | 核心 junit + UI/CLI junit（python310） | 核心 **1091 passed / 0 failed / 5 skipped**（5035s，含全部 slow）；UI+CLI **237 passed / 0 failed**（322s） |
+| 产物 | dist/ 清单 + exe 版本资源 + DB zip 结构回读 | onedir 673 MB（VersionInfo 1.6.1）；DB zip 210,227,894 B（内含 `data/cod_inorganics.db`）；Setup exe 180,890,797 B；便携 zip 270,687,783 B；`XinMatch.exe search --help` exit 0（`--mode {peaks,fpfm,smpf}`，帮助注明旧称 smpf 仍接受） |
+| Release | `gh release view v1.6.1` 资产核对 | Setup exe + DB zip 均 uploaded |
 
 ## 五、诚实边界
 
