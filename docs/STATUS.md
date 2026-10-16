@@ -607,4 +607,26 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **Release**：GitHub `v1.6.1` 上传 Setup exe + DB zip；验收 `docs/ACCEPTANCE-v1.6.1-20261016.md`。
 
+---
+
+## v1.7.0 版本发布（2026-10-16）✅
+
+**版本**：1.6.1 → **1.7.0**（增量 = 注册机制 + 双二进制构建变体）。
+
+**注册机制**（commit `98b086b`，复用 `D:\Project\XRD\PolyXRD-Reg`）：
+- `xinmatch/utils/registration.py`：PolyXRD 家族注册模块**逐字副本**（490 行，零三方依赖，PySide6 延迟导入）。注册码 `PXRD1-XXXX-…` = Base32(`UTF8(单位部门名称)` + `0x00` + `HMAC-SHA256(密钥, 单位名)[:8]`)，软件端重算校验并还原单位名；无需联网/机器码，同单位可多台电脑使用。与家族注册机出码**逐字节一致**（交叉验证通过）。
+- 行为：未注册每次启动弹出「本软件未注册，版权所有，禁止用于商业用途。如需注册请联系 sshztx@outlook.com」→「确定」关闭并继续使用／「输入注册码」完成注册；帮助菜单固定「输入注册码 (&R)…」；状态栏最右端显示「已注册：\<单位部门名称\>」/「未注册」。状态文件 `%APPDATA%/XinMatch/XinMatch/registration.json`，每次启动重校验，**手改 JSON 伪造已注册无效**。
+- 出码工具：`tools/make_reg_code.py`（脚本化，与家族 `PolyXRD-RegTool.exe` 互通）。
+
+**双二进制构建变体**：
+- **正式版 release**：`XinMatch-Setup-1.7.0.exe`（Inno Setup，安装时可选安装位置；DB 仍单独挂载）→ 含注册机制；
+- **内部评估版 internal**：`XinMatch-Internal-1.7.0.zip`（免安装，自用）→ 不接入注册机制，状态栏最右端固定「内部评估版本」。
+- 变体由随包 `variant.txt` 标记固化（`xinmatch/utils/build_variant.py`）；环境变量 `XINMATCH_VARIANT` **仅在源码运行时**生效（冻结二进制忽略，防止绕过注册提示）；标记缺失按 release 处理（fail-safe）。构建脚本 `tools/build_exe.ps1 -Variant release|internal` 并校验标记内容。
+
+**验证**：ruff 全量 All checks passed；mypy **112 files 0 errors**；UI+CLI 套件 **247 passed / 0 failed**（含新增 10 项注册 UI 测试）；核心套件 **1112 passed / 0 failed / 5 skipped**（5406s，含全部 slow）。新增 `tests/utils/test_registration.py`（21 项：出码/校验/容错/篡改防护/变体解析）。
+
+**冻结二进制冒烟**（`XINMATCH_SELFTEST_REG=1`）：release → `{"variant":"release","registration_enabled":true,"status_text":"未注册"}`；写入注册码后 → `"已注册：内部冒烟测试单位"`；internal → `{"variant":"internal","registration_enabled":false,"status_text":"内部评估版本"}`。
+
+**Release**：GitHub `v1.7.0`（仓库为内部库，内部版 zip 一并上传）；验收 `docs/ACCEPTANCE-v1.7.0-20261016.md`。
+
 
