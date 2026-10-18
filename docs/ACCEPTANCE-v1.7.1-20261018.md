@@ -124,9 +124,14 @@ python -m pytest -q -p no:cacheprovider --junitxml=.scratch/junit_v171.xml
 
 ## 7. Release
 
-- tag：`v1.7.1`
-- 附件：`XinMatch-Setup-1.7.1.exe`、`XinMatch-Internal-1.7.1.zip`、`xinmatch-cod-db-1.7.1.zip`
-- 发布说明：见仓库 Release 正文（缺陷修复 / 性能 / 体验 / 工程化 / 升级说明）
+- tag：`v1.7.1`（指向 `master` 的 `efe6789`）
+- 地址：https://github.com/PolyXRD/XinMatch/releases/tag/v1.7.1
+- 状态：已发布（draft=false / prerelease=false）
+- 附件（3 个，均已上传成功）：
+  `XinMatch-Setup-1.7.1.exe`、`xinmatch-cod-db-1.7.1.zip`、`XinMatch-Internal-1.7.1.zip`
+- 发布说明：缺陷修复 / 性能 / 体验 / 工程化 / 验收数字 / 安装步骤 / 已知限制
+
+推送记录：`9b59715..efe6789  master -> master`（`d483b28` 代码 + `efe6789` 文档）。
 
 ## 8. 结论
 
