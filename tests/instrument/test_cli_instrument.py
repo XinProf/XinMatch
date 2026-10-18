@@ -6,6 +6,10 @@ import pytest
 
 from xinmatch.cli.main import build_parser
 
+# pyserial is a declared runtime dependency (pyproject ``dependencies``), but an
+# incomplete dev env must skip here instead of failing the whole suite.
+pytest.importorskip("serial", reason="pyserial not installed")
+
 
 class FakeSerial:
     """Serial double fed to the CLI via monkeypatched ``open_serial``."""

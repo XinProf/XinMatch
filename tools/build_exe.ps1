@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. Runs `pyinstaller xinmatch.spec` (onedir).  Exe icon comes from the
-       committed assets/icons/logo.ico; version resource (1.7.0 + contact
+       committed assets/icons/logo.ico; version resource (1.7.1 + contact
        sshztx@outlook.com) is embedded by the spec.
     2. The COD reference DB is NOT bundled (since v1.6.0 it ships as a
        separate archive; mount it at <exe-dir>/data/cod_inorganics.db —
@@ -32,7 +32,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "1.7.0",
+    [string]$Version = "1.7.1",
     [ValidateSet("release", "internal")]
     [string]$Variant = "release"
 )

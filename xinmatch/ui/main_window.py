@@ -32,6 +32,12 @@ from xinmatch.core.model import Entry
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.peak.peak_search import find_peaks
+from xinmatch.core.preprocess.alpha2 import strip_alpha2
+from xinmatch.core.preprocess.background import (
+    estimate_background,
+    subtract_background,
+)
+from xinmatch.core.preprocess.smoothing import smooth
 from xinmatch.core.refine.cif_store import export_cifs, match_entry_cifs
 from xinmatch.core.report.render import render_text
 from xinmatch.core.report.report_model import (
@@ -43,6 +49,7 @@ from xinmatch.core.report.report_model import (
 )
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.fpfm import search_match_fpfm
+from xinmatch.core.search.fpfm import to_candidates as fpfm_to_candidates
 from xinmatch.core.search.search_match import search_match
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.busy import run_with_busy
@@ -180,25 +187,12 @@ def fpfm_results_to_candidates(
 ) -> list[CandidateResult]:
     """把 FPFM 的 ``(Entry, score_dict)`` 结果转换为 GUI 候选行。
 
-    FPFM 不产出峰相关量（未寻峰、无峰位/强度 P 值、无关联峰对），因此
-    ``pairs`` 留空、``i_scale`` 取默认值；剖面拟合质量量（Rwp / Rexp /
-    GOF）放进 ``p_values`` 供候选表与下游链路读取。候选表的 P(2θ) /
-    P(I/I₀) 两列在 FPFM 模式下自然显示占位符（—），属预期行为。
+    薄封装：真正的转换逻辑已统一到
+    :func:`xinmatch.core.search.fpfm.to_candidates`，GUI / 批处理 / CLI
+    共用同一实现（v1.7.x 去重，避免两处 FoM 映射漂移）。此函数保留为
+    模块级公开名，供既有测试与外部脚本调用。
     """
-    out: list[CandidateResult] = []
-    for entry, score in fpfm_results:
-        out.append(
-            CandidateResult(
-                entry=entry,
-                fom=float(score["fom"]),
-                p_values={
-                    "rwp": float(score["rwp"]),
-                    "rexp": float(score["rexp"]),
-                    "gof": float(score["gof"]),
-                },
-            )
-        )
-    return out
+    return fpfm_to_candidates(fpfm_results)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -224,6 +218,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._active_library_id: str | None = None
         # 当前已打开数据文件的显示名（文件名），用于状态栏 / 报告。
         self._current_filename: str = ""
+        # 打开时的原始谱（「重置」回到这里；预处理只改 _current_pattern）。
+        self._raw_pattern: Pattern | None = None
+        # 谱图区当前曲线的句柄（预处理后替换曲线，避免叠加多条）。
+        self._pattern_key: str | None = None
         # 统一检索入口模式：默认峰列表 FoM（寻峰）；可在工具栏下拉框切换。
         self._search_mode: str = SEARCH_MODE_PEAKS_FOM
 
@@ -317,31 +315,31 @@ class MainWindow(QtWidgets.QMainWindow):
             )
         self.open_action.triggered.connect(self._open_data_file)
 
-        # ---- 工具栏补充动作（参考同类 XRD 软件工具栏布局；占位/已有接线）----
+        # ---- 工具栏补充动作（v1.7.x：预处理动作已接线到 core.preprocess）----
         self.background_action = self._tool_action(
             "背景扣除", "background",
-            lambda _checked=False: self._placeholder("背景扣除"),
-            "扣除谱图背景（预处理功能，待接线）",
+            lambda _checked=False: self._apply_background(),
+            "扣除谱图背景（SNIP 估计后相减，负值截零）",
         )
         self.smooth_action = self._tool_action(
             "平滑", "smooth",
-            lambda _checked=False: self._placeholder("平滑"),
-            "谱图平滑（预处理功能，待接线）",
+            lambda _checked=False: self._apply_smoothing(),
+            "谱图平滑（Savitzky-Golay，窗口 11 / 3 阶）",
         )
         self.ko2_action = self._tool_action(
             "Kα2 剥离", "ko2",
-            lambda _checked=False: self._placeholder("Kα2 剥离"),
-            "剥离 Kα2 分量（预处理功能，待接线）",
+            lambda _checked=False: self._apply_alpha2_strip(),
+            "剥离 Kα2 分量（Rachinger，波长跟随谱图设置）",
         )
         self.reset_action = self._tool_action(
             "重置", "reset",
-            lambda _checked=False: self._placeholder("重置为原始数据"),
-            "重置为打开时的原始谱图（撤销全部预处理；待接线）",
+            lambda _checked=False: self._reset_pattern(),
+            "重置为打开时的原始谱图（撤销全部预处理）",
         )
         self.peakdetect_action = self._tool_action(
             "峰检测", "peakdetect",
-            lambda _checked=False: self._placeholder("峰检测"),
-            "自动峰检测（待接线）",
+            lambda _checked=False: self._detect_peaks(),
+            "自动峰检测（medium 灵敏度，结果填入峰列表）",
         )
         self.codsearch_action = self._tool_action(
             "COD 搜索", "codsearch",
@@ -673,7 +671,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_pattern(self, pattern: Pattern, name: str = "实验谱") -> None:
         """Store the current experimental pattern and plot it centrally."""
         self._current_pattern = pattern
-        self.pattern_view.add_pattern(pattern, name=name)
+        self._pattern_key = self.pattern_view.add_pattern(pattern, name=name)
 
     def set_candidates(self, results: list[CandidateResult]) -> None:
         """Store the latest search-match results and fill the candidate dock."""
@@ -809,7 +807,13 @@ class MainWindow(QtWidgets.QMainWindow):
     # v1.0.0 体验修订：打开数据 / Search-Match 真实接线 / 报告预览
     # ------------------------------------------------------------------
     def _open_data_file(self) -> None:
-        """文件→打开数据（Ctrl+O）：选择文件并自动嗅探格式后载入谱图。"""
+        """文件→打开数据（Ctrl+O）：选择文件并自动嗅探格式后载入谱图。
+
+        v1.7.x：解析放进忙碌窗口的工作线程。Bruker ``.brml`` 是 zip+XML、
+        ``.raw`` 是分段二进制，几十万点的 ASCII 也要上百毫秒——此前在 GUI
+        线程同步解析，大文件表现为「点了没反应」。GUI 线程只负责选择文件
+        与结果显示。
+        """
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "打开衍射数据文件",
@@ -820,26 +824,154 @@ class MainWindow(QtWidgets.QMainWindow):
         if not path:
             # 用户取消：不报错、不改动现有谱图。
             return
-        try:
-            pattern = load_pattern(path)
-        except (FileNotFoundError, ValueError, NotImplementedError) as exc:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "无法打开衍射数据文件",
-                f"文件：{path}\n\n原因：{exc}\n\n"
-                "请确认文件存在且格式受支持（两列 ASCII / Bruker / Panalytical / "
-                "Shimadzu .raw 等）。",
-            )
-            return
-        self.pattern_view.clear()
         fname = Path(path).name
+        started = run_with_busy(
+            self,
+            "打开数据",
+            f"正在读取并解析 {fname}…",
+            lambda: load_pattern(path),
+            on_success=lambda pattern: self._apply_loaded_pattern(pattern, path),
+            on_error=lambda message: self._show_open_error(path, message),
+        )
+        if not started:
+            self.statusBar().showMessage("上一份数据仍在读取，请稍候…", 5000)
+
+    def _apply_loaded_pattern(self, pattern: Pattern, path: str) -> None:
+        """接载入结果：谱图区 / 原始谱备份 / 状态栏（GUI 线程回调）。"""
+        fname = Path(path).name
+        self.pattern_view.clear()
+        self._pattern_key = None  # clear() 已移除全部曲线
         self._current_filename = fname
+        self._raw_pattern = pattern
         self.set_pattern(pattern, name=fname)
         n = len(pattern)
         x0 = float(pattern.two_theta[0]) if n else 0.0
         x1 = float(pattern.two_theta[-1]) if n else 0.0
         self.statusBar().showMessage(
             f"已打开 {fname}：{n} 点，2θ {x0:.2f}–{x1:.2f}°"
+        )
+
+    def _show_open_error(self, path: str, message: str) -> None:
+        """打开失败提示（GUI 线程回调）。"""
+        QtWidgets.QMessageBox.warning(
+            self,
+            "无法打开衍射数据文件",
+            f"文件：{path}\n\n原因：{message}\n\n"
+            "请确认文件存在且格式受支持（两列 ASCII / Bruker / Panalytical / "
+            "Shimadzu .raw 等）。",
+        )
+
+    # ------------------------------------------------------------------
+    # 预处理动作（v1.7.x：把工具栏占位菜单接线到 core.preprocess）
+    # ------------------------------------------------------------------
+    def _require_loaded_pattern(self, action_label: str) -> Pattern | None:
+        """Return the current pattern, or inform the user and return ``None``."""
+        if self._current_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "尚未打开衍射数据",
+                f"请先通过 文件→打开数据… 载入衍射谱，再执行「{action_label}」。",
+            )
+            return None
+        return self._current_pattern
+
+    def _replace_processed(self, intensity, label: str) -> None:
+        """Replace the displayed curve with *intensity* (never stacks curves).
+
+        原始谱保存在 ``_raw_pattern``，「重置」可随时回到它；这里只替换
+        ``_current_pattern`` 与谱图区对应的那一条曲线。
+        """
+        current = self._current_pattern
+        if current is None:
+            return
+        processed = Pattern(
+            two_theta=current.two_theta,
+            intensity=intensity,
+            wavelength=current.wavelength,
+            step=current.step,
+            metadata=dict(current.metadata),
+        )
+        if self._pattern_key is not None:
+            self.pattern_view.remove_pattern(self._pattern_key)
+            self._pattern_key = None
+        base = self._current_filename or "实验谱"
+        self._pattern_key = self.pattern_view.add_pattern(
+            processed, name=f"{base}（{label}）"
+        )
+        self._current_pattern = processed
+        self.statusBar().showMessage(f"已应用到当前谱：{label}", 6000)
+
+    def _apply_smoothing(self) -> None:
+        """平滑：Savitzky-Golay（窗口 11，3 阶），与自动处理管线默认一致。"""
+        pattern = self._require_loaded_pattern("平滑")
+        if pattern is None:
+            return
+        n = len(pattern.intensity)
+        window = 11 if n >= 11 else (n if n % 2 else n - 1)
+        if window < 5:
+            QtWidgets.QMessageBox.information(
+                self, "数据点过少", f"当前谱只有 {n} 个点，无法平滑。",
+            )
+            return
+        intensity = smooth(
+            pattern.intensity, method="savgol", window=window, polyorder=3
+        )
+        self._replace_processed(intensity, f"平滑 Savitzky-Golay({window},3)")
+
+    def _apply_background(self) -> None:
+        """背景扣除：SNIP 估计 + 相减（负值截零）。"""
+        pattern = self._require_loaded_pattern("背景扣除")
+        if pattern is None:
+            return
+        bg = estimate_background(
+            pattern.two_theta, pattern.intensity, method="snip", window=20
+        )
+        self._replace_processed(
+            subtract_background(pattern.intensity, bg), "背景扣除 SNIP"
+        )
+
+    def _apply_alpha2_strip(self) -> None:
+        """Kα2 剥离：Rachinger 算法；波长跟随谱图自身波长与 Kα2 设置。"""
+        pattern = self._require_loaded_pattern("Kα2 剥离")
+        if pattern is None:
+            return
+        ka1 = float(pattern.wavelength or 1.5406)
+        _ka1, ka2 = self.fpfm_kalpha_wavelengths(pattern)
+        # Kα2/Kα1 = 0.5 的强度比由 ratio 参数表达；波长比按 Kα2/Kα1 ≈ 1.0025。
+        ka2_value = float(ka2) if ka2 is not None else ka1 * 1.0025
+        intensity = strip_alpha2(
+            pattern.two_theta,
+            pattern.intensity,
+            wavelength_kalpha1=ka1,
+            wavelength_kalpha2=ka2_value,
+            ratio=0.5,
+        )
+        self._replace_processed(intensity, "Kα2 剥离 Rachinger")
+
+    def _reset_pattern(self) -> None:
+        """重置：丢弃全部预处理，回到打开时的原始谱。"""
+        if self._raw_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self, "无可重置的数据", "请先通过 文件→打开数据… 载入衍射谱。",
+            )
+            return
+        self.pattern_view.clear()
+        self._pattern_key = None
+        self._current_pattern = None
+        self.set_pattern(self._raw_pattern, name=self._current_filename or "实验谱")
+        self.statusBar().showMessage("已重置为原始谱（撤销全部预处理）", 6000)
+
+    def _detect_peaks(self) -> None:
+        """峰检测：medium 灵敏度寻峰并填入峰列表（不改动谱图数据）。"""
+        pattern = self._require_loaded_pattern("峰检测")
+        if pattern is None:
+            return
+        peaks = find_peaks(
+            pattern.two_theta, pattern.intensity, sensitivity="medium"
+        )
+        self.peak_table.set_peaks(peaks)
+        self.statusBar().showMessage(
+            f"峰检测完成：识别到 {len(peaks)} 个峰（medium 灵敏度）", 6000
         )
 
     def _on_search_mode_combo_changed(self, _index: int) -> None:
@@ -909,7 +1041,7 @@ class MainWindow(QtWidgets.QMainWindow):
             else "峰列表 FoM 检索"
         )
 
-        run_with_busy(
+        started = run_with_busy(
             self,
             "Search-Match",
             f"正在执行{mode_desc}…\n对参考数据库逐条比对/拟合，请稍候。",
@@ -917,6 +1049,10 @@ class MainWindow(QtWidgets.QMainWindow):
             on_success=self._apply_search_results,
             on_error=self._show_search_error,
         )
+        if not started:
+            # Re-entrant call rejected by the busy guard: the worker never ran,
+            # so nobody will close the connection we just opened.
+            conn.close()
 
     def _do_search(
         self,
@@ -928,14 +1064,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         返回 ``(候选列表, 模式名, 峰列表)``；FPFM 分支峰列表为 ``None``。
         异常直接上抛，由 :func:`run_with_busy` 转交 GUI 线程提示。
+
+        连接生命周期：:meth:`open_search_library` 每次检索打开一个只读连接，
+        **必须在本方法内关闭**——SQLite 在 Windows 上会持有库文件句柄，
+        泄漏后用户无法替换/重建参考库（v1.7.x 缺陷修复）。
         """
         peaks: list | None = None
-        if mode == SEARCH_MODE_FPFM_FULL:
-            results, mode_label = self._search_fpfm(pattern, conn)
-        else:
-            peaks = find_peaks(pattern.two_theta, pattern.intensity)
-            results = search_match(peaks, conn, pattern.wavelength)
-            mode_label = "峰列表 FoM"
+        try:
+            if mode == SEARCH_MODE_FPFM_FULL:
+                results, mode_label = self._search_fpfm(pattern, conn)
+            else:
+                peaks = find_peaks(pattern.two_theta, pattern.intensity)
+                results = search_match(peaks, conn, pattern.wavelength)
+                mode_label = "峰列表 FoM"
+        finally:
+            conn.close()
         return results, mode_label, peaks
 
     def _apply_search_results(

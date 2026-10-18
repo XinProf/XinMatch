@@ -10,6 +10,10 @@ from xinmatch.core.instrument import (
     open_serial,
 )
 
+# pyserial is a declared runtime dependency (pyproject ``dependencies``), but an
+# incomplete dev env must skip here instead of failing the whole suite.
+pytest.importorskip("serial", reason="pyserial not installed")
+
 
 def test_list_serial_ports_returns_list_of_infos() -> None:
     ports = list_serial_ports()

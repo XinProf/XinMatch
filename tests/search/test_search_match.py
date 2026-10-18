@@ -624,3 +624,62 @@ def test_search_match_feeds_candidate_list(sm_exp_peaks, sm_conn):
     unassoc = cl.show_unassociated_peaks(top_id)
     assert isinstance(unassoc, list)
     assert all(0 <= i < len(sm_exp_peaks) for i in unassoc)
+
+
+# ===========================================================================
+# recall_max_candidates must bound *every* recall mode (restraints included)
+# ===========================================================================
+def test_wide_restraints_are_capped(monkeypatch, sm_conn, sm_exp_peaks):
+    """Wide restraints (more ids than the cap) must not send every entry to
+    FoM scoring: the restrained set is intersected with the d-value recall
+    and the result is capped."""
+    import importlib
+
+    # NB: ``import xinmatch.core.search.search_match as m`` would bind the
+    # *function* re-exported by the package __init__; resolve the module.
+    sm_module = importlib.import_module("xinmatch.core.search.search_match")
+
+    # 5000 restrained ids: the real entry E1 plus 4999 ids absent from the DB.
+    wide = ["E1", *[f"FAKE-{i:05d}" for i in range(4999)]]
+    monkeypatch.setattr(sm_module, "apply_restraints", lambda conn, r: wide)
+
+    fetched: list[int] = []
+    real_fetch = sm_module.fetch_entries_by_ids
+
+    def _spy(conn, ids):
+        fetched.append(len(ids))
+        return real_fetch(conn, ids)
+
+    monkeypatch.setattr(sm_module, "fetch_entries_by_ids", _spy)
+
+    results = sm_module.search_match(
+        sm_exp_peaks,
+        sm_conn,
+        WL,
+        restraints=Restraints(),
+        recall_max_candidates=100,
+    )
+    assert fetched, "fetch stage should run"
+    assert fetched[0] <= 100, f"{fetched[0]} candidates escaped the cap"
+    # The restrained set is intersected with the d-recall, so the genuinely
+    # matching entry survives while the 4999 phantom ids are dropped.
+    assert [r.entry.entry_id for r in results] == ["E1"]
+
+
+def test_narrow_restraints_are_scored_unchanged(monkeypatch, sm_conn, sm_exp_peaks):
+    """Restraints narrower than the cap keep their exact membership (no
+    d-recall intersection that could drop a true phase)."""
+    import importlib
+
+    sm_module = importlib.import_module("xinmatch.core.search.search_match")
+
+    monkeypatch.setattr(sm_module, "apply_restraints", lambda conn, r: ["E1"])
+
+    results = sm_module.search_match(
+        sm_exp_peaks,
+        sm_conn,
+        WL,
+        restraints=Restraints(),
+        recall_max_candidates=100,
+    )
+    assert [r.entry.entry_id for r in results] == ["E1"]

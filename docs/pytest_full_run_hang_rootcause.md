@@ -88,6 +88,18 @@ $env:QT_QPA_PLATFORM="offscreen"
 
 这些测试属于算法固有耗时（数值雅可比 × 大图案），在并行任务 CPU 争用下会进一步放大。分块运行是推荐的规避方式。
 
+## v1.7.x 更新：slow 标记已落实，默认运行不再需要手工分块
+
+此前只有 2 个测试文件使用 `slow` 标记，`pytest` 默认会跑全部慢用例。现已：
+
+* `tests/refine/test_turn_on.py`、`tests/search/test_baseline_acceptance.py` 加模块级
+  `pytestmark = pytest.mark.slow`；
+* `tests/refine/test_gsas2_project.py` 的两个真实精修用例加 `@pytest.mark.slow`；
+* `pyproject.toml` 的 `addopts` 追加 `-m "not slow"`。
+
+因此 `pytest` 现在是「快速可用」的默认入口，全量慢用例用 `pytest -m slow`（命令行
+`-m` 覆盖 ini 配置）。下面的分块方案仍然适用于定位单个模块的失败。
+
 ## 分块运行方案
 
 由于全量单进程受固有慢测试影响，推荐分块运行：

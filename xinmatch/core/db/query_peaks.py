@@ -12,19 +12,57 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import sqlite3
-from collections import Counter
+import threading
+from collections import Counter, OrderedDict
 
 logger = logging.getLogger(__name__)
 
 # Module-level cache of each entry's top-K intensities (descending), used
 # by the Hanawalt top-K prefilter to avoid a correlated subquery per
-# window row.  Built lazily from the (entry_id, intensity) index.  The
-# cache is keyed by the database **file path** only: in-memory databases
-# are never cached (their connection-id would be reused across pytest
-# fixtures, corrupting the table).
+# window row.  Built lazily from the (entry_id, intensity) index.
+#
+# Cache key = (file path, mtime_ns, size):
+# * in-memory databases have no path → never cached (their connection-id
+#   would be reused across pytest fixtures, corrupting the table);
+# * the (mtime, size) fingerprint invalidates the entry when the library file
+#   is rebuilt / replaced at the same path — the previous path-only key
+#   silently kept serving stale top-K thresholds;
+# * an LRU bound keeps at most ``_TOP_K_CACHE_MAX`` databases resident
+#   (each is roughly ``n_entries × 20`` floats);
+# * reads/writes are guarded by a lock: the GUI searches from a worker thread
+#   while a CLI batch may run concurrently in the same process.
 _TOP_K_LIMIT = 20
-_top_k_cache: dict[str, dict[str, list[float]]] = {}
+_TOP_K_CACHE_MAX = 2
+
+#: Upper bound used for an unbounded (window crossing 2θ = 0) d interval.
+#: A finite sentinel keeps the bound parameters REAL and the query plan stable;
+#: no real d-spacing comes anywhere near 10⁶ Å.
+_D_WINDOW_MAX = 1.0e6
+
+_top_k_cache: OrderedDict[
+    tuple[str, int, int], dict[str, list[float]]
+] = OrderedDict()
+_top_k_lock = threading.Lock()
+
+
+def _top_k_cache_key(conn: sqlite3.Connection) -> tuple[str, int, int] | None:
+    """Return a change-detecting cache key for *conn*'s main database.
+
+    ``None`` for in-memory / temporary databases (never cached).
+    """
+    row = conn.execute("PRAGMA database_list").fetchone()
+    path = row[2] if row and row[2] else None
+    if not path:
+        return None
+    try:
+        st = os.stat(path)
+    except OSError:
+        # Path vanished between open and now: fall back to a non-fingerprinted
+        # key so the caller still gets a usable (if uncacheable) result.
+        return (path, 0, 0)
+    return (path, st.st_mtime_ns, st.st_size)
 
 
 def _load_top_k_intensities(conn: sqlite3.Connection) -> dict[str, list[float]]:
@@ -34,16 +72,18 @@ def _load_top_k_intensities(conn: sqlite3.Connection) -> dict[str, list[float]]:
     served by the ``idx_peaks_entry_intensity`` index — and keeps only the
     top ``_TOP_K_LIMIT`` intensities per entry.  ~600 MB COD DBs take a
     few seconds on first use in a process; the result is cached per
-    database (keyed by its file path).  In-memory connections are rebuilt
-    on every call.
+    database file (path + mtime + size, LRU-bounded).  In-memory connections
+    are rebuilt on every call.
     """
-    row = conn.execute("PRAGMA database_list").fetchone()
-    db_key = row[2] if row and row[2] else None
+    db_key = _top_k_cache_key(conn)
     if db_key is not None:
-        cache = _top_k_cache.get(db_key)
-        if cache is not None:
-            return cache
-    cache = {}
+        with _top_k_lock:
+            cached = _top_k_cache.get(db_key)
+            if cached is not None:
+                _top_k_cache.move_to_end(db_key)
+                return cached
+
+    cache: dict[str, list[float]] = {}
     cur = conn.execute(
         "SELECT entry_id, intensity FROM peaks "
         "ORDER BY entry_id, intensity DESC"
@@ -60,8 +100,14 @@ def _load_top_k_intensities(conn: sqlite3.Connection) -> dict[str, list[float]]:
             cur_list.append(float(intensity))
     if cur_eid is not None:
         cache[cur_eid] = cur_list
+
     if db_key is not None:
-        _top_k_cache[db_key] = cache
+        with _top_k_lock:
+            _top_k_cache[db_key] = cache
+            _top_k_cache.move_to_end(db_key)
+            while len(_top_k_cache) > _TOP_K_CACHE_MAX:
+                evicted, _ = _top_k_cache.popitem(last=False)
+                logger.debug("evicted top-K cache for %s", evicted[0])
     return cache
 
 
@@ -179,21 +225,35 @@ def search_by_d(
             logger.debug("could not create idx_peaks_entry_intensity "
                          "(read-only connection?); top-K recall runs unindexed")
 
-    def _window(d: float) -> tuple[float, float]:
+    def _window(d: float) -> tuple[float, float] | None:
+        """Return the d interval covered by the 2θ window, or ``None``.
+
+        ``None`` means the experimental peak cannot be matched by any
+        reflection at the assumed wavelength: ``d <= λ/2`` is unphysical
+        (sin θ > 1), so ``asin`` would raise ``ValueError``.  This happens in
+        practice when a pattern is imported without wavelength metadata (the
+        Cu Kα default) but was measured with a Mo / Ag tube, leaving
+        high-angle peaks with d well below λ_Cu/2 ≈ 0.77 Å.
+        """
         if wavelength is None:
             return d - tolerance, d + tolerance
+        if d <= 0.0:
+            return None
         # Constant 2θ half-window → d window.  2θ = 2·asin(λ/(2d)).
+        arg = wavelength / (2.0 * d)
+        if arg >= 1.0:
+            return None
+        theta = math.asin(arg)
         half_rad = math.radians(window_deg / 2.0)
-        theta = math.asin(wavelength / (2.0 * d))
+        # Lower d ← upper 2θ; clamped at the back-scattering limit (λ/2).
+        d_lo = wavelength / (2.0 * math.sin(min(theta + half_rad, math.pi / 2.0)))
         sin_lo = math.sin(theta - half_rad)
-        if sin_lo <= 0.0:
-            return d * 0.9, wavelength / (2.0 * math.sin(theta + half_rad))
-        return (
-            wavelength / (2.0 * math.sin(theta + half_rad)),
-            wavelength / (2.0 * sin_lo),
-        )
+        # Upper d ← lower 2θ; unbounded when the window crosses 2θ = 0.
+        d_hi = _D_WINDOW_MAX if sin_lo <= 0.0 else wavelength / (2.0 * sin_lo)
+        return d_lo, d_hi
 
     scores: Counter[str] = Counter()
+    skipped = 0
     if strongest_k:
         # Top-K Hanawalt: keep entries with any of their K strongest
         # reference peaks inside an experimental window.  Equivalence:
@@ -204,7 +264,11 @@ def search_by_d(
         # query needs no correlated subquery.
         thresholds = _load_top_k_intensities(conn)
         for d in peak_ds:
-            lo, hi = _window(d)
+            window = _window(d)
+            if window is None:
+                skipped += 1
+                continue
+            lo, hi = window
             cur = conn.execute(
                 "SELECT entry_id, MAX(intensity) FROM peaks "
                 "WHERE d BETWEEN ? AND ? GROUP BY entry_id",
@@ -220,13 +284,23 @@ def search_by_d(
                         scores[entry_id] += 1
     else:
         for d in peak_ds:
-            lo, hi = _window(d)
+            window = _window(d)
+            if window is None:
+                skipped += 1
+                continue
+            lo, hi = window
             cur = conn.execute(
                 "SELECT DISTINCT entry_id FROM peaks WHERE d BETWEEN ? AND ?",
                 (lo, hi),
             )
             for (entry_id,) in cur:
                 scores[entry_id] += 1
+    if skipped:
+        logger.debug(
+            "skipped %d of %d experimental d-spacings below the λ/2 limit "
+            "(wavelength=%.4f Å) — check the pattern's wavelength metadata",
+            skipped, len(peak_ds), wavelength or 0.0,
+        )
 
     # Prune by minimum match count, sort by count desc, then cap.
     ranked = sorted(

@@ -105,11 +105,19 @@ def db_path(tmp_path: Path) -> Path:
 # CLI invocation helper
 # ---------------------------------------------------------------------------
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
-    """Run the XinMatch CLI as a subprocess and return the result."""
+    """Run the XinMatch CLI as a subprocess and return the result.
+
+    The CLI reconfigures its own stdio to UTF-8 (``_configure_stdio``), so the
+    helper must decode UTF-8 explicitly: with ``text=True`` alone Python uses
+    the *locale* codec, which is GBK on a default zh-CN Windows install and
+    blows up on the Chinese help text (``UnicodeDecodeError: 'gbk' codec ...``).
+    """
     return subprocess.run(
         [sys.executable, "-m", "xinmatch.cli.main", *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=120,
     )
 

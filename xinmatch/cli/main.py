@@ -50,8 +50,7 @@ from xinmatch.core.report.report_model import (
     SampleInfo,
 )
 from xinmatch.core.search import search_match
-from xinmatch.core.search.fom import CandidateResult
-from xinmatch.core.search.fpfm import search_match_fpfm
+from xinmatch.core.search.fpfm import search_match_fpfm, to_candidates
 
 
 # ---------------------------------------------------------------------------
@@ -163,18 +162,8 @@ def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
                 prescreen_top_n=args.prescreen_n,
                 top_n=args.top_n,
             )
-            candidates = [
-                CandidateResult(
-                    entry=entry,
-                    fom=float(score["fom"]),
-                    p_values={
-                        "rwp": float(score["rwp"]),
-                        "rexp": float(score["rexp"]),
-                        "gof": float(score["gof"]),
-                    },
-                )
-                for entry, score in raw
-            ]
+            # Shared adapter — same mapping as GUI / batch (no third copy).
+            candidates = to_candidates(raw)
         else:
             candidates = search_match(
                 peaks,

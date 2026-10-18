@@ -72,10 +72,21 @@ def _connect(monkeypatch, win) -> sqlite3.Connection:
 
     v1.3.1 起检索在忙碌窗口的工作线程内使用该连接，必须
     ``check_same_thread=False``（只读访问，忙碌窗口重入保护保证串行）。
+
+    v1.7.x：``_do_search`` 在每次检索结束时关闭自己打开的连接（修复 GUI
+    连接泄漏），因此这里的假 opener **必须每次新建连接**——共用一个连接会
+    让第二次检索拿到已关闭的库并抛 ``ProgrammingError``（表现为错误弹框卡住）。
     """
-    conn = sqlite3.connect(DB, check_same_thread=False)
-    monkeypatch.setattr(win, "open_search_library", lambda: conn)
-    return conn
+    opened: list[sqlite3.Connection] = []
+
+    def _open() -> sqlite3.Connection:
+        conn = sqlite3.connect(DB, check_same_thread=False)
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setattr(win, "open_search_library", _open)
+    probe = _open()  # 供测试 finally: conn.close() 使用，窗口不会用到它
+    return probe
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +177,14 @@ def test_fpfm_results_to_candidates_conversion():
 @_HEAVY
 def test_unified_entry_runs_both_modes(qapp, monkeypatch):
     _patch_fast_fpfm(monkeypatch)
+    # 检索失败会弹模态错误框——在 offscreen 测试里那等于永久挂起。把警告
+    # 换成记录，失败时快速断言而不是卡住等人工点「确定」。
+    errors: list[str] = []
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox,
+        "warning",
+        lambda *args, **kwargs: errors.append(str(args[2]) if len(args) > 2 else ""),
+    )
     win = MainWindow()
     win.set_pattern(load_pattern(SYNTH_DIR / "synth_06.txt"))
     conn = _connect(monkeypatch, win)
@@ -199,6 +218,7 @@ def test_unified_entry_runs_both_modes(qapp, monkeypatch):
         assert sel_fpfm and all(
             isinstance(c, CandidateResult) for c in sel_fpfm
         )
+        assert not errors, f"检索过程中抛错（被错误框记录）：{errors}"
     finally:
         conn.close()
 
@@ -219,6 +239,12 @@ def test_fpfm_top1_hit_via_unified_entry(qapp, monkeypatch, name):
     "C"）可正确判定。参数同 test_unified_entry_runs_both_modes（prescreen=60）。
     """
     _patch_fast_fpfm(monkeypatch)
+    errors: list[str] = []
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox,
+        "warning",
+        lambda *args, **kwargs: errors.append(str(args[2]) if len(args) > 2 else ""),
+    )
     win = MainWindow()
     win.set_pattern(load_pattern(SYNTH_DIR / f"{name}.txt"))
     conn = _connect(monkeypatch, win)
@@ -226,6 +252,7 @@ def test_fpfm_top1_hit_via_unified_entry(qapp, monkeypatch, name):
         win._search_mode_combo.setCurrentIndex(1)
         assert win._search_mode == SEARCH_MODE_FPFM_FULL
         win._run_search_match()
+        assert not errors, f"FPFM 检索抛错（被错误框记录）：{errors}"
         assert len(win._candidates) > 0
         top1 = win._candidates[0]
         truths = TRUTH[name]

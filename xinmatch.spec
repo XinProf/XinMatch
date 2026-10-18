@@ -34,10 +34,10 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 1.7.0) ----
+# ---- Version (read-only mirror of pyproject [project] version = 1.7.1) ----
 APP_NAME = "XinMatch"
-APP_VERSION = "1.7.0"
-VERSION_TUPLE = (1, 7, 0, 0)
+APP_VERSION = "1.7.1"
+VERSION_TUPLE = (1, 7, 1, 0)
 
 # ---- Build variant (v1.7.0): release = 正式版（含注册机制） / internal = 内部评估版 ----
 # 由环境变量 XINMATCH_BUILD_VARIANT 指定（tools/build_exe.ps1 -Variant）。
@@ -95,7 +95,7 @@ datas += [
     (str(VARIANT_MARKER), "."),
 ]
 
-# ---- Windows version resource (FileVersion / ProductVersion = 1.7.0) ----
+# ---- Windows version resource (FileVersion / ProductVersion = 1.7.1) ----
 version_info = vi.VSVersionInfo(
     ffi=vi.FixedFileInfo(
         filevers=VERSION_TUPLE,

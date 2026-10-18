@@ -86,6 +86,13 @@ class PatternView(pg.PlotWidget):
     def __init__(self, parent=None) -> None:
         """Set up the plot item, grid, legend and cursor crosshair."""
         super().__init__(parent)
+        # pyqtgraph's PlotWidget assigns ``self.clear = self.plotItem.clear`` as
+        # an *instance* attribute, which shadows the ``clear()`` override below.
+        # Consequence (until v1.7.x): clear() emptied the plot but left every
+        # entry in ``_records`` — ``patterns()`` kept reporting removed curves
+        # and repeated open/preprocess cycles leaked records.  Drop the instance
+        # attribute so our class-level clear() actually runs.
+        self.__dict__.pop("clear", None)
         self._plot = self.plotItem
         self._plot.setLabel("bottom", "2θ", units="°")
         self._plot.setLabel("left", "Intensity", units="counts")

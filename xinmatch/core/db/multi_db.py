@@ -72,13 +72,13 @@ KIND_XINMATCH = "xinmatch"
 KIND_PDF2 = "pdf2"
 KIND_COD_FULL = "cod_full"
 
-#: Directory of the external PolyXRD dumps (read-only inputs).  Override with
-#: the ``XINMATCH_POLYXRD_DIR`` environment variable for other checkouts.
-DEFAULT_POLYXRD_DIR = Path(
-    os.environ.get(
-        "XINMATCH_POLYXRD_DIR", r"D:\Project\XRD\PolyXRD\cod_data"
-    )
-)
+#: Optional built-in fallback directory for the external PolyXRD dumps
+#: (read-only inputs).  ``None`` = not configured: the library is reported as
+#: unavailable with an actionable reason and the user picks the directory in
+#: the GUI (设置→参考数据库…) or sets ``XINMATCH_POLYXRD_DIR``.  A hard-coded
+#: ``D:\Project\XRD\PolyXRD\cod_data`` default used to leak one developer's
+#: machine layout into every install.
+DEFAULT_POLYXRD_DIR: Path | None = None
 
 #: Runtime PDF-2 source override set by the GUI (config ``pdf2_source_dir``).
 #: When not ``None`` it takes precedence over the ``XINMATCH_POLYXRD_DIR`` env
@@ -168,25 +168,49 @@ def set_pdf2_source_dir(path: str | Path | None) -> None:
     _pdf2_source_override = Path(path) if path is not None else None
 
 
+def polyxrd_dir() -> Path | None:
+    """Return the configured PolyXRD dump directory, or ``None``.
+
+    Resolution order: GUI/config override (its parent when the override is a
+    ``.sqlite`` file) → ``XINMATCH_POLYXRD_DIR`` → :data:`DEFAULT_POLYXRD_DIR`.
+    ``None`` means "not configured", which callers surface as a friendly
+    reason instead of guessing a machine-specific path.
+    """
+    override = _pdf2_source_override
+    if override is not None:
+        if override.suffix.lower() == ".sqlite":
+            return override.parent
+        return override
+    env = os.environ.get("XINMATCH_POLYXRD_DIR")
+    if env:
+        return Path(env)
+    return DEFAULT_POLYXRD_DIR
+
+
 def pdf2_source_path() -> Path:
     """Source PolyXRD PDF-2 2004 dump (read-only input).
 
     A GUI/config override (see :func:`set_pdf2_source_dir`) wins over the
-    ``XINMATCH_POLYXRD_DIR`` env var / :data:`DEFAULT_POLYXRD_DIR`.
+    ``XINMATCH_POLYXRD_DIR`` env var / :data:`DEFAULT_POLYXRD_DIR`.  When
+    nothing is configured this returns the conventional
+    ``~/PolyXRD/cod_data/PDF2_2004.sqlite`` so error messages name a plausible
+    location; callers must check :func:`polyxrd_dir` to tell "unconfigured"
+    from "configured but missing".
     """
-    if _pdf2_source_override is not None:
-        p = _pdf2_source_override
-        if p.is_dir():
-            return p / "PDF2_2004.sqlite"
-        if p.is_file():
-            return p
+    override = _pdf2_source_override
+    if override is not None:
+        if override.is_dir():
+            return override / "PDF2_2004.sqlite"
+        if override.is_file():
+            return override
         # Path does not (yet) exist: decide by extension so a directory-style
         # config still resolves to the conventional file name.
-        if p.suffix.lower() == ".sqlite":
-            return p
-        return p / "PDF2_2004.sqlite"
-    env = os.environ.get("XINMATCH_POLYXRD_DIR")
-    base = Path(env) if env else DEFAULT_POLYXRD_DIR
+        if override.suffix.lower() == ".sqlite":
+            return override
+        return override / "PDF2_2004.sqlite"
+    base = polyxrd_dir()
+    if base is None:
+        return Path.home() / "PolyXRD" / "cod_data" / "PDF2_2004.sqlite"
     return base / "PDF2_2004.sqlite"
 
 
@@ -242,11 +266,24 @@ class LibraryRecord:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+def _readonly_uri(path: Path) -> str:
+    """Return a ``file:`` URI for *path* that is safe for special characters.
+
+    ``#`` starts a URI fragment and ``?`` starts the query we append, so a
+    database living in e.g. ``C:/data #2/lib.db`` would previously be silently
+    truncated (or fail to open).  :meth:`Path.as_uri` percent-encodes ``#``,
+    ``?``, spaces and non-ASCII characters, which SQLite decodes again.
+    """
+    try:
+        return path.resolve().as_uri() + "?mode=ro"
+    except ValueError:  # pragma: no cover - relative path, defensive
+        return "file:" + path.as_posix() + "?mode=ro"
+
+
 def _count_entries(db_path: Path) -> int | None:
     """Return ``COUNT(*) FROM entries`` for *db_path*, or ``None`` on error."""
     try:
-        uri = "file:" + db_path.as_posix() + "?mode=ro"
-        conn = sqlite3.connect(uri, uri=True)
+        conn = sqlite3.connect(_readonly_uri(db_path), uri=True)
         try:
             if not table_exists(conn, "entries"):
                 return None
@@ -309,14 +346,24 @@ def _pdf2_record() -> LibraryRecord:
     src = pdf2_source_path()
     sidecar = pdf2_sidecar_path()
     if not src.exists():
+        unconfigured = (
+            _pdf2_source_override is None
+            and not os.environ.get("XINMATCH_POLYXRD_DIR")
+            and DEFAULT_POLYXRD_DIR is None
+        )
         return LibraryRecord(
             id="pdf2_2004",
             display_name="ICDD PDF-2 2004 (via PolyXRD dump)",
             kind=KIND_PDF2,
             path=src,
             available=False,
-            unavailable_reason=f"source dump not found: {src}",
-            note="Expected at the PolyXRD cod_data directory; set XINMATCH_POLYXRD_DIR to override.",
+            unavailable_reason=(
+                "PDF-2 source directory not configured; pick it in "
+                "设置→参考数据库… or set XINMATCH_POLYXRD_DIR"
+                if unconfigured
+                else f"source dump not found: {src}"
+            ),
+            note="Expected in the PolyXRD cod_data directory (PDF2_2004.sqlite).",
         )
     if not sidecar.exists():
         return LibraryRecord(
@@ -441,8 +488,9 @@ def _open_ro(path: Path) -> sqlite3.Connection:
     创建的连接（v1.3.1 ``run_with_busy``），只读访问配合忙碌窗口的重入保护
     保证串行使用，不会并发读写同一连接。
     """
-    uri = "file:" + path.as_posix() + "?mode=ro"
-    conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+    conn = sqlite3.connect(
+        _readonly_uri(path), uri=True, check_same_thread=False
+    )
     conn.execute("PRAGMA query_only = ON")
     return conn
 

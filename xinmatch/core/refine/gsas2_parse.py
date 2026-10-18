@@ -49,6 +49,8 @@ GSAS-II source references (read-only; formats documented here from):
 from __future__ import annotations
 
 import contextlib
+import logging
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -60,6 +62,8 @@ from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.report.report_model import RFactorSection
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "Gsas2RefineOutcome",
@@ -343,7 +347,9 @@ def parse_gpx(path: str | Path) -> dict[str, Any]:
     try:  # pragma: no cover - only exercised with GSAS-II installed
         import sys
 
-        sys.path.insert(0, r"C:\gsas2main\GSAS-II")
+        # Honour the same override as gsas2_project (``GSAS2_HOME``) instead of
+        # relying only on the reference machine's literal path.
+        sys.path.insert(0, os.environ.get("GSAS2_HOME") or r"C:\gsas2main\GSAS-II")
         from GSASII import GSASIIscriptable as G2sc
 
         proj = G2sc.G2Project(gpxfile=str(p))
@@ -354,7 +360,12 @@ def parse_gpx(path: str | Path) -> dict[str, Any]:
                 out["scale"] = float(sp["Scale"][0])
                 out["shift"] = float(sp["Shift"][0])
             except Exception:
-                pass
+                # Per-histogram best effort: a missing Scale/Shift key must not
+                # abort the back-fill, but it should stay diagnosable.
+                logger.debug(
+                    "gpx back-fill: sample Scale/Shift unavailable in %s",
+                    p, exc_info=True,
+                )
         cells = {}
         for ph in proj.phases():
             with contextlib.suppress(Exception):
@@ -363,6 +374,7 @@ def parse_gpx(path: str | Path) -> dict[str, Any]:
             out["cell_by_phase"] = cells
         return out
     except Exception:
+        logger.debug("gpx back-fill failed for %s", p, exc_info=True)
         return {}
 
 

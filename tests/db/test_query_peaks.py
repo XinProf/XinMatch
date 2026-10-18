@@ -76,6 +76,30 @@ def test_search_by_d_outside_tolerance_no_match(empty_conn: sqlite3.Connection):
     assert results == []
 
 
+def test_search_by_d_below_half_wavelength_does_not_raise(
+    populated_conn: sqlite3.Connection,
+):
+    """`d < λ/2` is unphysical (sin θ > 1) and must be skipped, not crash.
+
+    Real trigger: a Mo/Ag-tube pattern imported without wavelength metadata
+    falls back to the Cu Kα default, leaving high-angle peaks with
+    d ≈ 0.35 Å; ``asin`` would raise ``ValueError: math domain error``.
+    """
+    results = search_by_d(populated_conn, [0.35], wavelength=1.5406, window_deg=0.3)
+    assert results == []
+
+
+def test_search_by_d_at_backscattering_limit_does_not_overflow(
+    populated_conn: sqlite3.Connection,
+):
+    """``d == λ/2`` (2θ = 180°) is the boundary of ``asin``: float round-off
+    must not push the argument above 1.0."""
+    results = search_by_d(
+        populated_conn, [1.5406 / 2.0], wavelength=1.5406, window_deg=0.3
+    )
+    assert isinstance(results, list)
+
+
 def test_get_entry_peaks(empty_conn: sqlite3.Connection):
     entry = _lab6_entry()
     from xinmatch.core.db.build_cod import insert_entry

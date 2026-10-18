@@ -86,8 +86,9 @@ def fetch_entries_by_ids(
     # default; chunk the IN(...) clause to stay well below that.
     chunk_size = 500
     ids = list(entry_ids)
-    out: dict[str, Entry] = {}
 
+    # --- Pass 1: scalar metadata, one row per entry ---------------------
+    scalars: dict[str, tuple] = {}
     for i in range(0, len(ids), chunk_size):
         chunk = ids[i : i + chunk_size]
         placeholders = ",".join("?" for _ in chunk)
@@ -101,66 +102,83 @@ def fetch_entries_by_ids(
             chunk,
         )
         for row in cur.fetchall():
-            (
-                eid, formula, mineral_name, space_group,
-                a, b, c, alpha, beta, gamma,
-                color, year, author, journal, quality,
-            ) = row
-            cell: CellParams | None = None
-            if a is not None:
-                cell = CellParams(
-                    a=float(a), b=float(b), c=float(c),
-                    alpha=float(alpha) if alpha is not None else 90.0,
-                    beta=float(beta) if beta is not None else 90.0,
-                    gamma=float(gamma) if gamma is not None else 90.0,
-                )
-            literature: dict[str, object] = {}
-            if author is not None:
-                literature["author"] = author
-            if journal is not None:
-                literature["journal"] = journal
-            if year is not None:
-                literature["year"] = int(year)
-            if color is not None:
-                literature["color"] = color
+            scalars[row[0]] = row
 
-            # Fetch the d–I–hkl peak table for this entry.
-            peak_cur = conn.execute(
-                "SELECT d, intensity, h, k, l FROM peaks "
-                "WHERE entry_id = ? ORDER BY intensity DESC",
-                (eid,),
-            )
-            peak_rows = peak_cur.fetchall()
-            ds = [float(r[0]) for r in peak_rows]
-            ints = [float(r[1]) if r[1] is not None else 0.0 for r in peak_rows]
-            hkls: list[tuple[int, int, int] | None] = [
-                (r[2], r[3], r[4]) if r[2] is not None else None
-                for r in peak_rows
-            ]
-            # hkl 行缺失时以 None 占位，保持与 d/I 的行对齐；Entry.hkl 只接受
-            # 非空 hkl 元组列表，故这里 cast 收窄（None 占位仅出现在 hkl_field
-            # 为 truthy 但部分行缺 hkl 的情形，Entry 消费端按位取值可容忍）。
-            hkl_field = (
-                cast("list[tuple[int, int, int]] | None", hkls)
-                if any(h is not None for h in hkls)
-                else None
-            )
+    # --- Pass 2: peak tables, ONE query per chunk -----------------------
+    # (v1.7.x) This used to be one ``SELECT ... WHERE entry_id = ?`` per
+    # entry: 3000 candidates meant 3000 round-trips and ~0.7 s of pure
+    # SQLite overhead.  Batching by chunk drops that to ceil(N/500) queries
+    # while a linear group-by keeps the per-entry (d, I desc) ordering.
+    peaks_by_id: dict[str, list[tuple]] = {}
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i : i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        cur = conn.execute(
+            f"SELECT entry_id, d, intensity, h, k, l FROM peaks "
+            f"WHERE entry_id IN ({placeholders}) "
+            f"ORDER BY entry_id, intensity DESC",
+            chunk,
+        )
+        for eid, d, intensity, h, k, ell in cur:
+            peaks_by_id.setdefault(eid, []).append((d, intensity, h, k, ell))
 
-            out[eid] = Entry(
-                entry_id=eid,
-                formula=formula or "",
-                d_spacings=np.array(ds, dtype=np.float64),
-                intensities=np.array(ints, dtype=np.float64),
-                mineral_name=mineral_name,
-                cell=cell,
-                space_group=space_group,
-                hkl=hkl_field,
-                literature=literature,
-                quality=quality or "",
+    # --- Assemble (only ids present in both tables) --------------------
+    out: dict[str, Entry] = {}
+    for eid, row in scalars.items():
+        (
+            _eid, formula, mineral_name, space_group,
+            a, b, c, alpha, beta, gamma,
+            color, year, author, journal, quality,
+        ) = row
+        cell: CellParams | None = None
+        if a is not None:
+            cell = CellParams(
+                a=float(a), b=float(b), c=float(c),
+                alpha=float(alpha) if alpha is not None else 90.0,
+                beta=float(beta) if beta is not None else 90.0,
+                gamma=float(gamma) if gamma is not None else 90.0,
             )
+        literature: dict[str, object] = {}
+        if author is not None:
+            literature["author"] = author
+        if journal is not None:
+            literature["journal"] = journal
+        if year is not None:
+            literature["year"] = int(year)
+        if color is not None:
+            literature["color"] = color
+
+        peak_rows = peaks_by_id.get(eid, [])
+        ds = [float(r[0]) for r in peak_rows]
+        ints = [float(r[1]) if r[1] is not None else 0.0 for r in peak_rows]
+        hkls: list[tuple[int, int, int] | None] = [
+            (r[2], r[3], r[4]) if r[2] is not None else None
+            for r in peak_rows
+        ]
+        # hkl 行缺失时以 None 占位，保持与 d/I 的行对齐；Entry.hkl 只接受
+        # 非空 hkl 元组列表，故这里 cast 收窄（None 占位仅出现在 hkl_field
+        # 为 truthy 但部分行缺 hkl 的情形，Entry 消费端按位取值可容忍）。
+        hkl_field = (
+            cast("list[tuple[int, int, int]] | None", hkls)
+            if any(h is not None for h in hkls)
+            else None
+        )
+
+        out[eid] = Entry(
+            entry_id=eid,
+            formula=formula or "",
+            d_spacings=np.array(ds, dtype=np.float64),
+            intensities=np.array(ints, dtype=np.float64),
+            mineral_name=mineral_name,
+            cell=cell,
+            space_group=space_group,
+            hkl=hkl_field,
+            literature=literature,
+            quality=quality or "",
+        )
 
     # Preserve input order; skip ids missing from the DB.
-    return [out[eid] for eid in entry_ids if eid in out]
+    return [out[eid] for eid in ids if eid in out]
 
 
 # --------------------------------------------------------------------------- #
@@ -272,6 +290,10 @@ def search_match(
         ranking by match count).  Bounds the per-candidate correlation
         cost on large databases.  Applied in **all** recall modes
         (including the Hanawalt prefilter — T6.0, previously ignored).
+        When ``restraints`` admit more entries than the cap, the restrained
+        set is intersected with the d-value recall before capping, so a wide
+        restraint can no longer push the whole library into FoM scoring;
+        narrow restraints (fewer entries than the cap) are scored unchanged.
         Default 3000 (T6.0): FoM scoring of 3000 candidates costs
         ~0.8 s (fetch ~0.7 s) while the recall query dominates, so the
         cap is relaxed to keep true minor phases past the match-count
@@ -307,28 +329,22 @@ def search_match(
         FoM-ranked candidate results, length ``<= top_n``.
     """
     # Step 1 — candidate generation.
-    if pre_filter is not None:
-        entry_ids: list[str] = list(pre_filter(exp_peaks, conn))
-        logger.debug("pre_filter produced %d candidate ids", len(entry_ids))
-    elif restraints is not None:
-        entry_ids = apply_restraints(conn, restraints)
-        logger.debug("restraints produced %d candidate ids", len(entry_ids))
-    else:
-        # Candidate recall uses the strongest experimental peaks only —
-        # fast on full COD-scale databases, and the most discriminating
-        # peaks drive the d-value window query.  FoM scoring below still
-        # uses the complete experimental peak set.  The Hanawalt
-        # top-K prefilter (default) is what keeps the candidate set both
-        # bounded and free of the dense-card false positives that plain
-        # match counting admits; recall_max_candidates is then applied as
-        # an additional cap in every mode.
+    def _d_recall(restrict_to: set[str] | None = None) -> list[str]:
+        """d-value recall on the strongest experimental peaks.
+
+        Candidate recall uses the strongest experimental peaks only — fast on
+        full COD-scale databases, and the most discriminating peaks drive the
+        window query.  FoM scoring below still uses the complete experimental
+        peak set.  ``restrict_to`` keeps only entries already vetted by the
+        restraints (used when those admit more entries than we are willing to
+        score).
+        """
         strong_peaks = sorted(
             exp_peaks, key=lambda p: (p.intensity if p.intensity is not None else 0.0),
             reverse=True,
         )[:recall_top_k]
         peak_ds = _exp_d_values(strong_peaks, wavelength)
         if not peak_ds:
-            # No usable d-spacings → no candidates.
             return []
         effective_k = recall_strongest_k if recall_strongest_peak else 0
         ranked_ids = search_by_d(
@@ -339,11 +355,44 @@ def search_match(
             min_matches=min(recall_min_matches, len(peak_ds))
             if not recall_strongest_peak
             else 1,
-            max_candidates=recall_max_candidates,
+            # No cap here: restrictions are applied first so the cap never
+            # discards restrained candidates in favour of unrestricted ones.
+            max_candidates=None,
             strongest_k=effective_k,
         )
-        entry_ids = [eid for eid, _ in ranked_ids]
+        ids = [eid for eid, _ in ranked_ids]
+        if restrict_to is not None:
+            ids = [eid for eid in ids if eid in restrict_to]
+        return ids
+
+    if pre_filter is not None:
+        entry_ids: list[str] = list(pre_filter(exp_peaks, conn))
+        logger.debug("pre_filter produced %d candidate ids", len(entry_ids))
+    elif restraints is not None:
+        restrained = apply_restraints(conn, restraints)
+        logger.debug("restraints produced %d candidate ids", len(restrained))
+        if len(restrained) <= recall_max_candidates:
+            # Small enough to score as-is: keeps narrow restraints exact.
+            entry_ids = restrained
+        else:
+            # Wide restraints (e.g. "must contain O" on the 113k COD library)
+            # would otherwise send every entry through FoM scoring.  Intersect
+            # with the d-value recall so the cap keeps the best-scoring ones.
+            entry_ids = _d_recall(set(restrained))
+            logger.debug(
+                "restraints ∩ d-recall produced %d candidate ids", len(entry_ids)
+            )
+    else:
+        entry_ids = _d_recall()
         logger.debug("search_by_d produced %d candidate ids", len(entry_ids))
+
+    # Hard cap in every mode (docstring contract): bounds fetch + FoM cost.
+    if recall_max_candidates is not None and len(entry_ids) > recall_max_candidates:
+        logger.debug(
+            "capping %d candidates to recall_max_candidates=%d",
+            len(entry_ids), recall_max_candidates,
+        )
+        entry_ids = entry_ids[:recall_max_candidates]
 
     if not entry_ids:
         return []

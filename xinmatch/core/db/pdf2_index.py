@@ -145,8 +145,17 @@ def entry_from_row(
 
 
 def _open_source_ro(src: Path) -> sqlite3.Connection:
-    """Open the PDF-2 source dump read-only; never write to it."""
-    conn = sqlite3.connect("file:" + src.as_posix() + "?mode=ro", uri=True)
+    """Open the PDF-2 source dump read-only; never write to it.
+
+    The URI is percent-encoded via ``Path.as_uri`` (see
+    :func:`xinmatch.core.db.multi_db._readonly_uri`) so spaces / ``#`` / ``?``
+    / non-ASCII characters in the path cannot truncate it.
+    """
+    try:
+        uri = src.resolve().as_uri() + "?mode=ro"
+    except ValueError:  # pragma: no cover - relative path, defensive
+        uri = "file:" + src.as_posix() + "?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 

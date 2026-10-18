@@ -207,6 +207,7 @@ def test_search_empty_entries_returns_empty():
 # --------------------------------------------------------------------------- #
 # Determinism (uses the real DB on one synthetic file)
 # --------------------------------------------------------------------------- #
+@pytest.mark.slow
 @pytest.mark.skipif(not SYNTH_DIR.exists(), reason="合成谱目录不存在（仓库外）")
 def test_deterministic_single_pattern():
     from xinmatch.core.io import load_pattern
@@ -245,9 +246,14 @@ def synth_results():
     return out
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(not SYNTH_DIR.exists(), reason="合成谱目录不存在（仓库外）")
 class TestSyntheticFpfmAcceptance:
-    """13 组合成谱：任一真相相必须进入 Top-20（FPFM 全谱拟合精排）。"""
+    """13 组合成谱：任一真相相必须进入 Top-20（FPFM 全谱拟合精排）。
+
+    ``slow``：模块级 ``synth_results`` fixture 会对 13 条合成谱各跑一次真实库
+    FPFM（prescreen=150），数值雅可比耗时达数分钟，默认运行排除。
+    """
 
     def test_truth_in_top20_for_all(self, synth_results):
         from tests.search.test_synthetic_acceptance import TRUTH, is_truth
@@ -299,6 +305,7 @@ def real_results():
     return out
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(not REAL_DIR.exists(), reason="真实谱目录不存在（仓库外）")
 class TestRealFpfmRecord:
     """13 组真实谱：跑通、候选非空、记录 Top-10（不设硬命中率断言）。"""
@@ -316,6 +323,7 @@ class TestRealFpfmRecord:
 # --------------------------------------------------------------------------- #
 # Performance guard
 # --------------------------------------------------------------------------- #
+@pytest.mark.slow
 @pytest.mark.skipif(not SYNTH_DIR.exists(), reason="合成谱目录不存在（仓库外）")
 def test_single_pattern_under_120s():
     from xinmatch.core.io import load_pattern

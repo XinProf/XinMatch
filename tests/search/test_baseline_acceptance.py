@@ -27,6 +27,11 @@ from tools.run_acceptance import (
     run_acceptance,
 )
 
+# Whole module is slow: ``run_acceptance`` drives the full import →
+# preprocess → search pipeline plus ``scipy.optimize.curve_fit`` per sample.
+# Excluded from the default pytest run; use ``pytest -m slow`` explicitly.
+pytestmark = pytest.mark.slow
+
 # Cu Kα wavelength (test_xrd samples are measured on Cu).
 WL = 1.5406
 

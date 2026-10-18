@@ -8,13 +8,15 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v1.7.0.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v1.7.1.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + true March-Dollase preferred
 > orientation modeling + GSAS-II refinement pipeline + quantitative Rietveld
 > (main-phase wt% < 3 on certified samples) are complete and packaged
-> (Windows installer / portable, DB ships separately). See [ROADMAP_v3.md](ROADMAP_v3.md)
-> for the full implementation plan and [docs/STATUS.md](docs/STATUS.md) for
-> current progress.
+> (Windows installer / portable, DB ships separately). v1.7.1 is a
+> maintenance release (code review follow-up: connection/FoM guarantees,
+> faster large-library recall, cancellable long tasks, packaging & CI).
+> See [ROADMAP_v3.md](ROADMAP_v3.md) for the full implementation plan and
+> [docs/STATUS.md](docs/STATUS.md) for current progress.
 
 ## What XinMatch does
 
@@ -76,9 +78,19 @@ python -m venv .venv
 # install in editable mode with dev + gui extras
 pip install -e ".[dev,gui]"
 
-# run the test suite
+# run the test suite (fast subset; the ``slow`` marker is excluded by default)
 pytest
+
+# include the numerically heavy suite (turn-on least squares, GSAS-II
+# subprocesses, L3 acceptance curve_fit) — tens of minutes
+pytest -m slow
+
+# full local CI (ruff + mypy + tests), mirrors .github/workflows/ci.yml
+powershell -File tools/ci.ps1
 ```
+
+> The reference databases (`data/*.db`, 0.5–1 GB) are not in the repository;
+> tests that need them skip themselves.
 
 ## Builds & registration / 构建版本与注册
 

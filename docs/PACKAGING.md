@@ -102,9 +102,12 @@ Verify the bundled DB is intact:
 ## Common pitfalls
 
 * **`schema.sql` must be bundled.**  `xinmatch/core/db/schema.py` reads
-  `schema.sql` at **import time** (`Path(__file__).with_name("schema.sql")`).
-  The spec collects it to `xinmatch/core/db/schema.sql` inside `_internal/`.
-  If it is missing, the whole package fails to import on startup.
+  `schema.sql` at **import time** via
+  `importlib.resources.files("xinmatch.core.db").joinpath("schema.sql")`.
+  The spec collects it to `xinmatch/core/db/schema.sql` inside `_internal/`;
+  the wheel declares it (plus `xinmatch/ui/assets/3dmol/*`) through
+  `[tool.setuptools.package-data]`, and CI asserts both are present in the
+  built wheel.  If it is missing, the whole package fails to import on startup.
 * **The DB path is not auto-resolved.**  Neither the GUI nor the CLI guesses the
   DB location; users point the Open-DB dialog / `--db` flag at
   `data/cod_inorganics.db`.
@@ -113,6 +116,20 @@ Verify the bundled DB is intact:
   get a `json` parse error.
 * **`.gitignore` already covers `build/`, `dist/`, `*.spec`** — no extra ignore
   rules needed.
+
+## 注册机制的安全边界（v1.7.x 说明）
+
+`xinmatch/utils/registration.py` 是 PolyXRD 家族的**逐字副本**，注册码 =
+Base32(单位名 + `0x00` + HMAC-SHA256(内置密钥, 单位名)[:8])。密钥随二进制分发，
+属于**混淆级**防护（源码注释已写明「可被逆向提取」）：
+
+* 能防的是「随便填个码」和「手改 `registration.json`」（每次启动重新校验）；
+* 防不住的是「从 exe 里提取密钥后自行出码」；
+* 因此**不要**把它当作强授权/防破解方案；如需提高门槛，需改非对称签名
+  （Ed25519：私钥只留在 `tools/make_reg_code.py`，软件端只内置公钥），
+  代价是已发出的注册码作废（格式变更）。
+
+当前决策：保持与家族互通的码格式不变，安全边界按上述如实告知。
 
 ## Files
 

@@ -78,8 +78,10 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import least_squares
 
+from xinmatch.core.cancel import check_cancelled
 from xinmatch.core.model import CellParams, Entry, Pattern
 from xinmatch.core.preprocess.auto_pipeline import auto_process
+from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.search_match import search_match
 
 logger = logging.getLogger(__name__)
@@ -95,6 +97,7 @@ __all__ = [
     "compute_fom",
     "fit_candidate",
     "search_match_fpfm",
+    "to_candidates",
 ]
 
 # Area-normalised pseudo-Voigt peak-height prefactors (identical to the
@@ -943,8 +946,12 @@ def search_match_fpfm(
         return []
 
     # Stage 2 — full-pattern refinement of the pre-screened subset.
+    # Each fit is expensive (tens to hundreds of ms), so this is also the
+    # natural cancellation point: the GUI's busy window installs a predicate
+    # for this thread and we abort between candidates (never mid-fit).
     fits: list[CandidateFit] = []
     for entry in entries:
+        check_cancelled()
         fits.append(
             fit_candidate(
                 entry, x, y,
@@ -993,3 +1000,33 @@ def search_match_fpfm(
             "total": t_refine - t0,
         })
     return results[: cfg.top_n]
+
+
+def to_candidates(
+    raw: list[tuple[Entry, dict[str, str | float]]],
+) -> list[CandidateResult]:
+    """Convert FPFM ``(entry, score_dict)`` pairs into :class:`CandidateResult`.
+
+    This is the single adapter shared by the GUI (``MainWindow``), the batch
+    pipeline and the CLI.  Keeping one implementation prevents the two
+    previously duplicated copies from drifting apart (FoM key, ``p_values``
+    contents, ordering).
+
+    FPFM produces no peak-correlation quantities (it never picks peaks), so
+    ``pairs`` stays empty and ``i_scale`` keeps its default; the profile-fit
+    quality metrics (Rwp / Rexp / GOF) travel in ``p_values`` for the
+    candidate table and downstream consumers.  Input order is preserved —
+    :func:`search_match_fpfm` already returns FoM-descending results.
+    """
+    return [
+        CandidateResult(
+            entry=entry,
+            fom=float(score["fom"]),
+            p_values={
+                "rwp": float(score["rwp"]),
+                "rexp": float(score["rexp"]),
+                "gof": float(score["gof"]),
+            },
+        )
+        for entry, score in raw
+    ]

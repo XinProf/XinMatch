@@ -11,12 +11,17 @@ module) and is applied by :func:`create_tables`.
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
+from importlib import resources
 
 # Load the canonical DDL from the sibling ``schema.sql`` so there is a single
 # source of truth (kept in sync by convention).
-_SCHEMA_PATH = Path(__file__).with_name("schema.sql")
-SCHEMA_SQL: str = _SCHEMA_PATH.read_text(encoding="utf-8")
+#
+# Read through :mod:`importlib.resources` rather than ``Path(__file__)`` so the
+# module also works from a wheel / zip import, where ``schema.sql`` is a package
+# resource instead of a loose file (declared in ``[tool.setuptools.package-data]``).
+SCHEMA_SQL: str = (
+    resources.files("xinmatch.core.db").joinpath("schema.sql").read_text(encoding="utf-8")
+)
 
 
 def create_tables(conn: sqlite3.Connection) -> None:

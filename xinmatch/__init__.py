@@ -47,7 +47,13 @@ from xinmatch.core.report.report_model import (
 from xinmatch.core.search import CandidateResult
 from xinmatch.core.search import search_match as _search_match
 
-__version__ = importlib.metadata.version("xinmatch")
+try:
+    __version__ = importlib.metadata.version("xinmatch")
+except importlib.metadata.PackageNotFoundError:  # pragma: no cover - source tree / frozen
+    # Running from a source checkout that was never ``pip install``-ed (or from a
+    # frozen bundle stripped of dist-info): keep the package importable.  Keep in
+    # sync with ``[project] version`` in pyproject.toml and ``xinmatch.spec``.
+    __version__ = "1.7.1"
 
 __all__ = [
     "__version__",

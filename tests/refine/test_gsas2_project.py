@@ -193,6 +193,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.mark.slow
 def test_real_refinement_cpd1c(tmp_path: Path) -> None:
     """Drive one Rietveld round on the IUCr CPD-1c benchmark (Al2O3/ZnO/CaF2).
 
@@ -210,6 +211,7 @@ def test_real_refinement_cpd1c(tmp_path: Path) -> None:
     assert proj.lst_path is not None and proj.lst_path.is_file(), ".lst not produced"
 
 
+@pytest.mark.slow
 def test_real_refinement_with_size_strain(tmp_path: Path) -> None:
     """Real refinement with isotropic size/strain broadening turned on.
 

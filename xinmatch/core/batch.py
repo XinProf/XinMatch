@@ -92,7 +92,7 @@ from xinmatch.core.report.report_model import (
 from xinmatch.core.search import search_match
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.fom_criteria import FomWeights
-from xinmatch.core.search.fpfm import search_match_fpfm
+from xinmatch.core.search.fpfm import search_match_fpfm, to_candidates
 
 __all__ = [
     "SampleResult",
@@ -250,18 +250,8 @@ def _search_fpfm(
         ),
         top_n=top_n,
     )
-    return [
-        CandidateResult(
-            entry=entry,
-            fom=float(score["fom"]),
-            p_values={
-                "rwp": float(score["rwp"]),
-                "rexp": float(score["rexp"]),
-                "gof": float(score["gof"]),
-            },
-        )
-        for entry, score in raw
-    ]
+    # Shared adapter (core) — same FoM / p_values mapping as the GUI path.
+    return to_candidates(raw)
 
 
 def run_sample(

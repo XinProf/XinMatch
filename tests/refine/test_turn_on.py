@@ -1,10 +1,17 @@
-"""Tests for the parameter Turn-On strategy (T10.7)."""
+"""Tests for the parameter Turn-On strategy (T10.7).
+
+Marked ``slow``: each case drives ``scipy.optimize.least_squares`` with a
+numerical Jacobian over a 3500-point pattern (~5-10 min per test).  Excluded
+from the default ``pytest`` run (``addopts = -m "not slow"``); run with
+``pytest -m slow tests/refine/test_turn_on.py``.
+"""
 
 from __future__ import annotations
 
 import math
 
 import numpy as np
+import pytest
 
 from xinmatch.core.index.lattice import compute_d
 from xinmatch.core.model.entry import CellParams, Entry
@@ -16,6 +23,8 @@ from xinmatch.core.refine.turn_on import (
     TurnOnStep,
     TurnOnStrategy,
 )
+
+pytestmark = pytest.mark.slow
 
 _WAVELENGTH = 1.5406
 

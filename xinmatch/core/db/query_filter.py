@@ -175,9 +175,15 @@ def search_by_mineral_name(conn: sqlite3.Connection, name: str) -> list[str]:
     list[str]
         Matching entry ids.
     """
+    # Escape the LIKE wildcards so a user typing "%" or "_" matches the
+    # literal character instead of turning the search into "match everything".
+    escaped = (
+        name.replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
+    )
     cur = conn.execute(
-        "SELECT entry_id FROM entries WHERE mineral_name LIKE ? ORDER BY entry_id",
-        (f"%{name}%",),
+        "SELECT entry_id FROM entries WHERE mineral_name LIKE ? ESCAPE '\\' "
+        "ORDER BY entry_id",
+        (f"%{escaped}%",),
     )
     return [row[0] for row in cur]
 
