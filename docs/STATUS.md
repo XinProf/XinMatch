@@ -629,4 +629,41 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **Release**：GitHub `v1.7.0`（仓库为内部库，内部版 zip 一并上传）；验收 `docs/ACCEPTANCE-v1.7.0-20261016.md`。
 
+---
+
+## v1.7.1 版本发布（2026-10-18）✅
+
+**范围**：全量代码评审结论落地（评审与逐条方案见 [`CODE_REVIEW-20261018.md`](CODE_REVIEW-20261018.md) §7）。
+
+**缺陷修复（P0）**：GUI 检索连接泄漏（每次检索 `close()`，`run_with_busy` 返回 `bool` 供重入路径补关）；
+`search_by_d` 在 `d ≤ λ/2` 时的 `math.asin` 越界（跳过并记录）；`recall_max_candidates` 覆盖 restraints
+模式（宽限制由 7 万条降到 ≤ 上限）；wheel 补 `schema.sql` + 3dmol 资源声明（实测 wheel 124 条目）；
+`__version__` 无 dist-info 时回退；`PatternView.clear()` 被 pyqtgraph 实例属性遮蔽的真实 bug。
+
+**性能（P1）**：`fetch_entries_by_ids` 由 N 次查询改两趟分块（N → ⌈N/500⌉）；
+Hanawalt top-K 缓存加 DB 指纹（mtime/size）+ 锁 + LRU(2)，修掉「重建库后仍用旧排名」；
+新增 `fpfm.to_candidates()` 统一 GUI/批处理/CLI 的结果组装。
+
+**体验**：打开数据文件走忙碌窗口（大 raw/brml 不冻结）；FPFM 等长任务支持**协作式取消**
+（`core/cancel.py`，不强杀线程）；5 个占位工具栏菜单接线为可用功能（背景扣除/平滑/Kα2 剥离/
+重置原始数据/峰检测）。
+
+**工程化**：新增 GitHub Actions（ubuntu+windows × py3.10/3.12；ruff + mypy + 默认测试 + wheel 资源断言）
+与本地 `tools/ci.ps1`；`slow` 标记补齐并默认排除（`pytest` 现在可直接运行，`pytest -m slow` 跑全量）；
+去掉硬编码 `D:\Project\...` 默认库路径；SQLite URI 与 LIKE 通配符转义；`docs/README.md` 索引 +
+`tools/clean_data_backups.ps1`。
+
+**验证**：ruff **All checks passed**；mypy **113 files 0 errors**；默认套件 **1297 项 / 0 失败 / 7 跳过**
+（794.9 s，排除 slow）；冻结 `XinMatch.exe import --help` exit 0、internal 变体注册自检 JSON 正确。
+
+**产物**：`dist/XinMatch-Setup-1.7.1.exe`（180,895,295 B）+ `dist/XinMatch-Internal-1.7.1.zip`
+（265,449,143 B）+ `dist/xinmatch-cod-db-1.7.1.zip`（204,614,250 B）+ 两套 onedir。
+
+**Release**：GitHub `v1.7.1`；验收 `docs/ACCEPTANCE-v1.7.1-20261018.md`。
+
+**推迟**：`core/pipeline.py` 三入口统一（UI 与 CLI 预处理语义不同，需配真实库回归）、
+`main_window.py` 拆分（1112 行）、注册机制升级为 Ed25519（会作废已发注册码）、
+`data/*.bak-*` 清理（仅提供脚本，待确认）、`slow` 套件补跑。
+
+
 
