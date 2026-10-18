@@ -5,8 +5,8 @@ and open every reference database XinMatch can search against, regardless of
 the on-disk format.  The GUI layer (``xinmatch/ui``) is a separate subtask and
 only consumes the public API below.
 
-Three source formats are supported
-----------------------------------
+Four source formats are supported
+---------------------------------
 ``xinmatch``
     A native XinMatch-schema SQLite (``entries`` / ``peaks`` / ``elements`` /
     ``element_combo``).  This is the default bundled library
@@ -27,6 +27,15 @@ Three source formats are supported
     product is built by ``tools/build_cod_full_xinmatch.py`` (default output
     ``data/cod_full.db``).  Until that build has been run the library is
     reported as unavailable with a friendly reason.
+``polyxrd`` (external, any location)
+    A PolyXRD ``.sqlite`` database with a ``phases`` table (``peaks_d`` /
+    ``peaks_i`` CSV columns).  It does **not** have to live in the install
+    directory: :func:`add_external_library` registers any path the user picks,
+    persists it in ``<user-data>/libraries.json`` and the GUI/CLI can mount it
+    at runtime.  The first open converts it once into a XinMatch-schema sidecar
+    under ``<user-data>/indexes/external/`` (:mod:`xinmatch.core.db.polyxrd`),
+    keyed by the source's mtime/size so a rebuilt source is re-converted
+    automatically.
 
 Default-library path resolution
 -------------------------------
@@ -56,13 +65,18 @@ Public API for the GUI subtask
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import sqlite3
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from . import polyxrd
 from .schema import table_exists
 
 logger = logging.getLogger(__name__)
@@ -71,6 +85,8 @@ logger = logging.getLogger(__name__)
 KIND_XINMATCH = "xinmatch"
 KIND_PDF2 = "pdf2"
 KIND_COD_FULL = "cod_full"
+#: external PolyXRD ``.sqlite`` database mounted from an arbitrary path
+KIND_POLYXRD = "polyxrd"
 
 #: Optional built-in fallback directory for the external PolyXRD dumps
 #: (read-only inputs).  ``None`` = not configured: the library is reported as
@@ -98,26 +114,46 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _data_dir() -> Path:
+    """Directory holding the bundled reference databases."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent / "data"
+    return project_root() / "data"
+
+
+def _with_sqlite_fallback(base: Path) -> Path:
+    """Return *base*, or its ``.sqlite`` sibling when only that exists.
+
+    v2.0.0: PolyXRD now packages its databases with a ``.sqlite`` extension, and
+    XinMatch's own bundles are moving the same way.  Both spellings are
+    accepted so users can drop either file into ``data/`` (or mount either one
+    from an arbitrary folder) without renaming.
+    """
+    if base.exists():
+        return base
+    alt = base.with_suffix(".sqlite")
+    if alt.exists():
+        return alt
+    return base
+
+
 def default_db_path() -> Path:
     """Resolve the default bundled reference DB (``cod_inorganics.db``).
 
     Development layout: ``<project-root>/data/cod_inorganics.db``.
     Frozen (PyInstaller onedir) layout: ``<exe-dir>/data/cod_inorganics.db``.
+    A ``cod_inorganics.sqlite`` file is accepted as an alternative spelling.
     """
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / "data" / "cod_inorganics.db"
-    return project_root() / "data" / "cod_inorganics.db"
+    return _with_sqlite_fallback(_data_dir() / "cod_inorganics.db")
 
 
 def cod_full_db_path() -> Path:
     """Where :mod:`tools.build_cod_full_xinmatch.py` writes its product.
 
     Same resolution rules as :func:`default_db_path` (``data/`` next to the
-    package in dev, next to the exe when frozen).
+    package in dev, next to the exe when frozen); ``.sqlite`` accepted.
     """
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / "data" / "cod_full.db"
-    return project_root() / "data" / "cod_full.db"
+    return _with_sqlite_fallback(_data_dir() / "cod_full.db")
 
 
 def cod_full_curated_db_path() -> Path:
@@ -126,11 +162,9 @@ def cod_full_curated_db_path() -> Path:
     The curated de-duplicated copy keeps one card per
     (``formula``, ``space_group``) cluster of the full COD DB so the FoM
     ranking is no longer diluted by near-duplicate cards.  Same resolution
-    rules as :func:`default_db_path`.
+    rules as :func:`default_db_path`; ``.sqlite`` accepted.
     """
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / "data" / "cod_full_curated.db"
-    return project_root() / "data" / "cod_full_curated.db"
+    return _with_sqlite_fallback(_data_dir() / "cod_full_curated.db")
 
 
 def user_data_dir() -> Path:
@@ -220,6 +254,155 @@ def pdf2_sidecar_path() -> Path:
 
 
 # ---------------------------------------------------------------------------
+# External library registry (v2.0.0)
+# ---------------------------------------------------------------------------
+#: JSON registry of user-mounted databases (any folder, any ``.db``/``.sqlite``).
+#: Kept out of the GUI YAML on purpose: it is *data*, not a look preference, and
+#: the CLI must be able to add/list libraries without importing Qt.
+_REGISTRY_VERSION = 1
+
+
+@dataclass(frozen=True)
+class ExternalLibrary:
+    """A user-mounted reference database (path + label + stable id).
+
+    Attributes
+    ----------
+    id:
+        Stable ``ext_<hash>`` identifier derived from the resolved absolute
+        path, so re-adding the same file is idempotent and the config keeps
+        pointing at a valid id after a restart.
+    path:
+        Absolute path to the ``.db`` / ``.sqlite`` file (any folder).
+    label:
+        Optional display label (defaults to the file stem).
+    """
+
+    id: str
+    path: Path
+    label: str = ""
+
+    @property
+    def display_name(self) -> str:
+        return self.label or self.path.stem
+
+
+def library_registry_path() -> Path:
+    """Path of the external-library registry JSON.
+
+    Override with ``XINMATCH_LIBRARIES_JSON`` (used by tests and by portable
+    installs that keep everything on a USB stick).
+    """
+    override = os.environ.get("XINMATCH_LIBRARIES_JSON")
+    if override:
+        return Path(override)
+    return user_data_dir() / "libraries.json"
+
+
+def _external_id(path: Path) -> str:
+    try:
+        key = str(path.resolve()).lower()
+    except OSError:  # pragma: no cover - defensive
+        key = str(path).lower()
+    return "ext_" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+
+
+def load_external_libraries() -> list[ExternalLibrary]:
+    """Read the registry (never raises; a corrupt file yields an empty list)."""
+    file = library_registry_path()
+    if not file.exists():
+        return []
+    try:
+        data = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.warning("ignoring unreadable library registry: %s", file)
+        return []
+    out: list[ExternalLibrary] = []
+    for item in data.get("libraries", []) if isinstance(data, dict) else []:
+        try:
+            out.append(
+                ExternalLibrary(
+                    id=str(item["id"]),
+                    path=Path(str(item["path"])),
+                    label=str(item.get("label") or ""),
+                )
+            )
+        except (KeyError, TypeError):  # pragma: no cover - hand-edited file
+            logger.warning("skipping malformed registry entry: %r", item)
+    return out
+
+
+def _save_external_libraries(libs: list[ExternalLibrary]) -> None:
+    file = library_registry_path()
+    file.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "version": _REGISTRY_VERSION,
+        "libraries": [
+            {"id": lib.id, "path": str(lib.path), "label": lib.label} for lib in libs
+        ],
+    }
+    tmp = file.with_name(file.name + ".tmp")
+    tmp.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    tmp.replace(file)
+
+
+def add_external_library(
+    path: str | Path, label: str | None = None
+) -> ExternalLibrary:
+    """Register an external database located anywhere on disk.
+
+    The file is validated first: it must be a searchable XinMatch-schema OR
+    PolyXRD ``phases`` database.  PolyXRD *structure-only* dumps
+    (``cod_index.sqlite``) are rejected with an actionable message instead of
+    being mounted as an empty library.
+
+    Re-adding the same path updates the label and keeps the same id, so the
+    config's ``selected_library_id`` never dangles.
+
+    Raises
+    ------
+    FileNotFoundError
+        The path does not exist.
+    ValueError
+        The file is not a supported reference database.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"database file not found: {p}")
+    schema = polyxrd.detect_source(p)
+    if not schema.searchable:
+        raise ValueError(schema.reason or f"unsupported database format: {p}")
+
+    lib_id = _external_id(p)
+    entry = ExternalLibrary(
+        id=lib_id,
+        path=p.resolve(),
+        label=(label or "").strip(),
+    )
+    existing = [lib for lib in load_external_libraries() if lib.id != lib_id]
+    existing.append(entry)
+    _save_external_libraries(existing)
+    logger.info("mounted external library %s -> %s", lib_id, entry.path)
+    return entry
+
+
+def remove_external_library(library_id: str) -> bool:
+    """Unregister *library_id*; returns ``True`` when it existed.
+
+    Only the registry entry is removed — the sidecar cache and, of course, the
+    source database are left untouched.
+    """
+    libs = load_external_libraries()
+    kept = [lib for lib in libs if lib.id != library_id]
+    if len(kept) == len(libs):
+        return False
+    _save_external_libraries(kept)
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Registry record
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
@@ -234,12 +417,14 @@ class LibraryRecord:
     display_name:
         Human-readable name for the library picker.
     kind:
-        One of :data:`KIND_XINMATCH`, :data:`KIND_PDF2`, :data:`KIND_COD_FULL`.
+        One of :data:`KIND_XINMATCH`, :data:`KIND_PDF2`,
+        :data:`KIND_COD_FULL`, :data:`KIND_POLYXRD`.
     path:
         For ``xinmatch`` / ``cod_full``: the XinMatch-schema SQLite file that
         :func:`open_library` opens directly.  For ``pdf2``: the *source*
         PolyXRD dump (read-only); the opened file is the sidecar returned by
-        :func:`pdf2_sidecar_path`.
+        :func:`pdf2_sidecar_path`.  For ``polyxrd``: the mounted ``.sqlite``
+        source at whatever path the user chose.
     entry_count:
         Number of entries in the opened database, or ``None`` when it has not
         been queried yet (lazy).
@@ -251,6 +436,14 @@ class LibraryRecord:
     note:
         Optional extra context (e.g. where the sidecar lives, how to build a
         missing database).
+    needs_index:
+        ``True`` when the library is searchable but its converted index has not
+        been built yet (:class:`LibraryNeedsIndexError` on open).
+    sidecar:
+        Path of the converted XinMatch-schema index (``polyxrd`` kind only).
+    external:
+        ``True`` for user-mounted libraries (shown with their own path in the
+        picker, removable from the dialog).
     """
 
     id: str
@@ -261,6 +454,9 @@ class LibraryRecord:
     available: bool = True
     unavailable_reason: str | None = None
     note: str | None = None
+    needs_index: bool = False
+    sidecar: Path | None = None
+    external: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +595,72 @@ def _pdf2_record() -> LibraryRecord:
     )
 
 
+def _external_record(ext: ExternalLibrary) -> LibraryRecord:
+    """Build the registry record for a user-mounted database at an arbitrary path.
+
+    XinMatch-schema files are opened directly; PolyXRD ``phases`` databases get
+    a converted sidecar (built lazily, so the record first reports
+    ``needs_index=True`` with the source row count as an estimate).
+    """
+    schema = polyxrd.detect_source(ext.path)
+    name = ext.display_name
+
+    if schema.kind == polyxrd.SCHEMA_XINMATCH:
+        rec = _xinmatch_record(
+            ext.id,
+            name,
+            KIND_XINMATCH,
+            ext.path,
+            note="外部挂载（XinMatch 格式）：直接从该路径读取",
+        )
+        return LibraryRecord(
+            id=rec.id,
+            display_name=rec.display_name,
+            kind=rec.kind,
+            path=rec.path,
+            entry_count=rec.entry_count,
+            available=rec.available,
+            unavailable_reason=rec.unavailable_reason,
+            note=rec.note,
+            external=True,
+        )
+
+    if schema.kind == polyxrd.SCHEMA_POLYXRD:
+        sidecar = polyxrd.sidecar_path_for(ext.path)
+        fresh = polyxrd.sidecar_is_fresh(ext.path, sidecar)
+        count = _count_entries(sidecar) if fresh else schema.row_count
+        return LibraryRecord(
+            id=ext.id,
+            display_name=name,
+            kind=KIND_POLYXRD,
+            path=ext.path.resolve(),
+            entry_count=count,
+            available=True,
+            needs_index=not fresh,
+            sidecar=sidecar,
+            external=True,
+            note=(
+                f"PolyXRD 数据库：源文件 {ext.path.resolve()}（只读）；"
+                + (
+                    f"已建立检索索引 {sidecar.name}"
+                    if fresh
+                    else "首次检索前需建立索引（约 1–2 分钟，可取消）"
+                )
+            ),
+        )
+
+    return LibraryRecord(
+        id=ext.id,
+        display_name=name,
+        kind=KIND_POLYXRD,
+        path=ext.path,
+        available=False,
+        unavailable_reason=schema.reason or f"unsupported database format: {ext.path}",
+        external=True,
+        note="外部挂载：仅支持 XinMatch 格式或 PolyXRD phases 表（含 peaks_d/peaks_i）",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -406,7 +668,8 @@ def list_libraries() -> list[LibraryRecord]:
     """Return all known reference libraries, with live availability status.
 
     The list order is the suggested picker order: the bundled default first,
-    then optional external libraries.  Each record carries ``available`` and
+    then the optional built-ins, then every user-mounted external database
+    (``external=True``).  Each record carries ``available`` and
     ``unavailable_reason`` so the GUI can show friendly labels and grey out
     (and fall back to the default library for) missing ones.
     """
@@ -442,6 +705,8 @@ def list_libraries() -> list[LibraryRecord]:
             ),
         ),
     ]
+    for ext in load_external_libraries():
+        out.append(_external_record(ext))
     return out
 
 
@@ -475,6 +740,24 @@ class LibraryNotAvailableError(RuntimeError):
     ``LibraryRecord.unavailable_reason`` so CLI / GUI callers can surface it
     directly without re-querying the registry.
     """
+
+
+class LibraryNeedsIndexError(LibraryNotAvailableError):
+    """The library is mounted but its converted index has not been built yet.
+
+    Callers should run :func:`ensure_library_index` (progress + cancellation
+    supported) and then retry :func:`open_library`.  The GUI does this inside
+    its busy dialog; the CLI does it synchronously.
+    """
+
+    def __init__(self, library_id: str, source: Path, sidecar: Path) -> None:
+        self.library_id = library_id
+        self.source = source
+        self.sidecar = sidecar
+        super().__init__(
+            f"参考数据库「{library_id}」已挂载但尚未建立检索索引"
+            f"（源文件：{source}）。首次检索前需要转换一次。"
+        )
 
 
 def _open_ro(path: Path) -> sqlite3.Connection:
@@ -525,24 +808,122 @@ def open_library(library_id: str) -> sqlite3.Connection:
         # The source dump is never opened for search; open the XinMatch-schema
         # sidecar instead.
         return _open_ro(pdf2_sidecar_path())
+    if rec.kind == KIND_POLYXRD:
+        sidecar = rec.sidecar or polyxrd.sidecar_path_for(rec.path)
+        if not polyxrd.sidecar_is_fresh(rec.path, sidecar):
+            raise LibraryNeedsIndexError(rec.id, rec.path, sidecar)
+        return _open_ro(sidecar)
     return _open_ro(rec.path)
+
+
+def ensure_library_index(
+    library_id: str,
+    *,
+    force: bool = False,
+    max_peaks: int = polyxrd.DEFAULT_MAX_PEAKS,
+    progress: Callable[[int], None] | None = None,
+) -> dict[str, Any] | None:
+    """Build (or rebuild) the converted index for a mounted PolyXRD database.
+
+    Parameters
+    ----------
+    library_id:
+        Registry id (built-in or external).
+    force:
+        Rebuild even when the cached sidecar still matches the source.
+    max_peaks:
+        Strongest reflections kept per phase.
+    progress:
+        Called with the number of entries written so far.
+
+    Returns
+    -------
+    dict | None
+        Build summary, or ``None`` when nothing had to be built (fresh cache)
+        or the library does not need conversion at all.
+    """
+    rec = library_by_id(library_id)
+    if rec is None:
+        raise LibraryNotAvailableError(f"unknown library id: {library_id!r}")
+    if rec.kind != KIND_POLYXRD:
+        return None
+    _sidecar, summary = polyxrd.ensure_sidecar(
+        rec.path, force=force, max_peaks=max_peaks, progress=progress
+    )
+    return summary
+
+
+def open_search_database(
+    db_path: str | Path,
+    *,
+    build_index: bool = True,
+    progress: Callable[[int], None] | None = None,
+) -> sqlite3.Connection:
+    """Open *any* supported database file for search (CLI / batch convenience).
+
+    Accepts a native XinMatch database (opened directly) or a PolyXRD
+    ``.sqlite`` file at any path (converted once into the cached sidecar, then
+    opened).  Unlike :func:`open_library` this does **not** require the file to
+    be registered first — handy for ``xinmatch search --db <path>``.
+
+    Raises
+    ------
+    FileNotFoundError
+        The path does not exist.
+    LibraryNotAvailableError
+        Unsupported schema, or the index is missing and *build_index* is False.
+    """
+    p = Path(db_path)
+    if not p.is_file():
+        raise FileNotFoundError(f"database file not found: {p}")
+    schema = polyxrd.detect_source(p)
+    if schema.kind == polyxrd.SCHEMA_XINMATCH:
+        return _open_ro(p)
+    if schema.kind == polyxrd.SCHEMA_POLYXRD:
+        sidecar = polyxrd.sidecar_path_for(p)
+        if not build_index and not polyxrd.sidecar_is_fresh(p, sidecar):
+            raise LibraryNeedsIndexError(
+                _external_id(p), p, sidecar
+            )
+        sidecar, summary = polyxrd.ensure_sidecar(p, progress=progress)
+        if summary is not None:
+            logger.info(
+                "converted PolyXRD database %s -> %s (%s entries, %.1fs)",
+                p,
+                sidecar,
+                summary.get("entries_indexed"),
+                float(summary.get("seconds") or 0.0),
+            )
+        return _open_ro(sidecar)
+    raise LibraryNotAvailableError(
+        schema.reason or f"unsupported database format: {p}"
+    )
 
 
 __all__ = [
     "KIND_XINMATCH",
     "KIND_PDF2",
     "KIND_COD_FULL",
+    "KIND_POLYXRD",
+    "ExternalLibrary",
+    "LibraryNeedsIndexError",
     "LibraryNotAvailableError",
     "LibraryRecord",
+    "add_external_library",
     "cod_full_curated_db_path",
     "cod_full_db_path",
     "default_db_path",
-    "list_libraries",
+    "ensure_library_index",
     "library_by_id",
+    "library_registry_path",
+    "list_libraries",
+    "load_external_libraries",
     "open_library",
+    "open_search_database",
     "pdf2_sidecar_path",
     "pdf2_source_path",
     "project_root",
+    "remove_external_library",
     "resolve_default",
     "set_pdf2_source_dir",
     "user_data_dir",

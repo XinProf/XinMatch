@@ -21,6 +21,18 @@ set-up actions from here:
   config and injected into the core layer via
   :func:`xinmatch.core.db.multi_db.set_pdf2_source_dir`, taking precedence
   over the ``XINMATCH_POLYXRD_DIR`` environment variable.
+
+v2.0.0 adds external-library mounting:
+
+* **添加外部库…** — pick a ``*.sqlite`` / ``*.db`` file from *any* folder.
+  XinMatch-schema files are searchable immediately; PolyXRD ``phases`` dumps
+  are converted once into a XinMatch-schema index (``_IndexThread``, with a
+  progress bar and cooperative cancel) and cached under the user data
+  directory.  The mount is persisted in ``<user-data>/libraries.json``, so the
+  path keeps working across restarts without copying the file next to the
+  executable.
+* **移除所选** / **建立/重建索引** — unmount (the source file is never
+  touched) or force a re-conversion after the source database is rebuilt.
 """
 
 from __future__ import annotations
@@ -32,10 +44,15 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from xinmatch.core.cancel import OperationCancelledError, set_cancel_check
 from xinmatch.core.db.multi_db import (
+    KIND_POLYXRD,
     LibraryRecord,
+    add_external_library,
     cod_full_db_path,
+    ensure_library_index,
     list_libraries,
+    remove_external_library,
     set_pdf2_source_dir,
 )
 from xinmatch.ui.dialogs.config import load_config, save_config
@@ -133,6 +150,48 @@ class _BuildCodThread(QtCore.QThread):
         self.done.emit(payload)
 
 
+class _IndexThread(QtCore.QThread):
+    """Convert a mounted PolyXRD database into a XinMatch-schema index.
+
+    The conversion lives in the core layer (``ensure_library_index``); this
+    thread only wires progress + cooperative cancellation (``check_cancelled``
+    polls ``isInterruptionRequested`` through the thread-local predicate).
+    """
+
+    progress = QtCore.Signal(int)
+    done = QtCore.Signal(object)
+
+    def __init__(
+        self,
+        library_id: str,
+        *,
+        force: bool = False,
+        parent: QtCore.QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.library_id = library_id
+        self._force = force
+
+    def run(self) -> None:  # noqa: D102
+        set_cancel_check(self.isInterruptionRequested)
+        try:
+            summary = ensure_library_index(
+                self.library_id, force=self._force, progress=self.progress.emit
+            )
+        except OperationCancelledError:
+            self.done.emit({"_cancelled": True})
+            return
+        except Exception as exc:  # noqa: BLE001 - surfaced in the dialog
+            self.done.emit({"error": str(exc), "_library_id": self.library_id})
+            return
+        finally:
+            set_cancel_check(None)
+        payload = dict(summary or {})
+        payload["_cancelled"] = self.isInterruptionRequested()
+        payload["_library_id"] = self.library_id
+        self.done.emit(payload)
+
+
 class LibraryDialog(QtWidgets.QDialog):
     """Modal picker for the active search-match reference database."""
 
@@ -164,6 +223,9 @@ class LibraryDialog(QtWidgets.QDialog):
         #: the real :func:`tools.build_cod_full_xinmatch.build` lazily).
         self._builder = None
         self._build_thread: _BuildCodThread | None = None
+        #: PolyXRD index-conversion thread (v2.0.0 external libraries).
+        self._index_thread: _IndexThread | None = None
+        self._index_lib_id: str | None = None
 
         self._table = QtWidgets.QTableWidget(len(records), len(_COLUMNS))
         self._table.setHorizontalHeaderLabels(_COLUMNS)
@@ -200,6 +262,25 @@ class LibraryDialog(QtWidgets.QDialog):
         build_row.addWidget(self._cancel_btn)
         build_row.addStretch(1)
 
+        # --- External library mount / index controls (v2.0.0) -------------
+        self._add_btn = QtWidgets.QPushButton("添加外部库…")
+        self._add_btn.setToolTip(
+            "挂载任意文件夹下的参考数据库（*.sqlite / *.db）。\n"
+            "支持 XinMatch 格式与 PolyXRD phases 表（含 peaks_d/peaks_i）。"
+        )
+        self._add_btn.clicked.connect(self._add_external_library)
+        self._remove_btn = QtWidgets.QPushButton("移除所选")
+        self._remove_btn.setToolTip("仅从列表移除挂载（不删除源数据库文件）")
+        self._remove_btn.clicked.connect(self._remove_selected_library)
+        self._index_btn = QtWidgets.QPushButton("建立/重建索引")
+        self._index_btn.setToolTip("为所选 PolyXRD 数据库建立检索索引（首次使用必须）")
+        self._index_btn.clicked.connect(self._rebuild_index)
+        mount_row = QtWidgets.QHBoxLayout()
+        mount_row.addWidget(self._add_btn)
+        mount_row.addWidget(self._remove_btn)
+        mount_row.addWidget(self._index_btn)
+        mount_row.addStretch(1)
+
         self._progress_bar = QtWidgets.QProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setFormat("就绪")
@@ -223,6 +304,7 @@ class LibraryDialog(QtWidgets.QDialog):
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self._table)
+        layout.addLayout(mount_row)
         layout.addLayout(build_row)
         layout.addWidget(self._progress_bar)
         layout.addWidget(self._log_view)
@@ -296,6 +378,21 @@ class LibraryDialog(QtWidgets.QDialog):
         records = list_libraries()
         self._populate_table(records, prev)
         self._refresh_note()
+
+    def _select_id(self, library_id: str) -> None:
+        """Select the row of *library_id* (no-op when it is not listed)."""
+        if library_id in self._ids:
+            self._table.selectRow(self._ids.index(library_id))
+
+    def selected_record(self) -> LibraryRecord | None:
+        """Return the record of the selected row (``None`` when empty)."""
+        rows = self._table.selectionModel().selectedRows()
+        if not rows:
+            return None
+        row = rows[0].row()
+        if 0 <= row < len(self._records):
+            return self._records[row]
+        return None
 
     def selected_id(self) -> str:
         """Return the chosen library id (falls back to an available library)."""
@@ -412,6 +509,137 @@ class LibraryDialog(QtWidgets.QDialog):
         )
 
     # ------------------------------------------------------------------
+    # External libraries (v2.0.0)
+    # ------------------------------------------------------------------
+    def _add_external_library(self) -> None:
+        """Pick a database file anywhere on disk and mount it."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "选择参考数据库（任意文件夹）",
+            "",
+            "SQLite 数据库 (*.sqlite *.db);;所有文件 (*)",
+        )
+        if not path:
+            return
+        self.add_external_path(path)
+
+    def add_external_path(self, path: str) -> str | None:
+        """Mount *path* and start indexing it when needed; returns the id.
+
+        Public (non-underscored) so tests and scripted flows can mount a
+        database without driving the native file dialog.
+        """
+        try:
+            ext = add_external_library(path)
+        except (ValueError, FileNotFoundError, OSError) as exc:
+            QtWidgets.QMessageBox.warning(self, "无法挂载数据库", str(exc))
+            return None
+
+        self._reload_libraries()
+        self._select_id(ext.id)
+        record = next((r for r in self._records if r.id == ext.id), None)
+        self._append_log(
+            f"已挂载：{ext.path}"
+            + ("（XinMatch 格式，可直接检索）" if record and not record.needs_index
+               else "（PolyXRD 格式，正在建立检索索引…）")
+        )
+        if record is not None and record.needs_index:
+            self._start_index(ext.id, force=False)
+        return ext.id
+
+    def _remove_selected_library(self) -> None:
+        """Unmount the selected external library (source file is untouched)."""
+        record = self.selected_record()
+        if record is None:
+            return
+        if not record.external:
+            QtWidgets.QMessageBox.information(
+                self, "无法移除", "内置参考数据库不能移除；只能移除手动挂载的外部库。"
+            )
+            return
+        answer = QtWidgets.QMessageBox.question(
+            self,
+            "移除挂载",
+            f"从列表中移除「{record.display_name}」？\n\n"
+            f"源文件不会被删除：{record.path}",
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        if answer != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        remove_external_library(record.id)
+        cfg = load_config()
+        if (cfg.get("reference_db") or {}).get("selected_library_id") == record.id:
+            cfg.setdefault("reference_db", {})["selected_library_id"] = "cod_inorganics"
+            save_config(cfg)
+        self._append_log(f"已移除挂载：{record.display_name}")
+        self._reload_libraries()
+
+    def _rebuild_index(self) -> None:
+        """Force a rebuild of the selected PolyXRD database's search index."""
+        record = self.selected_record()
+        if record is None:
+            return
+        if record.kind != KIND_POLYXRD:
+            QtWidgets.QMessageBox.information(
+                self,
+                "无需建立索引",
+                "只有 PolyXRD 格式（phases 表）的外部库需要转换索引；"
+                "XinMatch 格式的数据库可直接检索。",
+            )
+            return
+        self._start_index(record.id, force=True)
+
+    def _start_index(self, library_id: str, *, force: bool) -> None:
+        """Launch the index-conversion thread (shared by add / rebuild)."""
+        if self._index_thread is not None:
+            return
+        self._index_lib_id = library_id
+        thread = _IndexThread(library_id, force=force, parent=self)
+        thread.progress.connect(self._on_build_progress)
+        thread.done.connect(self._on_index_done)
+        self._index_thread = thread
+
+        self._progress_bar.setRange(0, 0)
+        self._progress_bar.setFormat("建立检索索引…")
+        self._add_btn.setEnabled(False)
+        self._index_btn.setEnabled(False)
+        self._remove_btn.setEnabled(False)
+        self._log_view.clear()
+        self._append_log(f"开始转换：{library_id}（源文件只读，输出到用户数据目录）")
+        thread.start()
+
+    def _on_index_done(self, summary: object) -> None:
+        """Handle the index thread result (refresh the table on success)."""
+        self._index_thread = None
+        self._add_btn.setEnabled(True)
+        self._index_btn.setEnabled(True)
+        self._remove_btn.setEnabled(True)
+        self._progress_bar.setRange(0, 100)
+        payload = summary if isinstance(summary, dict) else {}
+
+        if payload.get("_cancelled"):
+            self._progress_bar.setFormat("已取消")
+            self._append_log("已取消转换（未写入索引）")
+            return
+        if payload.get("error"):
+            self._progress_bar.setFormat("转换失败")
+            QtWidgets.QMessageBox.warning(
+                self, "建立索引失败", f"无法转换该数据库：\n\n{payload['error']}"
+            )
+            return
+
+        self._progress_bar.setFormat("索引就绪")
+        entries = payload.get("entries_indexed", 0)
+        seconds = payload.get("seconds", 0)
+        self._append_log(f"索引完成：{entries:,} 条，用时 {seconds} 秒")
+        lib_id = str(payload.get("_library_id") or self._index_lib_id or "")
+        self._reload_libraries()
+        if lib_id:
+            self._select_id(lib_id)
+
+    # ------------------------------------------------------------------
     # PDF-2 source path
     # ------------------------------------------------------------------
     def _pdf2_source_label_text(self) -> str:
@@ -478,4 +706,10 @@ class LibraryDialog(QtWidgets.QDialog):
                 return
             thread.requestInterruption()
             thread.wait(3000)
+        index_thread = self._index_thread
+        if index_thread is not None and index_thread.isRunning():
+            # The conversion polls check_cancelled() every few hundred rows, so
+            # requesting interruption stops it quickly and leaves no sidecar.
+            index_thread.requestInterruption()
+            index_thread.wait(5000)
         super().closeEvent(event)

@@ -23,7 +23,9 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from xinmatch.core.db.multi_db import (
+    LibraryNeedsIndexError,
     LibraryNotAvailableError,
+    ensure_library_index,
     open_library,
     resolve_default,
 )
@@ -603,6 +605,38 @@ class MainWindow(QtWidgets.QMainWindow):
             ] = dialog.selected_id()
             save_config(config)
 
+    def _open_library_with_index(self, library_id: str):
+        """Open *library_id*, converting a mounted PolyXRD database on first use.
+
+        PolyXRD ``.sqlite`` libraries can live in any folder and are converted
+        once into a XinMatch-schema index (see
+        :mod:`xinmatch.core.db.polyxrd`).  The conversion takes seconds to a
+        couple of minutes for the full COD dump, so it runs in the busy dialog
+        (off the GUI thread, cancellable) instead of blocking the window.
+        """
+        try:
+            return open_library(library_id)
+        except LibraryNeedsIndexError as exc:
+            errors: list[str] = []
+            run_with_busy(
+                self,
+                "建立检索索引",
+                f"首次使用「{library_id}」需要建立检索索引…\n"
+                f"源文件：{exc.source}\n"
+                "（只读转换一次，之后直接使用缓存；可点「取消」中止）",
+                lambda: ensure_library_index(library_id),
+                on_error=errors.append,
+            )
+            if errors:
+                raise LibraryNotAvailableError(
+                    f"建立检索索引失败：{errors[0]}"
+                ) from exc
+            conn = open_library(library_id)
+            self.statusBar().showMessage(
+                f"已为参考数据库「{library_id}」建立检索索引", 8000
+            )
+            return conn
+
     def open_search_library(self):
         """Open the selected reference DB for search-match, with safe fallback.
 
@@ -621,7 +655,7 @@ class MainWindow(QtWidgets.QMainWindow):
         selected = (config.get("reference_db") or {}).get("selected_library_id")
         selected = selected or resolve_default().id
         try:
-            conn = open_library(selected)
+            conn = self._open_library_with_index(selected)
         except LibraryNotAvailableError as exc:
             default = resolve_default()
             QtWidgets.QMessageBox.warning(

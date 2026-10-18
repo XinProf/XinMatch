@@ -8,13 +8,15 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v1.7.1.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v2.0.0.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + true March-Dollase preferred
 > orientation modeling + GSAS-II refinement pipeline + quantitative Rietveld
 > (main-phase wt% < 3 on certified samples) are complete and packaged
-> (Windows installer / portable, DB ships separately). v1.7.1 is a
-> maintenance release (code review follow-up: connection/FoM guarantees,
-> faster large-library recall, cancellable long tasks, packaging & CI).
+> (Windows installer / portable, DB ships separately). v2.0.0 adds
+> **PolyXRD database compatibility**: any `.sqlite` / `.db` reference database
+> can be mounted from any folder at runtime (GUI picker or
+> `xinmatch libraries --add`), with a one-off cached index for PolyXRD
+> `phases` dumps.
 > See [ROADMAP_v3.md](ROADMAP_v3.md) for the full implementation plan and
 > [docs/STATUS.md](docs/STATUS.md) for current progress.
 
@@ -30,6 +32,11 @@ workflows, published algorithms and open reference data (COD).
 - **Powder indexing** (Treor / Dicvol).
 - **Microstructure**: crystallite size (Scherrer), microstrain, crystallinity.
 - **Reports & export**, **GUI** (PySide6), **CLI / batch scripting**.
+- **Reference-database mounting**: besides the bundled COD file, any
+  `.sqlite` / `.db` reference database can be mounted from **any folder**
+  (设置→参考数据库…, or `xinmatch libraries --add <path>`); PolyXRD dumps
+  (`phases` table with `peaks_d`/`peaks_i`) are converted once into a cached
+  search index, so nothing has to be copied next to the executable.
 
 ## Design principles
 

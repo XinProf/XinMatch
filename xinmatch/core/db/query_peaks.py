@@ -68,12 +68,17 @@ def _top_k_cache_key(conn: sqlite3.Connection) -> tuple[str, int, int] | None:
 def _load_top_k_intensities(conn: sqlite3.Connection) -> dict[str, list[float]]:
     """Return ``{entry_id: [top-20 intensities, descending]}`` (cached).
 
-    Streams the full peaks table ordered by (entry_id, intensity DESC) —
-    served by the ``idx_peaks_entry_intensity`` index — and keeps only the
-    top ``_TOP_K_LIMIT`` intensities per entry.  ~600 MB COD DBs take a
-    few seconds on first use in a process; the result is cached per
-    database file (path + mtime + size, LRU-bounded).  In-memory connections
-    are rebuilt on every call.
+    Streams the full peaks table ordered by (entry_id, intensity DESC) and
+    keeps only the top ``_TOP_K_LIMIT`` intensities per entry.  ~600 MB COD
+    databases (2 M rows) take ~2 s, the 7.9 M-row PolyXRD PDF-2 conversion
+    ~5 s on first use in a process; the result is cached per database file
+    (path + mtime + size, LRU-bounded), so a GUI session pays it once per
+    library.  In-memory connections are rebuilt on every call.
+
+    A dedicated ``(entry_id, intensity DESC)`` index makes this an index-only
+    scan (~30 % faster) but costs ~190 MB on the 163 k-entry PDF-2 sidecar, so
+    the schema deliberately does **not** carry one: the cached dict makes the
+    sort a once-per-process cost instead.
     """
     db_key = _top_k_cache_key(conn)
     if db_key is not None:

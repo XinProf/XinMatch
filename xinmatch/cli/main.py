@@ -25,13 +25,20 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
-import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
 
 from xinmatch.core.batch import load_config as load_batch_config
 from xinmatch.core.batch import run_batch
+from xinmatch.core.db.multi_db import (
+    add_external_library,
+    ensure_library_index,
+    library_by_id,
+    list_libraries,
+    open_search_database,
+    remove_external_library,
+)
 from xinmatch.core.instrument.collector import DataPoint  # no serial import
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Peak, Restraints
@@ -145,7 +152,9 @@ def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
         _processed, peaks = auto_process(pattern)
     restraints = _load_restraints(args.restraints)
 
-    conn = sqlite3.connect(args.db)
+    # ``--db`` accepts a native XinMatch database *or* a PolyXRD ``.sqlite``
+    # file at any path (converted once into a cached search index).
+    conn = open_search_database(args.db)
     try:
         if fpfm:
             # Kα 模型只解析一次：<=0 的 Kα1 跟随图谱自身波长（Co/Mo 靶数据
@@ -257,7 +266,7 @@ def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
     _processed, peaks = auto_process(pattern)
     restraints = _load_restraints(args.restraints)
 
-    conn = sqlite3.connect(args.db)
+    conn = open_search_database(args.db)
     try:
         candidates = search_match(
             peaks,
@@ -405,6 +414,83 @@ class _LivePlotter:
             plt.show(block=False)
         except ImportError:  # pragma: no cover
             pass
+
+
+def cmd_libraries(args: argparse.Namespace) -> dict[str, Any]:
+    """``xinmatch libraries`` — list / mount / unmount / index reference databases.
+
+    Actions (mutually exclusive, default = list):
+
+    * ``--add PATH``   mount a ``.sqlite`` / ``.db`` file from any folder and
+      (unless ``--no-build``) build its search index when it is a PolyXRD
+      ``phases`` database;
+    * ``--remove ID``  unmount a previously added library (source untouched);
+    * ``--build ID``   build or rebuild the index of a mounted PolyXRD database;
+    * ``--force``      with ``--build``, re-convert even if the cache is fresh.
+    """
+    action = "list"
+    payload: dict[str, Any] = {}
+
+    if args.add:
+        action = "add"
+        ext = add_external_library(args.add, label=args.label)
+        record = library_by_id(ext.id)
+        summary = None
+        if record is not None and record.needs_index and not args.no_build:
+            summary = ensure_library_index(
+                ext.id,
+                progress=lambda n: print(f"  indexed {n:,}", file=sys.stderr),
+            )
+        payload = {
+            "library": {
+                "id": ext.id,
+                "path": str(ext.path),
+                "label": ext.display_name,
+                "index_built": summary is not None or not (record and record.needs_index),
+            }
+        }
+    elif args.remove:
+        action = "remove"
+        payload = {"removed": remove_external_library(args.remove), "id": args.remove}
+    elif args.build:
+        action = "build"
+        summary = ensure_library_index(
+            args.build,
+            force=args.force,
+            progress=lambda n: print(f"  indexed {n:,}", file=sys.stderr),
+        )
+        payload = {
+            "id": args.build,
+            "built": summary is not None,
+            "entries_indexed": (summary or {}).get("entries_indexed"),
+            "seconds": (summary or {}).get("seconds"),
+        }
+
+    records = [
+        {
+            "id": r.id,
+            "name": r.display_name,
+            "kind": r.kind,
+            "path": str(r.path),
+            "available": r.available,
+            "needs_index": r.needs_index,
+            "external": r.external,
+            "entries": r.entry_count,
+            "reason": r.unavailable_reason,
+        }
+        for r in list_libraries()
+    ]
+
+    if not getattr(args, "as_json", False):
+        print(f"{'ID':<22} {'OK':<3} {'ENTRIES':>8}  {'KIND':<9} PATH")
+        for rec in records:
+            flag = "no" if not rec["available"] else ("idx" if rec["needs_index"] else "yes")
+            print(
+                f"{rec['id']:<22} {flag:<3} "
+                f"{(rec['entries'] if rec['entries'] is not None else '-'):>8}  "
+                f"{rec['kind']:<9} {rec['path']}"
+            )
+    return {"action": action, **payload, "libraries": records}
 
 
 def cmd_instrument_scan(args: argparse.Namespace) -> dict[str, Any]:
@@ -705,6 +791,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(p_batch)
     p_batch.set_defaults(func=cmd_batch)
+
+    # --- libraries (v2.0.0: mount PolyXRD / XinMatch databases from anywhere) ---
+    p_lib = sub.add_parser(
+        "libraries",
+        help="List / mount / unmount reference databases (any folder, *.sqlite or *.db).",
+        description=(
+            "Manage reference databases.  Without an action the current registry is "
+            "listed; --add mounts a file from any folder (PolyXRD .sqlite files are "
+            "converted once into a cached search index), --build re-creates that "
+            "index, --remove unmounts (the source file is never touched)."
+        ),
+    )
+    p_lib.add_argument("--add", metavar="PATH", help="Mount a database file from any folder.")
+    p_lib.add_argument("--label", help="Display label for --add (default: file stem).")
+    p_lib.add_argument(
+        "--no-build", action="store_true",
+        help="With --add: do not build the search index yet (build on first search).",
+    )
+    p_lib.add_argument("--remove", metavar="ID", help="Unmount the given library id.")
+    p_lib.add_argument(
+        "--build", metavar="ID", help="Build/rebuild the search index of a mounted library."
+    )
+    p_lib.add_argument("--force", action="store_true", help="With --build: rebuild even if fresh.")
+    _add_json_flag(p_lib)
+    p_lib.set_defaults(func=cmd_libraries)
 
     # --- instrument (T14.4) ---
     p_inst = sub.add_parser(

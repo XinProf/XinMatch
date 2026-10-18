@@ -80,6 +80,42 @@ Verify the bundled DB is intact:
 .\XinMatch.exe search <pattern-file> --db .\data\cod_inorganics.db
 ```
 
+## External reference databases (v2.0.0)
+
+Databases no longer have to be copied into `data/`.  The user mounts any
+`*.sqlite` / `*.db` file from any folder:
+
+```powershell
+.\XinMatch.exe libraries --add "D:\XRD-Data\PolyXRD\COD_inorganics.sqlite"
+.\XinMatch.exe libraries --list          # or --json for scripting
+.\XinMatch.exe libraries --build <id> --force   # rebuild after the source changes
+```
+
+In the GUI: 设置 → 参考数据库… → 添加外部库… (the picker and the *建立/重建索引*
+button live in the same dialog).
+
+Behaviour worth knowing for support:
+
+* the mount is recorded in `<user-data>/libraries.json`
+  (`%USERPROFILE%\.xinmatch\` by default, override with `XINMATCH_USER_DATA`);
+  the selected library still lives in the GUI YAML under
+  `reference_db.selected_library_id`;
+* a PolyXRD dump (`phases` table with `peaks_d`/`peaks_i`) is converted **once**
+  into a XinMatch-schema sidecar at
+  `<user-data>/indexes/external/<name>_<hash>.db` (~3–4 min and ~650 MB for the
+  163 k-row PDF-2 file; the 1.2 GB COD dump is similar).  The conversion is
+  cancellable and the source file is only ever opened read-only;
+* the sidecar records the source `mtime`/`size`, so replacing or rebuilding the
+  PolyXRD database automatically triggers a rebuild on the next search (or
+  immediately with *建立/重建索引*);
+* `*.sqlite` is accepted wherever a `*.db` path is expected
+  (`data/cod_inorganics.sqlite`, `cod_full.sqlite`, …), matching PolyXRD's
+  switch to the `.sqlite` extension;
+* PolyXRD structure-only dumps (`cod_index.sqlite` / `cod_entries`, no peak
+  table) are rejected with an explanation instead of being mounted empty —
+  use `COD_inorganics.sqlite`, `PDF2_2004.sqlite`, or export a `phases`-style
+  database.
+
 ## Known limitations
 
 * **GSAS-II is not bundled.**  It lives at `C:\gsas2main` and runs under a
