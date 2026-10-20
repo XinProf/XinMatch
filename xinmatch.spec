@@ -43,11 +43,28 @@ VERSION_TUPLE = (2, 0, 0, 0)
 # 由环境变量 XINMATCH_BUILD_VARIANT 指定（tools/build_exe.ps1 -Variant）。
 # 变体以随包分发的 variant.txt 标记固化，运行时由
 # xinmatch.utils.build_variant 读取；缺失标记按 release 处理（fail-safe）。
-BUILD_VARIANT = os.environ.get("XINMATCH_BUILD_VARIANT", "release").strip().lower()
-if BUILD_VARIANT not in ("release", "internal"):
-    BUILD_VARIANT = "release"
-
+#
+# v2.0.0 起：build/variant.request **优先于**环境变量。
+# 原因：BUNDLE_NAME 决定 COLLECT 的输出目录，变体若在这个进程里读错，
+# internal 构建会算出 release 的名字，PyInstaller 的 COLLECT 会先删掉
+# dist/xinmatch-<Version>/（也就是另一个已建好的变体）再写新内容。
+# 环境变量在部分调用链上不保证传到子进程（实测过 -File 嵌套时丢失），
+# 文件是确定性的，所以让它说话。
 _SPEC_DIR = Path(globals().get("SPECPATH") or os.getcwd())
+_VARIANT_REQUEST = _SPEC_DIR / "build" / "variant.request"
+
+
+def _resolve_variant() -> str:
+    if _VARIANT_REQUEST.is_file():
+        v = _VARIANT_REQUEST.read_text(encoding="utf-8").strip().lower()
+        if v in ("release", "internal"):
+            return v
+    v = os.environ.get("XINMATCH_BUILD_VARIANT", "release").strip().lower()
+    return v if v in ("release", "internal") else "release"
+
+
+BUILD_VARIANT = _resolve_variant()
+
 VARIANT_MARKER = _SPEC_DIR / "build" / "variant.txt"
 VARIANT_MARKER.parent.mkdir(parents=True, exist_ok=True)
 VARIANT_MARKER.write_text(BUILD_VARIANT, encoding="utf-8")

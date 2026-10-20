@@ -667,3 +667,50 @@ Hanawalt top-K 缓存加 DB 指纹（mtime/size）+ 锁 + LRU(2)，修掉「重�
 
 
 
+---
+
+## v2.0.0 版本发布（2026-10-20）✅
+
+**版本**：1.7.1 → **2.0.0**（大版本，因为数据库使用方式变了）。
+
+**主特性（`c0b1a56`）：PolyXRD `.sqlite` 直接挂载**
+
+外部参考库不再需要拷进安装目录：`设置 → 参考数据库 → 添加外部库`（或
+`xinmatch libraries --add <path>`）即可挂载任意位置的 `*.sqlite` / `*.db`。
+新增 `core/db/polyxrd.py` 做 schema 判别（`xinmatch` / PolyXRD `phases` / PolyXRD `cod_entries` 结构库 /
+未知），PolyXRD `phases` 库一次性转成原生 schema 的 sidecar（`<用户数据>/indexes/external/`，
+源文件只读、按 `mtime+size` 指纹失效、可取消）；`libraries.json` 记录挂载项；
+结构型 dump（`cod_index.sqlite`）明确拒绝并说明原因。
+
+配合 PolyXRD 侧全面改用 `.sqlite` 扩展名，XinMatch 在预期路径处等价接受 `.sqlite` / `.db`。
+
+**验收中修掉的 3 个发布缺陷（只在冻结+打包阶段暴露）**：
+
+1. **冻结版 `libraries` 不走 CLI**：`tools/pyi_entry.py` 硬编码子命令集漏了 `libraries`
+   （还有 `batch`、`instrument`），`XinMatch.exe libraries --add …` 会当成未知子命令**直接开 GUI**，
+   功能形同虚设。改为从 `build_parser()` 运行时推导 + 新增 `tests/tools/test_pyi_entry.py`（12 项）。
+2. **变体传递不可靠会删掉另一个变体**：`-File` 嵌套调用时环境变量没到子进程，internal 构建
+   算出 release 的 `BUNDLE_NAME`，PyInstaller 的 COLLECT 先删 `dist\xinmatch-2.0.0\` 再写。
+   改为**文件传递**（`build/variant.request` 优先于环境变量）+ 构建前校验。
+3. **`.ps1` 无 BOM + 中文注释**：PS 5.1 按 ANSI 解码，字节落在行尾反斜杠时把下一行并进注释
+   （表现为 `$LASTEXITCODE` 为空、`Join-Path` 收到 `$null`）。改为 UTF-8 带 BOM。
+
+**配套**：`run_dev.bat`（免打包运行工作树）；3COD 库验收（`docs/ACCEPTANCE-3COD-20261020.md`）
+与按来源分库 `tools/split_3cod.py`（COD 7.9 万 / PCOD 106 万 / TCOD 4.7 万，
+PolyXRD 只挂实验 COD，PCOD/TCOD 只给 XinMatch）。
+
+**验证**：ruff **All checks passed**；mypy **114 files 0 errors**；
+默认套件 **1351 项 / 0 失败 / 7 跳过**（742.7 s，排除 `slow`）。
+两个变体的冻结二进制全部通过：`import --help`、`libraries --json`、
+`libraries --add`（78,747 条、`needs_index=false`）、`search`（Al₂O₃ FoM 0.802，真值第 2）、
+注册自检（release `未注册` / internal `内部评估版本`）。本轮 release 变体的 GUI 自检**首次跑通**
+（v1.7.1 那次被注册弹窗阻塞）。
+
+**产物**：`dist/XinMatch-Setup-2.0.0.exe`（180,974,864 B）+ `dist/XinMatch-Internal-2.0.0.zip`
+（265,471,156 B）+ `dist/xinmatch-cod-db-2.0.0.zip`（204,614,240 B）+ 两套 onedir（681 MB/套）。
+
+**Release**：GitHub `v2.0.0`；验收 `docs/ACCEPTANCE-v2.0.0-20261020.md`。
+
+**推迟**：`slow` 套件补跑、实机静默安装、`max_peaks=64` 保真对照、
+`core/pipeline.py` 三入口统一、`main_window.py` 拆分、Ed25519 注册升级。
+

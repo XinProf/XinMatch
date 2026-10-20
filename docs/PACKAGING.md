@@ -51,8 +51,11 @@ entry (`tools/pyi_entry.py`) dispatches on `sys.argv`:
 * `XinMatch.exe <cli-subcommand> ...`  -> runs `xinmatch.cli.main`
 * `XinMatch.exe` (double-click, no recognized subcommand) -> runs the GUI
 
-Subcommands recognized for the CLI branch: `import`, `process`, `search`,
-`quantify`, `report`, `run`.
+Subcommands are read from `xinmatch.cli.main:build_parser()` at runtime, so the
+dispatcher and the CLI cannot drift apart (`libraries`, `batch`, `instrument`
+were missing from an earlier hard-coded list, which made
+`XinMatch.exe libraries --json` open the GUI instead of mounting a database).
+`-h` / `--help` also go to the CLI; everything else opens the GUI.
 
 ## Smoke testing
 

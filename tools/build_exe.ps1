@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Build the XinMatch onedir Windows distribution with PyInstaller.
 
@@ -59,6 +59,23 @@ $outDir   = if ($Variant -eq "internal") {
 
 # 变体通过环境变量传给 xinmatch.spec（spec 把 variant.txt 打进产物）。
 $env:XINMATCH_BUILD_VARIANT = $Variant
+
+# 构建前断言：变体必须确定性地传到 spec。
+# 为什么必要：spec 用 BUNDLE_NAME 决定 COLLECT 的输出目录。若变体在这个
+# 进程里读错，internal 构建会算出 release 的名字，PyInstaller 的 COLLECT
+# 会先删掉 dist\xinmatch-<Version>\ —— 也就是**把另一个已建好的变体清掉**。
+# 实测环境变量在部分嵌套调用链上会丢（v2.0.0 构建时踩到过），所以额外写
+# 一份 build\variant.request 给 spec 读（文件优先于环境变量），并在此校验收
+# 到的内容，动手前就失败。
+$reqFile = Join-Path $buildDir "variant.request"
+New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+Set-Content -Path $reqFile -Value $Variant -Encoding ASCII -NoNewline
+$reqVal = (Get-Content $reqFile -Raw).Trim()
+if ($reqVal -ne $Variant) {
+    throw "variant.request mismatch: wrote '$Variant', read back '$reqVal'. Nothing was built."
+}
+$envVal = "$($env:XINMATCH_BUILD_VARIANT)".Trim()
+Write-Host "==> Variant request OK : file='$reqVal' env='$envVal' (file wins in spec)"
 
 Write-Host "==> Project root : $root"
 Write-Host "==> Python       : $pyExe"
