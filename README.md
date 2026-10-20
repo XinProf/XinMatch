@@ -37,6 +37,12 @@ workflows, published algorithms and open reference data (COD).
   (设置→参考数据库…, or `xinmatch libraries --add <path>`); PolyXRD dumps
   (`phases` table with `peaks_d`/`peaks_i`) are converted once into a cached
   search index, so nothing has to be copied next to the executable.
+- **3COD libraries are split by provenance** (`tools/split_3cod.py`):
+  `COD-Inorg` (experimental, 79 k), `PCOD-Inorg` (predicted, 1.06 M),
+  `TCOD-Inorg` (theoretical, 47 k). Mount all three side by side in XinMatch;
+  PolyXRD only ever picks up the experimental one, because the other two ship
+  without a `phases` table. See
+  [docs/ACCEPTANCE-3COD-20261020.md §6](docs/ACCEPTANCE-3COD-20261020.md).
 
 ## Design principles
 

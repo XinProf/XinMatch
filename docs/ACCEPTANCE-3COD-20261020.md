@@ -11,7 +11,7 @@
 | 维度 | 结论 | 一句话说明 |
 |---|---|---|
 | **可行性** | ✅ **通过** | 两个库都是 XinMatch 原生 schema，`detect_source → xinmatch`，**直接打开 0.01 s，无需转换、无需 sidecar**；检索结果与原生库同集 |
-| **完整性** | ⚠️ **基本通过** | 可检索条目 99.85 % / 99.21 %；但 **PCOD 预测结构占 89 %（Inorg）**、CIF 全缺、打包列与 CSV 列有 3–8 % 不一致、3 条记录相对源快照缺失 |
+| **完整性** | ⚠️ **基本通过** | 可检索条目 99.85 % / 99.21 %；但 **PCOD 预测结构占 89 %（Inorg）**、CIF 全缺、3 条记录相对源快照缺失 |
 | **效率** | ❌ **不通过** | 单次检索 **约 19 min 起步（实测 22 min 未跑完）**，Full 库 43 min 连缓存都没建完；峰值内存 **1.25 / 2.36 GB**；原生库同场景 26.8 s。仅供离线/批处理，交互式不可用 |
 
 ## 1. 验收对象基本情况
@@ -72,7 +72,7 @@
 - Full 库没有 `phases` 表，但 XinMatch 走的是 `entries`+`peaks`，**不受影响**；反过来，若用 PolyXRD 自身的 `phases` 读取路径去看 Full，会读不到——做交叉验证时要注意。
 - 两库 `entry_id` 编号规则与原生库一致（`96-XXX-XXXX`），可直接与旧结果做条目级对比。
 
-## 3. 完整性 —— 基本通过（4 项需处理）
+## 3. 完整性 —— 基本通过（3 项需处理）
 
 ### 3.1 覆盖量
 
@@ -102,10 +102,15 @@
 `3COD-Inorg` 名字像“无机实验库”，实际 89.4 % 是 **PCOD 预测结构**，实验 COD 只有 78,747 条（6.6 %）。Full 里 COD 也只占 27.3 %。
 → 如果检索目的是“类似 PDF 卡片的实验物相鉴定”，检索结果会被大量预测结构占据，Top-N 里实验相的占比很低。建议按来源分库，或在 `entries` 里加 `source` 列（现在只能靠 `entry_id` 数值区间反推：≥1e8 = TCOD、≥2e7 = PCOD）。
 
-**② 打包峰列与 CSV 峰列不一致（3–8 %）**
+**② 打包峰列与 CSV 峰列 —— 复核后一致（勘误）**
 
-`phases.peaks_top_d` / `peaks_top_i` 是 **64 × float64**（512 B），`phases.peaks_d` 是 top-100 CSV。抽样 300 条比对：只有 8 条能对上，其余在 0.001 Å 容差下仍有 3–8 % 的峰位对不上（`subset=0.92~0.97`）。
-→ 两列出自不同流水线/不同合并参数。若后续要用打包列做快速预筛（见 4.5），**必须让两条流水线共用同一份峰表**。
+`phases.peaks_top_d` / `peaks_top_i` 是 **64 × float64**（512 B），`phases.peaks_d` 是 top-100 CSV。
+
+> **勘误（2026-10-20 复核）**：初版写“3–8 % 峰位对不上”，那是 `np.isin(round(a,3),
+> round(b,3))` 做浮点精确比较产生的**假阳性**。改用 0.01 Å 容差逐值比对后：抽样
+> 400 个条目、23,510 个打包 d 值，**全部能在 CSV 列中找到对应值，最大偏差
+> 0.00005 Å**。两列只是排序不同（CSV 按 d 降序，打包列按强度降序）。
+> 结论：PolyXRD 走打包列、XinMatch 走 `peaks` 表，数据同源，**无需返工**。
 
 **③ CIF 全缺**
 
@@ -197,10 +202,9 @@ Full 库更极端：即使把窗口收到 0.1°、召回降到 10 峰，**43 min
    CREATE INDEX idx_peaks_d_entry_i     ON peaks(d, entry_id, intensity);
    ```
    前者省 top-K 的 80 s，后者把窗口查询变成覆盖扫描（去掉回表）。
-3. **删冗余索引**：`idx_peaks_d` 被 `idx_peaks_d_entry` 左前缀覆盖，可直接 `DROP`（Inorg 省 1.94 GiB、Full 省 3.22 GiB）。
-4. **统一两套峰列**：`peaks_top_d/peaks_top_i` 与 `peaks_d/peaks_i` 用同一份峰表生成（当前 3–8 % 对不上）。
-5. **补 `source` 列**（`COD`/`PCOD`/`TCOD`），别让下游靠 entry_id 数值区间猜。
-6. `peaks_d` 若只为 PolyXRD 自身服务，可与 `phases` 一起从 XinMatch 用的库里剥离（Inorg 省 4.43 GiB）。
+3. **删冗余索引**：`idx_peaks_d` 被 `idx_peaks_d_entry` 左前缀覆盖，可直接 `DROP`（Inorg 省 1.94 GiB、Full 省 3.22 GiB）；`idx_peaks_entry_id` 同样被 `(entry_id, intensity)` 覆盖，也可省掉。
+4. **补来源标识**：给每个库写 `meta.this_library`，别让下游靠 entry_id 数值区间猜。
+5. `peaks_d` 若只为 PolyXRD 自身服务，可与 `phases` 一起从 XinMatch 用的库里剥离（PCOD/TCOD 天然不带 `phases`，省 4 GiB 级）。
 
 ### P1 · XinMatch 侧（不改库也能缓解）
 
@@ -214,9 +218,9 @@ Full 库更极端：即使把窗口收到 0.1°、召回降到 10 峰，**43 min
 
 在库里加一张紧凑表（每条目仅保留前 20 强峰的 d，按 d 排序 + 分桶），把 1.9 亿行压到 4,000 万行且全覆盖，配 numpy/分桶查询，可把单次预筛压到 2–5 s。
 
-## 6. 拆分库对 PolyXRD 外挂的影响（决策记录）
+## 6. 拆分库对 PolyXRD 外挂的影响（已按 B 方案实施）
 
-结论：**会影响**——不是打不开，而是「**同一时间只能挂一个**」。
+先说影响：**会有影响**——不是打不开，而是「**同一时间只能挂一个**」。据此选定 B 方案并按用途分库，实施结果见 §6.4。
 
 PolyXRD（0.10.0 起数据库外挂）的数据库模型是 **4 个固定槽位 × 每槽 1 个路径**：
 
@@ -253,18 +257,77 @@ PolyXRD 只保留「实验 COD 无机」子库（约 7.9 万条，检索速度�
 **C. 改 PolyXRD 支持多槽（1–2 天）**
 `DB_KINDS` 允许同 kind 的额外槽（`cod_inorganics_2/3`）→ `user_db_paths.json` 存数组 → `slot_states()` 返回多行 → `phase_vm.db_source` 枚举扩展 → `mount_databases()` 去掉「每类一份」限制。改动集中在这 5 处，可保持原有单文件用法不变（向后兼容）。
 
+### 6.4 B 方案实施结果（2026-10-20）
+
+已按 **B. 按用途分库** 落地。工具：`tools/split_3cod.py`（从已验证的 3COD 构建中**按行拷贝**，不重新由 CIF 派生，峰数据与已验收版本逐字节一致）。
+
+产物（`D:\Project\XRD\PolyXRD-DataBase\_split\`）：
+
+| 文件 | 大小 | entries | peaks | `phases` | `element_combo` | PolyXRD 判型 |
+|---|---|---|---|---|---|---|
+| `COD-Inorg-20261020.sqlite` | 0.89 GiB | 78,747 | 5,929,564 | 77,130（+1,047,707 位点） | 29,091 | `cod_inorganics` |
+| `PCOD-Inorg-20261020.sqlite` | 10.90 GiB | 1,061,962 | 106,171,332 | — | 48 | `xinmatch` |
+| `TCOD-Inorg-20261020.sqlite` | 0.40 GiB | 46,943 | 3,779,098 | — | 17,554 | `xinmatch` |
+
+合计 12.19 GiB，**比单体 19.51 GiB 少 7.3 GiB**：省掉的是 XinMatch 用不上的 `phases` 4.43 GiB + `cod_atomic_sites` 2.07 GiB（只保留在 COD 分库），以及冗余索引 `idx_peaks_d` 1.94 GiB。
+
+一致性校验（`tools/split_3cod.py --verify`，全绿）：
+
+```
+[COD] OK   entries=   78,747  peaks=   5,929,564  phases=  77,130  quick_check=ok orphan=0 out_of_range=0
+[PCOD] OK  entries=1,061,962  peaks= 106,171,332  phases=       -  quick_check=ok orphan=0 out_of_range=0
+[TCOD] OK  entries=   46,943  peaks=   3,779,098  phases=       -  quick_check=ok orphan=0 out_of_range=0
+sum(entries)=1,187,652  source=1,187,652  MATCH
+sum(peaks)  =115,879,994  source=115,879,994  MATCH
+```
+
+**差异化落实机制**：PCOD/TCOD 不建 `phases` 表 → PolyXRD 的 `inspect_db_file()` 判为 `xinmatch`（不是 `cod_inorganics`），因此即使把三个文件放进同一目录，`discover_databases()` 也只会把 **COD 分库挂到 `cod_inorganics`**，PCOD/TCOD 落到可选的 `xinmatch` 槽：
+
+```
+mount as cod_inorganics  <- COD-Inorg-20261020.sqlite    rows=77,130
+mount as xinmatch        <- PCOD-Inorg-20261020.sqlite   rows=1,061,962
+mount as xinmatch        <- TCOD-Inorg-20261020.sqlite   rows=46,943
+```
+
+实测槽位状态（PolyXRD 0.10.0，只导入 COD 分库）：`cod_inorganics` = 77,130（`ok=True`、`has_top_peaks=True`），`xinmatch` 槽为空；显式导入 PCOD 后 `xinmatch` = 1,061,962 且两槽互不干扰。反向验证：PCOD 分库指到 cod 槽也只会被判成 `xinmatch`，**不会顶掉实验库**。
+
+XinMatch 侧三个库全部可挂（`libraries --add`，均 `kind=xinmatch`、`needs_index=false`）：
+
+| 库 | 条目 | 检索耗时（元素限定） | Top-1 |
+|---|---|---|---|
+| COD | 78,747 | 24.4 s | Al₂O₃ FoM 0.802（真值 COD 2300448 排第 2） |
+| PCOD | 1,061,962 | **11 min 10 s** | SiO₂ FoM 0.712（石英谱，全部为预测 SiO₂ 多型） |
+| TCOD | 46,943 | 7.3 s | Ti₂₄O₄₄ FoM 0.665 |
+
+**必须记住的代价**：分库解决了 PolyXRD 侧的可用性，但**没有**解决 XinMatch 侧 PCOD 的检索成本——1.06 M 条在默认参数下仍需 11 min/图（单体 1.19 M 是 22 min 未跑完，量级一致）。§4 的根因（0.3° 窗口在该量级覆盖 62.6 % 的库）依然成立，PCOD 目前只适合离线批处理或配合强元素限定使用。
+
+`element_combo` 组数（COD 29,091 / PCOD 48 / TCOD 17,554）与源库按来源统计的 distinct `elements` 数量逐项相符；PCOD 只有 48 组是因为其 1,061,962 条里 **909,343 条是 `O,Si`**（预测结构集中在硅酸盐体系），属数据分布特征，非拆分缺陷。
+
+
 ## 7. 现阶段怎么用
 
+**PolyXRD（只挂实验 COD，7.9 万条，检索回到可用区间）**
+
 ```bat
-:: 挂载（不需要拷贝文件，任意目录均可）
-run_dev.bat libraries --add "D:\Project\XRD\PolyXRD-DataBase\3COD-Inorg-20261020.sqlite" --label "3COD 无机库"
+:: 导入一次即可，路径写在 ~/.polyxrd/user_db_paths.json 的 cod_db_path
+:: GUI：数据库管理 → COD 无机物库 → 导入 → 选 COD-Inorg-20261020.sqlite
+```
+
+**XinMatch（三库全部挂上，按需选库）**
+
+```bat
+run_dev.bat libraries --add "D:\Project\XRD\PolyXRD-DataBase\_split\COD-Inorg-20261020.sqlite"  --label "COD 无机"
+run_dev.bat libraries --add "D:\Project\XRD\PolyXRD-DataBase\_split\PCOD-Inorg-20261020.sqlite" --label "PCOD 无机"
+run_dev.bat libraries --add "D:\Project\XRD\PolyXRD-DataBase\_split\TCOD-Inorg-20261020.sqlite" --label "TCOD 无机"
 run_dev.bat libraries --json
 
 :: 直接指定库检索（批处理场景）
-run_dev.bat search PATTERN.txt --db "D:\Project\XRD\PolyXRD-DataBase\3COD-Inorg-20261020.sqlite" --top-n 20
+run_dev.bat search PATTERN.txt --db "...\_split\COD-Inorg-20261020.sqlite" --top-n 20
 ```
 
-建议：**把它当离线批处理库用**（夜间跑、一次多图），交互式检索仍用 `data/cod_inorganics.db`；或先按元素体系切一个子库（例如只留含 Li 的 3,000 条）再挂载，交互体验即可恢复。
+建议：**交互式检索用 COD 分库**（0.89 GiB、7.9 万条，与原生 71 k 库同量级）；PCOD 当离线批处理/扩展库（11 min/图，先加元素限定缩小候选）；TCOD 量小可放心交互用。
+
+> 单体 `3COD-Inorg-20261020.sqlite`（19.51 GiB）已不再是推荐入口——内容被三个分库完全覆盖（行数逐项相等）。`3COD-Full-20261020.sqlite`（28.17 GiB）仍是 PolyXRD `cod_index` 槽的唯一来源（`cod_entries` 结构），暂不建议删。
 
 ## 8. 复现方式
 
@@ -279,6 +342,19 @@ python tools\acceptance_3cod.py <db.sqlite> --coverage
 
 :: 加上窗口选择性扫描（约 1 分钟）与表空间统计（约 2 分钟）
 python tools\acceptance_3cod.py <db.sqlite> --selectivity --dbstat
+```
+
+分库构建与校验（COD 约 2 min、PCOD 约 11 min、TCOD 约 2 min）：
+
+```bat
+:: 三个一起拆（源库默认在 ..\PolyXRD-DataBase\，输出到 <源目录>\_split）
+python tools\split_3cod.py
+
+:: 只重建 PolyXRD 要用的实验 COD 子库
+python tools\split_3cod.py --only cod
+
+:: 不构建，只核对已有产物（行数合计、id 区间、孤儿峰、quick_check）
+python tools\split_3cod.py --verify
 ```
 
 本次验收中临时使用的分解脚本（`top-K 缓存单独计时`、`numpy 预筛原型`、`三方 Top-5 对照`）
