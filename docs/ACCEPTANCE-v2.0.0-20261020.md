@@ -162,7 +162,20 @@ python -m pytest -q -p no:cacheprovider --basetemp=.scratch/ptmp2 --junitxml=.sc
 
 ## 7. Release
 
-@@RELEASE@@
+- tag：`v2.0.0`（指向 `master` 的 `a6b6888`）
+- 地址：https://github.com/PolyXRD/XinMatch/releases/tag/v2.0.0
+- 状态：已发布（draft=false / prerelease=false）
+- 附件（3 个，均已上传，大小与本地一致）：
+
+| 附件 | 上传大小 |
+|---|---|
+| `XinMatch-Setup-2.0.0.exe` | 180,974,864 B |
+| `XinMatch-Internal-2.0.0.zip` | 265,471,156 B |
+| `xinmatch-cod-db-2.0.0.zip` | 204,614,240 B |
+
+- 发布说明：主特性 / 三个打包缺陷 / 验证数字 / 安装步骤（含 DB 包解压位置）/ 已知限制 / 校验大小
+
+推送记录：`a53dcfa..a6b6888  master -> master`，附 tag `v2.0.0`。
 
 ## 8. 结论
 
