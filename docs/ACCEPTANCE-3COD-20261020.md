@@ -214,7 +214,46 @@ Full 库更极端：即使把窗口收到 0.1°、召回降到 10 峰，**43 min
 
 在库里加一张紧凑表（每条目仅保留前 20 强峰的 d，按 d 排序 + 分桶），把 1.9 亿行压到 4,000 万行且全覆盖，配 numpy/分桶查询，可把单次预筛压到 2–5 s。
 
-## 6. 现阶段怎么用
+## 6. 拆分库对 PolyXRD 外挂的影响（决策记录）
+
+结论：**会影响**——不是打不开，而是「**同一时间只能挂一个**」。
+
+PolyXRD（0.10.0 起数据库外挂）的数据库模型是 **4 个固定槽位 × 每槽 1 个路径**：
+
+| 槽位 key | 判型依据 | 当前占用 |
+|---|---|---|
+| `cod_db_path`（COD 无机物库） | `phases` + `cod_id/formula/n_peaks/peaks_d/peaks_i`，且**无** `pearson` | 3COD-Inorg（1,185,866） |
+| `pdf2_db_path`（PDF2-2004） | `phases` + `pearson`/`name` | —— |
+| `cod_index_db_path`（COD 全库索引） | `cod_entries` + `cif_gz` | 3COD-Full（1,959,421） |
+| `xinmatch_db_path`（XinMatch 兼容库） | `entries` + `peaks` + `elements` | —— |
+
+依据：`config.py` 每个槽位都是单个 `user_db_paths.json` 键值；`db_import.DB_KINDS` 共 4 项；`phase_vm` 的 `db_source` 是**单选**枚举（`pdf2` / `cod_inorganics` / `user` / `xinmatch` / `cod_full` / `merged`），一次只查一个库。
+
+实测（用三个同构的小型 `phases` 库模拟拆分结果）：
+
+```
+3COD-PCOD-inorg.sqlite  kind=cod_inorganics  rows=900
+3COD-TCOD-inorg.sqlite  kind=cod_inorganics  rows=600
+3COD-COD-inorg.sqlite   kind=cod_inorganics  rows=300
+mount_databases would mount: ['3COD-PCOD-inorg.sqlite']   ← 同类只挂第一份
+```
+
+也就是说：**按 P0 拆成 3 个无机库后，三个都判成 `cod_inorganics`，PolyXRD 只会挂行数最多的那一个，其余静默丢弃**；要换库得重新「导入」覆盖路径。若拆库时不再单独产出 `cod_entries`，`cod_index` 槽会空掉（但当前 3COD-Full 的 `cif_gz` 全为 NULL，本来也取不到 CIF，实际损失有限）。
+
+XinMatch 侧不受影响——`libraries.json` 天然支持多库并列。
+
+### 可选做法
+
+**A. 双轨（0 改动，推荐）**
+XinMatch 吃 3 个拆分库；PolyXRD 继续挂合并库（现有 3COD-Inorg 即可）。代价只是磁盘多一份。
+
+**B. 按用途分库（产品上更合理）**
+PolyXRD 只保留「实验 COD 无机」子库（约 7.9 万条，检索速度回到可用区间）；PCOD/TCOD 只给 XinMatch 当扩展库。预测结构本就不是 PDF 卡片式鉴定的目标，PolyXRD 侧没必要背 119 万条。
+
+**C. 改 PolyXRD 支持多槽（1–2 天）**
+`DB_KINDS` 允许同 kind 的额外槽（`cod_inorganics_2/3`）→ `user_db_paths.json` 存数组 → `slot_states()` 返回多行 → `phase_vm.db_source` 枚举扩展 → `mount_databases()` 去掉「每类一份」限制。改动集中在这 5 处，可保持原有单文件用法不变（向后兼容）。
+
+## 7. 现阶段怎么用
 
 ```bat
 :: 挂载（不需要拷贝文件，任意目录均可）
@@ -227,7 +266,7 @@ run_dev.bat search PATTERN.txt --db "D:\Project\XRD\PolyXRD-DataBase\3COD-Inorg-
 
 建议：**把它当离线批处理库用**（夜间跑、一次多图），交互式检索仍用 `data/cod_inorganics.db`；或先按元素体系切一个子库（例如只留含 Li 的 3,000 条）再挂载，交互体验即可恢复。
 
-## 7. 复现方式
+## 8. 复现方式
 
 验收脚本已固化到仓库，重建库后可直接复跑：
 
