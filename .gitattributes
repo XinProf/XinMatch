@@ -1,0 +1,4 @@
+# Batch files must keep CRLF on checkout, otherwise cmd.exe chokes on them
+# for anyone whose core.autocrlf is off.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf

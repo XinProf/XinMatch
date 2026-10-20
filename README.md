@@ -99,6 +99,24 @@ powershell -File tools/ci.ps1
 > The reference databases (`data/*.db`, 0.5–1 GB) are not in the repository;
 > tests that need them skip themselves.
 
+### Run the working tree without building / 免打包直接运行
+
+`run_dev.bat` starts the code in the working tree in place — no PyInstaller
+build and no install step, so what you see is always the latest source:
+
+```bat
+run_dev.bat                       :: GUI (python -m xinmatch.ui.app)
+run_dev.bat search pat.txt --db data\cod_inorganics.db --top-n 5 --json
+run_dev.bat libraries --list      :: any CLI subcommand is passed through
+```
+
+The interpreter is resolved in this order and echoed on startup:
+`%XINMATCH_DEV_PYTHON%` → `.venv\Scripts\python.exe` →
+`venv\Scripts\python.exe` → `D:\Project\XRD\python310\python.exe` →
+`python` on `PATH`. Because the batch file `cd`s to the repository root,
+`python -m` loads the local `xinmatch/` package even when a different
+copy is installed in site-packages.
+
 ## Builds & registration / 构建版本与注册
 
 v1.7.0 起同时产出两个二进制（参考数据库均单独挂载，不内置）：
