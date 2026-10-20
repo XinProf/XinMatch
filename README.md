@@ -102,12 +102,14 @@ powershell -File tools/ci.ps1
 ### Run the working tree without building / 免打包直接运行
 
 `run_dev.bat` starts the code in the working tree in place — no PyInstaller
-build and no install step, so what you see is always the latest source:
+build and no install step, so what you see is always the latest source.
+Without arguments it opens the GUI; any other arguments are forwarded to the
+CLI (`python -m xinmatch.cli.main`):
 
 ```bat
-run_dev.bat                       :: GUI (python -m xinmatch.ui.app)
+run_dev.bat                                  :: GUI
 run_dev.bat search pat.txt --db data\cod_inorganics.db --top-n 5 --json
-run_dev.bat libraries --list      :: any CLI subcommand is passed through
+run_dev.bat libraries --json                 :: list mounted databases
 ```
 
 The interpreter is resolved in this order and echoed on startup:
