@@ -142,6 +142,15 @@ v1.7.0 起同时产出两个二进制。**v3.0.0 起两个版本都内置默认�
 | **正式版**（release） | `XinMatch-Setup-<v>.exe`（安装时可选择安装位置） | **有**：每次启动检查注册状态 | `已注册：<单位部门名称>` / `未注册` |
 | **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | **红色加粗** `内部评估版本` |
 
+**v3.0.0 发布产物**（[Release v3.0.0](https://github.com/PolyXRD/XinMatch/releases/tag/v3.0.0)）：
+
+| 附件 | 体积 | SHA-256（前 16 位） |
+|---|---|---|
+| `XinMatch-Setup-3.0.0.exe`（正式版安装包，内置 COD-Inorg 库） | 200.4 MiB | `de567ddbbb8cafed…` |
+| `XinMatch-Internal-3.0.0.zip`（便携包 = 内部评估版，红字标识，内置 COD-Inorg 库） | 340.0 MiB | `b252249956477d16…` |
+| `XinMatch-Databases-COD-Inorg-3.0.0.zip`（COD 无机物库独立包 `*.xinDB`） | 86.9 MiB | `9c1f6f982033634f…` |
+| `SHA256SUMS.txt` | — | — |
+
 正式版未注册时，每次启动弹出提示：
 
 > 本软件未注册，版权所有，禁止用于商业用途。
