@@ -82,6 +82,10 @@ tests/fixtures/cod/**
 
 
 # ---- Database backups (large, not for VCS) ----
+# ⚠ 目录级规则**必须带前导斜杠**: 写 `data/` 会按任意层级匹配, 可能连带忽略
+#   xinmatch/core/db/data/atomic_scattering_params.json —— 而 peak_compute 硬依赖它,
+#   漏入仓会让克隆后建库直接 FileNotFoundError。(PolyXRD 侧已踩过这个坑。)
+/data/
 data/cod_inorganics.bak-*.db
 data/*.db.bak-*
 
