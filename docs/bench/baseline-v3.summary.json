@@ -1,0 +1,23 @@
+{
+  "label": "baseline",
+  "db": "D:\\Project\\XRD\\XinMatch\\data\\cod_inorganics.db",
+  "n_cases": 13,
+  "top1": 13,
+  "top10": 13,
+  "total_seconds": 186.242,
+  "per_case_seconds": {
+    "quartz": 24.962,
+    "calcite": 16.684,
+    "corundum": 13.518,
+    "rutile": 12.608,
+    "anatase": 13.49,
+    "hematite": 13.256,
+    "zincite": 11.903,
+    "fluorite": 8.198,
+    "gypsum": 20.507,
+    "barite": 18.823,
+    "magnetite": 14.767,
+    "halite": 6.056,
+    "pyrite": 11.47
+  }
+}

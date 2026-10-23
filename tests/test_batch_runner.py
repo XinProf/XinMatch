@@ -10,15 +10,14 @@ from __future__ import annotations
 
 import json
 import math
-import sqlite3
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from tests.xindb_support import write_xindb
 from tools.batch_runner import load_config, run_batch
 from tools.batch_runner import main as batch_main
-from xinmatch.core.db import build_element_index, create_tables, insert_entries
 from xinmatch.core.model import CellParams, Entry
 
 WL = 1.5406
@@ -60,12 +59,8 @@ def _build_synth_db(db_path: Path) -> None:
         _entry("SYN-D1", [(62.0, 100), (66.0, 60)], "X Y"),
         _entry("SYN-D2", [(33.0, 100), (43.0, 60)], "Z W"),
     ]
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA foreign_keys = ON")
-    create_tables(conn)
-    insert_entries(conn, entries)
-    build_element_index(conn)
-    conn.close()
+    # v3.0.0: 检索入口只认列存 .xinDB（旧的 entries/peaks 行表已删除）
+    write_xindb(db_path, entries)
 
 
 def _write_pattern(path: Path, peaks: list[tuple[float, float]]) -> None:
@@ -92,7 +87,7 @@ def batch_workspace(tmp_path: Path) -> Path:
     work = tmp_path / "work"
     work.mkdir()
     (work / "patterns").mkdir()
-    _build_synth_db(work / "synth.db")
+    _build_synth_db(work / "synth.xinDB")
     _write_pattern(work / "patterns" / "qz.txt", QZ_PEAKS)
     _write_pattern(work / "patterns" / "cc.txt", CC_PEAKS)
     return work
@@ -112,7 +107,7 @@ def _write_config(work: Path, name: str) -> Path:
             "strip_alpha2": False,
             "peak_sensitivity": "low",
         },
-        "search": {"db": "synth.db", "top_n": 10},
+        "search": {"db": "synth.xinDB", "top_n": 10},
         "output": {"dir": "out", "formats": ["html", "md", "txt"]},
     }
     p = work / name

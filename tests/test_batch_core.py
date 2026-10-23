@@ -14,17 +14,19 @@ exercises the same engine through the ``tools.batch_runner`` wrapper).
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
 
 from xinmatch.core.batch import load_config, run_batch
-from xinmatch.core.db import build_element_index, create_tables, insert_entries
+from tests.xindb_support import write_xindb
 from xinmatch.core.model import CellParams, Entry
 
 WL = 1.5406
-REAL_DB = Path(r"D:\Project\XRD\XinMatch\data\cod_inorganics.db")
+# v3.0.0: 真实参考库是列存 .xinDB（默认库 COD-Inorg），由构库仓库提供
+from xinmatch.core.db.multi_db import xindb_cod_inorg_path  # noqa: E402
+
+REAL_DB = xindb_cod_inorg_path()
 SYNTH_01 = Path(r"D:\Project\XRD\test_xrd\synthetic\synth_01.txt")
 # Ground truth of synth_01 (see tests/search/test_synthetic_acceptance.py).
 SYNTH_01_TRUTH = ("Al2 O3", "O Zn", "Ca F2")
@@ -105,12 +107,8 @@ def _build_synth_db(db_path: Path) -> None:
         _entry("SYN-QZ", [(20.0, 100), (31.77, 60), (45.0, 30)], "O2 Si"),
         _entry("SYN-CC", [(29.4, 100), (39.4, 50), (47.5, 25)], "C Ca O3"),
     ]
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA foreign_keys = ON")
-    create_tables(conn)
-    insert_entries(conn, entries)
-    build_element_index(conn)
-    conn.close()
+    # v3.0.0: 检索入口只认列存 .xinDB（旧的 entries/peaks 行表已删除）
+    write_xindb(db_path, entries)
 
 
 def _write_pattern(path: Path, peaks: list[tuple[float, float]]) -> None:
@@ -133,12 +131,12 @@ def test_xinmatch_batch_cli_end_to_end(tmp_path: Path, capsys):
     work = tmp_path / "work"
     work.mkdir()
     (work / "patterns").mkdir()
-    _build_synth_db(work / "synth.db")
+    _build_synth_db(work / "synth.xinDB")
     _write_pattern(work / "patterns" / "qz.txt", [(20.0, 100), (31.77, 60), (45.0, 30)])
 
     cfg = {
         "samples": [{"name": "qz", "path": "patterns/qz.txt"}],
-        "search": {"db": "synth.db", "top_n": 10},
+        "search": {"db": "synth.xinDB", "top_n": 10},
         "output": {"dir": "out", "formats": ["html", "md", "txt"]},
     }
     cfg_path = work / "config.yaml"

@@ -23,9 +23,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from xinmatch.core.db.multi_db import (
-    LibraryNeedsIndexError,
     LibraryNotAvailableError,
-    ensure_library_index,
     open_library,
     resolve_default,
 )
@@ -78,12 +76,11 @@ try:  # pragma: no cover - 取决于并行任务产物是否落地
 except ImportError:  # pragma: no cover
     _themed_icon = None  # type: ignore[assignment]
 
-# PDF-2 源目录注入（并行任务交付；缺失时静默跳过）。
+# 库名回填（状态栏文案要用 display_name）。
 try:  # pragma: no cover
-    from xinmatch.core.db.multi_db import library_by_id, set_pdf2_source_dir
+    from xinmatch.core.db.multi_db import library_by_id
 except ImportError:  # pragma: no cover
     library_by_id = None  # type: ignore[assignment]
-    set_pdf2_source_dir = None  # type: ignore[assignment]
 
 
 def _asset_path(name: str) -> Path:
@@ -515,7 +512,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtCore.Qt.AlignmentFlag.AlignRight
                 | QtCore.Qt.AlignmentFlag.AlignVCenter
             )
-            label.setToolTip(build_variant.INTERNAL_STATUS_TEXT)
+            label.setToolTip("内部评估版：未启用注册机制，仅供内部测试与评估使用。")
+            # v3.0.0：内部评估版本改成**红色加粗**（需求原文）。用控件自带
+            # stylesheet 而不是全局 QSS —— 状态栏会被主题重新刷一遍样式，
+            # 挂在控件上的规则优先级更高，换主题也不会掉色。
+            label.setStyleSheet(
+                "color: #d32f2f; font-weight: bold; padding: 0 6px;"
+            )
             self.statusBar().addPermanentWidget(label, 1)
             self._registration_label = label
 
@@ -592,11 +595,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def _open_library_dialog(self) -> None:
         """Multi-DB mount — pick / switch the active reference database."""
         config = load_config()
-        # PDF-2 源路径配置注入（并行任务交付；函数缺失时静默跳过）。
-        if set_pdf2_source_dir is not None:
-            set_pdf2_source_dir(
-                (config.get("pdf2_source_dir") or "").strip() or None
-            )
         current = (config.get("reference_db") or {}).get("selected_library_id")
         dialog = LibraryDialog(current_id=current, parent=self)
         if dialog.exec():
@@ -606,36 +604,13 @@ class MainWindow(QtWidgets.QMainWindow):
             save_config(config)
 
     def _open_library_with_index(self, library_id: str):
-        """Open *library_id*, converting a mounted PolyXRD database on first use.
+        """Open *library_id* and return its :class:`XinDBReader`.
 
-        PolyXRD ``.sqlite`` libraries can live in any folder and are converted
-        once into a XinMatch-schema index (see
-        :mod:`xinmatch.core.db.polyxrd`).  The conversion takes seconds to a
-        couple of minutes for the full COD dump, so it runs in the busy dialog
-        (off the GUI thread, cancellable) instead of blocking the window.
+        v3.0.0 的库是自包含的列存文件，**不需要**任何转换/建索引步骤，所以这里
+        只是一层薄封装（名字保留，免得调用点全改）。返回的 reader 由调用方
+        负责 ``close()``。
         """
-        try:
-            return open_library(library_id)
-        except LibraryNeedsIndexError as exc:
-            errors: list[str] = []
-            run_with_busy(
-                self,
-                "建立检索索引",
-                f"首次使用「{library_id}」需要建立检索索引…\n"
-                f"源文件：{exc.source}\n"
-                "（只读转换一次，之后直接使用缓存；可点「取消」中止）",
-                lambda: ensure_library_index(library_id),
-                on_error=errors.append,
-            )
-            if errors:
-                raise LibraryNotAvailableError(
-                    f"建立检索索引失败：{errors[0]}"
-                ) from exc
-            conn = open_library(library_id)
-            self.statusBar().showMessage(
-                f"已为参考数据库「{library_id}」建立检索索引", 8000
-            )
-            return conn
+        return open_library(library_id)
 
     def open_search_library(self):
         """Open the selected reference DB for search-match, with safe fallback.
@@ -643,8 +618,9 @@ class MainWindow(QtWidgets.QMainWindow):
         Reads ``reference_db.selected_library_id`` from the YAML config and
         opens it read-only via
         :func:`~xinmatch.core.db.multi_db.open_library`; the returned
-        connection targets the XinMatch schema and can be fed straight to
-        :func:`~xinmatch.core.search.search_match.search_match`.
+        :class:`~xinmatch.core.db.reader_v3.XinDBReader` can be fed straight to
+        :func:`~xinmatch.core.search.search_match.search_match` (which
+        dispatches to the v3 columnar path).
 
         When the chosen library is unavailable (missing / unbuilt / corrupt)
         a warning box explains why and the default bundled library is used
@@ -1099,9 +1075,9 @@ class MainWindow(QtWidgets.QMainWindow):
         返回 ``(候选列表, 模式名, 峰列表)``；FPFM 分支峰列表为 ``None``。
         异常直接上抛，由 :func:`run_with_busy` 转交 GUI 线程提示。
 
-        连接生命周期：:meth:`open_search_library` 每次检索打开一个只读连接，
-        **必须在本方法内关闭**——SQLite 在 Windows 上会持有库文件句柄，
-        泄漏后用户无法替换/重建参考库（v1.7.x 缺陷修复）。
+        连接生命周期：:meth:`open_search_library` 每次检索打开一个只读 reader，
+        **必须在本方法内关闭**——Windows 上打开的库文件句柄会阻止用户替换/重建
+        参考库（v1.7.x 缺陷修复；v3 的 ``XinDBReader.close()`` 语义相同）。
         """
         peaks: list | None = None
         try:

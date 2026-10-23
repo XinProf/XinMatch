@@ -1,0 +1,14 @@
+label,db,key,formula,entry_id,n_exp_peaks,n_candidates,n_prescreened,rank,top1,top10,best_fom,hit_fom,seconds
+v3-inorg,data\COD-Inorg-20261020.xinDB,quartz,O2 Si,96-101-1097,25,20,800,1,1,1,0.999466,0.999466,0.448
+v3-inorg,data\COD-Inorg-20261020.xinDB,calcite,C Ca O3,96-101-0928,25,20,800,1,1,1,0.999476,0.999476,0.365
+v3-inorg,data\COD-Inorg-20261020.xinDB,corundum,Al2 O3,96-101-0914,25,20,800,1,1,1,0.999459,0.999459,0.335
+v3-inorg,data\COD-Inorg-20261020.xinDB,rutile,O2 Ti,96-153-0150,25,20,800,1,1,1,0.999578,0.999578,0.37
+v3-inorg,data\COD-Inorg-20261020.xinDB,anatase,O2 Ti,96-152-6931,25,20,800,1,1,1,0.999599,0.999599,0.377
+v3-inorg,data\COD-Inorg-20261020.xinDB,hematite,Fe2 O3,96-101-1240,25,20,800,1,1,1,0.999505,0.999505,0.336
+v3-inorg,data\COD-Inorg-20261020.xinDB,zincite,O Zn,96-101-1258,25,20,800,1,1,1,0.999605,0.999605,0.329
+v3-inorg,data\COD-Inorg-20261020.xinDB,fluorite,Ca F2,96-100-0043,17,20,800,1,1,1,0.999572,0.999572,0.315
+v3-inorg,data\COD-Inorg-20261020.xinDB,gypsum,Ca H4 O6 S,96-101-0981,25,20,800,1,1,1,0.9768,0.9768,0.393
+v3-inorg,data\COD-Inorg-20261020.xinDB,barite,Ba O4 S,96-100-0037,25,20,800,1,1,1,0.999597,0.999597,0.389
+v3-inorg,data\COD-Inorg-20261020.xinDB,magnetite,Fe3 O4,96-101-0369,25,20,800,1,1,1,0.999559,0.999559,0.324
+v3-inorg,data\COD-Inorg-20261020.xinDB,halite,Cl Na,96-100-0041,19,20,800,1,1,1,0.999483,0.999483,0.314
+v3-inorg,data\COD-Inorg-20261020.xinDB,pyrite,Fe S2,96-101-1013,25,20,800,1,1,1,0.999501,0.999501,0.394

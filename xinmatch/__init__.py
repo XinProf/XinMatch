@@ -16,10 +16,10 @@ convenience functions that chain the core pipeline steps:
 from __future__ import annotations
 
 import importlib.metadata
-import sqlite3
 from pathlib import Path
 from typing import Any
 
+from xinmatch.core.db.multi_db import open_search_database as _open_search_database
 from xinmatch.core.io import load_pattern as _load_pattern
 from xinmatch.core.model import (
     CellParams,
@@ -53,7 +53,7 @@ except importlib.metadata.PackageNotFoundError:  # pragma: no cover - source tre
     # Running from a source checkout that was never ``pip install``-ed (or from a
     # frozen bundle stripped of dist-info): keep the package importable.  Keep in
     # sync with ``[project] version`` in pyproject.toml and ``xinmatch.spec``.
-    __version__ = "2.0.0"
+    __version__ = "3.0.0"
 
 __all__ = [
     "__version__",
@@ -108,13 +108,15 @@ def preprocess(pattern: Pattern, **kwargs: Any) -> tuple[Pattern, list[Peak]]:
 
 def search_match(
     exp_peaks: list[Peak],
-    conn: sqlite3.Connection,
+    conn,
     wavelength: float,
     **kwargs: Any,
 ) -> list[CandidateResult]:
     """Run a full peak-based search-match.
 
-    See :func:`xinmatch.core.search.search_match`.
+    *conn* is a :class:`~xinmatch.core.db.reader_v3.XinDBReader` (v3 columnar
+    library, dispatch happens by object type).  See
+    :func:`xinmatch.core.search.search_match`.
     """
     return _search_match(exp_peaks, conn, wavelength, **kwargs)
 
@@ -217,7 +219,10 @@ def identify_phase(
     if not peaks:
         return []
 
-    conn = sqlite3.connect(str(db_path))
+    # v3.0.0: 参考库只能是列存 .xinDB —— 必须交给 XinDBReader（search_match
+    # 按连接对象类型分派到 search_match_v3）；裸 sqlite3.connect 会落到已删除的
+    # v2 行表路径上。
+    conn = _open_search_database(db_path)
     try:
         return _search_match(
             peaks,
@@ -271,7 +276,7 @@ def full_analysis(
     pattern = _load_pattern(pattern_file)
     processed, peaks = auto_process(pattern)
 
-    conn = sqlite3.connect(str(db_path))
+    conn = _open_search_database(db_path)
     try:
         candidates = _search_match(
             peaks,

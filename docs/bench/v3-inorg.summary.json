@@ -1,0 +1,23 @@
+{
+  "label": "v3-inorg",
+  "db": "data\\COD-Inorg-20261020.xinDB",
+  "n_cases": 13,
+  "top1": 13,
+  "top10": 13,
+  "total_seconds": 4.689,
+  "per_case_seconds": {
+    "quartz": 0.448,
+    "calcite": 0.365,
+    "corundum": 0.335,
+    "rutile": 0.37,
+    "anatase": 0.377,
+    "hematite": 0.336,
+    "zincite": 0.329,
+    "fluorite": 0.315,
+    "gypsum": 0.393,
+    "barite": 0.389,
+    "magnetite": 0.324,
+    "halite": 0.314,
+    "pyrite": 0.394
+  }
+}

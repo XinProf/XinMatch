@@ -1,0 +1,14 @@
+label,db,key,formula,entry_id,n_exp_peaks,n_candidates,rank,top1,top10,best_fom,hit_fom,seconds
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,quartz,O2 Si,96-101-1097,25,20,1,1,1,0.999466,0.999466,24.962
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,calcite,C Ca O3,96-101-0928,25,20,1,1,1,0.999476,0.999476,16.684
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,corundum,Al2 O3,96-101-0914,25,20,1,1,1,0.982647,0.982647,13.518
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,rutile,O2 Ti,96-153-0150,25,20,1,1,1,0.999578,0.999578,12.608
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,anatase,O2 Ti,96-152-6931,25,20,1,1,1,0.999599,0.999599,13.49
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,hematite,Fe2 O3,96-101-1240,25,20,1,1,1,0.999505,0.999505,13.256
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,zincite,O Zn,96-101-1258,25,20,1,1,1,0.999605,0.999605,11.903
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,fluorite,Ca F2,96-100-0043,17,20,1,1,1,0.999572,0.999572,8.198
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,gypsum,Ca H4 O6 S,96-101-0981,25,20,1,1,1,0.976105,0.976105,20.507
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,barite,Ba O4 S,96-100-0037,25,20,1,1,1,0.999597,0.999597,18.823
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,magnetite,Fe3 O4,96-101-0369,25,20,1,1,1,0.999559,0.999559,14.767
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,halite,Cl Na,96-900-3308,11,20,1,1,1,0.999522,0.999522,6.056
+baseline,D:\Project\XRD\XinMatch\data\cod_inorganics.db,pyrite,Fe S2,96-101-1013,25,20,1,1,1,0.999441,0.999441,11.47

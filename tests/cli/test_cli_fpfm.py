@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import math
-import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -24,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from xinmatch.core.db import build_element_index, create_tables, insert_entries
+from tests.xindb_support import write_xindb
 from xinmatch.core.model import CellParams, Entry
 
 WL = 1.5406  # Cu Kα1
@@ -96,15 +95,9 @@ def db_path(tmp_path: Path) -> Path:
         quality="B",
     )
 
-    path = tmp_path / "ref.db"
-    conn = sqlite3.connect(str(path))
-    conn.execute("PRAGMA foreign_keys = ON")
-    create_tables(conn)
-    insert_entries(conn, [truth, decoy])
-    build_element_index(conn)
-    conn.commit()
-    conn.close()
-    return path
+    path = tmp_path / "ref.xinDB"
+    # v3.0.0: 参考库只能是列存 .xinDB
+    return write_xindb(path, [truth, decoy])
 
 
 def _fpfm_run(pattern_file: Path, db_path: Path, *extra: str) -> dict:

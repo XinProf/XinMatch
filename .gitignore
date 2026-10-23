@@ -56,6 +56,10 @@ desktop.ini
 # git-filter-repo 从全部历史移除 cod_full/cod_full_curated/cod_inorganics)
 data/*.db
 *.bak-*.db
+# v3 列存参考库（*.xinDB，110 MB–1.7 GB）—— 由 XinMatch-DataBase 仓库分发，
+# 便携包构建时才由 tools/build_exe.ps1 打进 data/，源码树永不提交。
+data/*.xinDB
+*.xinDB
 # Proprietary commercial XRD database files (not redistributed)
 *.mti
 *.mqs

@@ -18,8 +18,11 @@ Layout decisions
     - ``xinmatch/core/db/schema.sql`` -- read at *import time* next to
       ``schema.py``; MUST land at ``xinmatch/core/db/schema.sql`` inside the
       bundle or the whole package fails to import.
-    - ``data/cod_inorganics.db`` -- bundled at ``data/``; the GUI/CLI never
-      auto-resolve it, users point the Open-DB dialog / ``--db`` at it.
+    - ``COD-Inorg-<snapshot>.xinDB`` -- v3.0.0 **default reference library**,
+      collected into ``data/`` so the portable build searches out of the box.
+      ``multi_db.xindb_default_dir()`` resolves ``<exe-dir>/data`` first (the
+      folder is moved out of ``_internal/`` by ``tools/build_exe.ps1``) and
+      ``<exe-dir>/_internal/data`` as a fallback.
 * GSAS-II (``C:\\gsas2main``, conda Python 3.13) is NOT bundled; the code
   degrades gracefully via ``GSAS2_AVAILABLE`` when it is absent.
 
@@ -34,10 +37,10 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 2.0.0) ----
+# ---- Version (read-only mirror of pyproject [project] version = 3.0.0) ----
 APP_NAME = "XinMatch"
-APP_VERSION = "2.0.0"
-VERSION_TUPLE = (2, 0, 0, 0)
+APP_VERSION = "3.0.0"
+VERSION_TUPLE = (3, 0, 0, 0)
 
 # ---- Build variant (v1.7.0): release = 正式版（含注册机制） / internal = 内部评估版 ----
 # 由环境变量 XINMATCH_BUILD_VARIANT 指定（tools/build_exe.ps1 -Variant）。
@@ -92,13 +95,51 @@ hiddenimports += [
     "xinmatch.utils.build_variant",
 ]
 
+
+# ---- Bundled default reference library (v3.0.0) ---------------------------
+# 便携版必须"解压即可检索"，所以把默认库 COD-Inorg-<snapshot>.xinDB 打进
+# data/。旧版（v2.x）打的是 data/cod_inorganics.db（712 MB 的 v2 SQLite），
+# 该格式随 v3.0.0 一起删除了。
+#
+# 源文件解析顺序：
+#   1. 环境变量 XINMATCH_BUNDLE_XINDB（显式指定文件，CI 用）；
+#   2. <仓库>/data/*.xinDB；
+#   3. <仓库>/../XinMatch-DataBase/data/*.xinDB（构库仓库，开发布局）。
+# 同一目录有多个快照时取日期最新的一个。
+def _find_bundled_xindb() -> "Path | None":
+    explicit = os.environ.get("XINMATCH_BUNDLE_XINDB", "").strip()
+    if explicit:
+        p = Path(explicit)
+        if p.is_file():
+            return p
+        print(f"WARNING: XINMATCH_BUNDLE_XINDB is not a file: {p}")
+    candidates: list[Path] = []
+    for root in (
+        _SPEC_DIR / "data",
+        _SPEC_DIR.parent / "XinMatch-DataBase" / "data",
+    ):
+        if root.is_dir():
+            candidates.extend(root.glob("COD-Inorg*.xinDB"))
+    if not candidates:
+        return None
+    return sorted(candidates)[-1]  # 文件名带 YYYYMMDD，字典序即时间序
+
+
+_BUNDLED_XINDB = _find_bundled_xindb()
+if _BUNDLED_XINDB is not None:
+    print(
+        "==> Bundling default reference library: "
+        f"{_BUNDLED_XINDB.name} ({_BUNDLED_XINDB.stat().st_size / 2**20:.0f} MiB)"
+    )
+else:
+    print(
+        "==> WARNING: no COD-Inorg-*.xinDB found — the portable build will not "
+        "search out of the box (mount one via 设置→参考数据库…)."
+    )
+
 # Project data files (see module docstring for why these exact destinations).
 datas += [
     ("xinmatch/core/db/schema.sql", "xinmatch/core/db"),
-    # NOTE (v1.6.0): data/cod_inorganics.db is intentionally NOT collected.
-    # The reference DB (~512 MB) ships as a separate downloadable archive
-    # (data is mountable next to the exe: <exe-dir>/data/cod_inorganics.db,
-    # auto-resolved by multi_db.default_db_path when frozen).
     # Brand assets (logo / splash / icons).  Read at runtime through
     # ``_asset_path`` (``Path(__file__).resolve().parents[2] / "assets"``),
     # which in the onedir bundle resolves to ``_internal/assets`` — so the
@@ -112,7 +153,11 @@ datas += [
     (str(VARIANT_MARKER), "."),
 ]
 
-# ---- Windows version resource (FileVersion / ProductVersion = 2.0.0) ----
+# 默认参考库（COD-Inorg）→ 便携包内的 data/，解压即可检索。
+if _BUNDLED_XINDB is not None:
+    datas.append((str(_BUNDLED_XINDB), "data"))
+
+# ---- Windows version resource (FileVersion / ProductVersion = 3.0.0) ----
 version_info = vi.VSVersionInfo(
     ffi=vi.FixedFileInfo(
         filevers=VERSION_TUPLE,

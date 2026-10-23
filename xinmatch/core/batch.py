@@ -33,7 +33,7 @@ Configuration schema
 
     # Reference-database search parameters.
     search:
-      db: data/cod_inorganics.db      # required
+      db: data/COD-Inorg-20261020.xinDB   # required (.xinDB only)
       mode: peaks                     # peaks (default) | fpfm
       top_n: 20
       window_deg: 0.3
@@ -69,12 +69,12 @@ Behaviour
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from xinmatch.core.io import load_pattern
+from xinmatch.core.db.multi_db import open_search_database
 from xinmatch.core.model import Restraints
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.report import (
@@ -230,7 +230,7 @@ def _resolve(base_dir: Path, value: str | Path | None) -> Path | None:
 # --------------------------------------------------------------------------- #
 def _search_fpfm(
     pattern,
-    conn: sqlite3.Connection,
+    conn,
     search_cfg: dict[str, Any],
     top_n: int,
 ) -> list[CandidateResult]:
@@ -308,7 +308,9 @@ def run_sample(
         else None
     )
 
-    conn = sqlite3.connect(str(db_path))
+    # v3 库是列存 .xinDB: 必须走 reader（search_match 按对象类型分派到
+    # search_match_v3），直接 sqlite3.connect 会让检索落到已删除的 v2 行表路径上。
+    conn = open_search_database(db_path)
     try:
         if fpfm:
             candidates = _search_fpfm(pattern, conn, search_cfg, top_n)
@@ -376,7 +378,9 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError("config must define a non-empty 'samples' list")
     search_cfg = config.get("search")
     if not isinstance(search_cfg, dict) or not search_cfg.get("db"):
-        raise ValueError("config['search']['db'] (reference .db path) is required")
+        raise ValueError(
+            "config['search']['db'] (reference .xinDB path) is required"
+        )
     mode = str(search_cfg.get("mode", "peaks")).lower()
     if mode == "smpf":
         # Pre-v1.6.1 legacy mode name (SMPF → FPFM rename); normalize in place.

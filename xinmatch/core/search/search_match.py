@@ -208,9 +208,60 @@ def _exp_d_values(exp_peaks: list[Peak], wavelength: float) -> list[float]:
 # --------------------------------------------------------------------------- #
 # Public search-match entry points
 # --------------------------------------------------------------------------- #
+def _is_v3_reader(db: object) -> bool:
+    """True when *db* is a v3 ``.xinDB`` reader instead of a sqlite connection.
+
+    v3.0.0 起默认参考库是列存 ``.xinDB``：它**不是** sqlite3.Connection
+    （没有可用的 ``peaks`` 行表），所以检索入口必须按对象类型分流。
+    用 isinstance 而不是鸭子类型，避免把"恰好有 fetch_peaks 方法"的
+    测试替身误判成 v3。
+    """
+    from xinmatch.core.db.reader_v3 import XinDBReader
+
+    return isinstance(db, XinDBReader)
+
+
+def _search_match_v3(
+    exp_peaks: list[Peak],
+    reader,
+    wavelength: float,
+    *,
+    restraints: Restraints | None = None,
+    window_deg: float = 0.3,
+    top_n: int = 20,
+    recall_min_matches: int = 2,
+) -> list[CandidateResult]:
+    """v3 分支：委托给 :func:`search_v3.search_match_v3`。
+
+    只搬运 v2 签名里语义对得上的参数：``restraints`` 的**必需元素**转成
+    ``elements_allowed``；排除元素/晶系/年份这类谓词 v3 的预筛矩阵不表达，
+    留给调用方在结果上二次过滤（GUI 目前不启用这些谓词）。
+    """
+    from xinmatch.core.db.search_v3 import search_match_v3
+
+    allowed: set[str] | None = None
+    if restraints is not None:
+        from xinmatch.core.model.restraints import ElementState
+
+        required = {el for el, st in restraints.elements.items()
+                    if st == ElementState.REQUIRED}
+        allowed = required or None
+
+    result = search_match_v3(
+        exp_peaks,
+        reader,
+        wavelength,
+        window_deg=window_deg,
+        top_n=top_n,
+        min_match=max(2, int(recall_min_matches)),
+        elements_allowed=allowed,
+    )
+    return result.candidates
+
+
 def search_match(
     exp_peaks: list[Peak],
-    conn: sqlite3.Connection,
+    conn,
     wavelength: float,
     *,
     restraints: Restraints | None = None,
@@ -328,6 +379,20 @@ def search_match(
     list[CandidateResult]
         FoM-ranked candidate results, length ``<= top_n``.
     """
+    # v3.0.0：列存 .xinDB 走专门的检索管线（向量化预筛 + 峰批量解码）。
+    # 放在最前面而不是在各个分支里判断，是因为 v3 根本没有 peaks 行表，
+    # 下面任何一条 SQL 路径都不可能对它工作。
+    if _is_v3_reader(conn):
+        return _search_match_v3(
+            exp_peaks,
+            conn,
+            wavelength,
+            restraints=restraints,
+            window_deg=window_deg,
+            top_n=top_n,
+            recall_min_matches=recall_min_matches,
+        )
+
     # Step 1 — candidate generation.
     def _d_recall(restrict_to: set[str] | None = None) -> list[str]:
         """d-value recall on the strongest experimental peaks.

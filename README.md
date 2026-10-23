@@ -8,15 +8,22 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v2.0.0.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.0.0.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + true March-Dollase preferred
 > orientation modeling + GSAS-II refinement pipeline + quantitative Rietveld
 > (main-phase wt% < 3 on certified samples) are complete and packaged
-> (Windows installer / portable, DB ships separately). v2.0.0 adds
-> **PolyXRD database compatibility**: any `.sqlite` / `.db` reference database
-> can be mounted from any folder at runtime (GUI picker or
-> `xinmatch libraries --add`), with a one-off cached index for PolyXRD
-> `phases` dumps.
+> (Windows installer / portable). v3.0.0 replaces the last legacy reference
+> formats with the single **v3 columnar `.xinDB`** layout and ships the
+> **COD-Inorg** library as the built-in default:
+>
+> * default library = `COD-Inorg-<snapshot>.xinDB`, bundled at `data/` in the
+>   portable build → **works out of the box**, no separate download needed;
+> * one reader, one search path (`search_match_v3`); the v2 SQLite
+>   (`cod_inorganics.db`), PolyXRD-dump and PDF-2 readers were **deleted**,
+>   not deprecated;
+> * still mountable from any folder (设置→参考数据库…, or
+>   `xinmatch libraries --add <path>`), `.xinDB` only.
+>
 > See [ROADMAP_v3.md](ROADMAP_v3.md) for the full implementation plan and
 > [docs/STATUS.md](docs/STATUS.md) for current progress.
 
@@ -32,11 +39,10 @@ workflows, published algorithms and open reference data (COD).
 - **Powder indexing** (Treor / Dicvol).
 - **Microstructure**: crystallite size (Scherrer), microstrain, crystallinity.
 - **Reports & export**, **GUI** (PySide6), **CLI / batch scripting**.
-- **Reference-database mounting**: besides the bundled COD file, any
-  `.sqlite` / `.db` reference database can be mounted from **any folder**
-  (设置→参考数据库…, or `xinmatch libraries --add <path>`); PolyXRD dumps
-  (`phases` table with `peaks_d`/`peaks_i`) are converted once into a cached
-  search index, so nothing has to be copied next to the executable.
+- **Reference-database mounting**: besides the bundled `COD-Inorg` library, any
+  other `.xinDB` library can be mounted from **any folder**
+  (设置→参考数据库…, or `xinmatch libraries --add <path>`). v3 libraries are
+  self-contained columnar files, so nothing is copied or converted.
 - **3COD libraries are split by provenance** (`tools/split_3cod.py`):
   `COD-Inorg` (experimental, 79 k), `PCOD-Inorg` (predicted, 1.06 M),
   `TCOD-Inorg` (theoretical, 47 k). Mount all three side by side in XinMatch;
@@ -102,8 +108,9 @@ pytest -m slow
 powershell -File tools/ci.ps1
 ```
 
-> The reference databases (`data/*.db`, 0.5–1 GB) are not in the repository;
-> tests that need them skip themselves.
+> The reference libraries (`*.xinDB`, ~110 MB–1.7 GB) are not in the repository;
+> the source checkout resolves them from `../XinMatch-DataBase/data`
+> (`XINMATCH_XINDB_DIR` overrides).  Tests that need them skip themselves.
 
 ### Run the working tree without building / 免打包直接运行
 
@@ -114,8 +121,8 @@ CLI (`python -m xinmatch.cli.main`):
 
 ```bat
 run_dev.bat                                  :: GUI
-run_dev.bat search pat.txt --db data\cod_inorganics.db --top-n 5 --json
-run_dev.bat libraries --json                 :: list mounted databases
+run_dev.bat search pat.txt --db ..\XinMatch-DataBase\data\COD-Inorg-20261020.xinDB --top-n 5 --json
+run_dev.bat libraries --json                 :: list available .xinDB libraries
 ```
 
 The interpreter is resolved in this order and echoed on startup:
@@ -127,12 +134,13 @@ copy is installed in site-packages.
 
 ## Builds & registration / 构建版本与注册
 
-v1.7.0 起同时产出两个二进制（参考数据库均单独挂载，不内置）：
+v1.7.0 起同时产出两个二进制。**v3.0.0 起两个版本都内置默认库** `COD-Inorg-<snapshot>.xinDB`
+（解压/安装即可检索；位置 `<程序目录>\data\`，可自行替换或再挂载其他 `.xinDB`）：
 
 | 构建 | 产物 | 注册机制 | 状态栏最右端 |
 |---|---|---|---|
 | **正式版**（release） | `XinMatch-Setup-<v>.exe`（安装时可选择安装位置） | **有**：每次启动检查注册状态 | `已注册：<单位部门名称>` / `未注册` |
-| **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | `内部评估版本` |
+| **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | **红色加粗** `内部评估版本` |
 
 正式版未注册时，每次启动弹出提示：
 

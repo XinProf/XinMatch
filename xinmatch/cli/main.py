@@ -33,7 +33,6 @@ from xinmatch.core.batch import load_config as load_batch_config
 from xinmatch.core.batch import run_batch
 from xinmatch.core.db.multi_db import (
     add_external_library,
-    ensure_library_index,
     library_by_id,
     list_libraries,
     open_search_database,
@@ -152,8 +151,7 @@ def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
         _processed, peaks = auto_process(pattern)
     restraints = _load_restraints(args.restraints)
 
-    # ``--db`` accepts a native XinMatch database *or* a PolyXRD ``.sqlite``
-    # file at any path (converted once into a cached search index).
+    # ``--db`` 只接受 ``.xinDB``（v3.0.0 起旧格式已移除）。
     conn = open_search_database(args.db)
     try:
         if fpfm:
@@ -417,16 +415,16 @@ class _LivePlotter:
 
 
 def cmd_libraries(args: argparse.Namespace) -> dict[str, Any]:
-    """``xinmatch libraries`` — list / mount / unmount / index reference databases.
+    """``xinmatch libraries`` — list / mount / unmount ``.xinDB`` reference libraries.
 
     Actions (mutually exclusive, default = list):
 
-    * ``--add PATH``   mount a ``.sqlite`` / ``.db`` file from any folder and
-      (unless ``--no-build``) build its search index when it is a PolyXRD
-      ``phases`` database;
-    * ``--remove ID``  unmount a previously added library (source untouched);
-    * ``--build ID``   build or rebuild the index of a mounted PolyXRD database;
-    * ``--force``      with ``--build``, re-convert even if the cache is fresh.
+    * ``--add PATH``   mount a ``.xinDB`` file from any folder;
+    * ``--remove ID``  unmount a previously added library (file untouched).
+
+    v3.0.0 只支持 ``.xinDB``：旧的 ``.sqlite`` / ``.db`` 库（含 PDF-2 dump 与
+    PolyXRD phases 库）已经不能挂载，也没有"建转换索引"这一步了 —— 列存库是
+    自包含的，挂上即可检索。
     """
     action = "list"
     payload: dict[str, Any] = {}
@@ -434,37 +432,16 @@ def cmd_libraries(args: argparse.Namespace) -> dict[str, Any]:
     if args.add:
         action = "add"
         ext = add_external_library(args.add, label=args.label)
-        record = library_by_id(ext.id)
-        summary = None
-        if record is not None and record.needs_index and not args.no_build:
-            summary = ensure_library_index(
-                ext.id,
-                progress=lambda n: print(f"  indexed {n:,}", file=sys.stderr),
-            )
         payload = {
             "library": {
                 "id": ext.id,
                 "path": str(ext.path),
                 "label": ext.display_name,
-                "index_built": summary is not None or not (record and record.needs_index),
             }
         }
     elif args.remove:
         action = "remove"
         payload = {"removed": remove_external_library(args.remove), "id": args.remove}
-    elif args.build:
-        action = "build"
-        summary = ensure_library_index(
-            args.build,
-            force=args.force,
-            progress=lambda n: print(f"  indexed {n:,}", file=sys.stderr),
-        )
-        payload = {
-            "id": args.build,
-            "built": summary is not None,
-            "entries_indexed": (summary or {}).get("entries_indexed"),
-            "seconds": (summary or {}).get("seconds"),
-        }
 
     records = [
         {
@@ -473,7 +450,7 @@ def cmd_libraries(args: argparse.Namespace) -> dict[str, Any]:
             "kind": r.kind,
             "path": str(r.path),
             "available": r.available,
-            "needs_index": r.needs_index,
+            "default": r.default,
             "external": r.external,
             "entries": r.entry_count,
             "reason": r.unavailable_reason,
@@ -482,14 +459,14 @@ def cmd_libraries(args: argparse.Namespace) -> dict[str, Any]:
     ]
 
     if not getattr(args, "as_json", False):
-        print(f"{'ID':<22} {'OK':<3} {'ENTRIES':>8}  {'KIND':<9} PATH")
+        print(f"{'ID':<20} {'OK':<3} {'ENTRIES':>9}  {'':<7} PATH")
         for rec in records:
-            flag = "no" if not rec["available"] else ("idx" if rec["needs_index"] else "yes")
-            print(
-                f"{rec['id']:<22} {flag:<3} "
-                f"{(rec['entries'] if rec['entries'] is not None else '-'):>8}  "
-                f"{rec['kind']:<9} {rec['path']}"
-            )
+            flag = "yes" if rec["available"] else "no"
+            tag = "默认" if rec["default"] else ("外部" if rec["external"] else "")
+            entries = rec["entries"] if rec["entries"] is not None else "-"
+            print(f"{rec['id']:<20} {flag:<3} {entries:>9}  {tag:<7} {rec['path']}")
+            if rec["reason"]:
+                print(f"{'':<20} {'':<3} {'':>9}  {'':<7} └─ {rec['reason']}")
     return {"action": action, **payload, "libraries": records}
 
 
@@ -792,28 +769,19 @@ def build_parser() -> argparse.ArgumentParser:
     _add_json_flag(p_batch)
     p_batch.set_defaults(func=cmd_batch)
 
-    # --- libraries (v2.0.0: mount PolyXRD / XinMatch databases from anywhere) ---
+    # --- libraries (v3.0.0: .xinDB only) ---
     p_lib = sub.add_parser(
         "libraries",
-        help="List / mount / unmount reference databases (any folder, *.sqlite or *.db).",
+        help="List / mount / unmount .xinDB reference libraries (any folder).",
         description=(
-            "Manage reference databases.  Without an action the current registry is "
-            "listed; --add mounts a file from any folder (PolyXRD .sqlite files are "
-            "converted once into a cached search index), --build re-creates that "
-            "index, --remove unmounts (the source file is never touched)."
+            "Manage reference libraries.  Without an action the current registry is "
+            "listed; --add mounts a .xinDB file from any folder; --remove unmounts "
+            "(the library file is never touched)."
         ),
     )
-    p_lib.add_argument("--add", metavar="PATH", help="Mount a database file from any folder.")
+    p_lib.add_argument("--add", metavar="PATH", help="Mount a .xinDB file from any folder.")
     p_lib.add_argument("--label", help="Display label for --add (default: file stem).")
-    p_lib.add_argument(
-        "--no-build", action="store_true",
-        help="With --add: do not build the search index yet (build on first search).",
-    )
     p_lib.add_argument("--remove", metavar="ID", help="Unmount the given library id.")
-    p_lib.add_argument(
-        "--build", metavar="ID", help="Build/rebuild the search index of a mounted library."
-    )
-    p_lib.add_argument("--force", action="store_true", help="With --build: rebuild even if fresh.")
     _add_json_flag(p_lib)
     p_lib.set_defaults(func=cmd_libraries)
 

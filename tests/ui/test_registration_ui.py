@@ -101,6 +101,34 @@ def test_internal_build_status_label(qapp, reg_dir, monkeypatch):
     assert label.alignment() & QtCore.Qt.AlignmentFlag.AlignRight
 
 
+def test_internal_build_label_is_red_and_bold(qapp, reg_dir, monkeypatch):
+    """v3.0.0 需求：「内部评估版本」必须**红色 + 加粗**，且在最下方状态栏右端。
+
+    QSS 写在控件自己的 stylesheet 上（而不是全局样式表）——状态栏随主题
+    重刷时控件级规则优先级更高，换主题不会掉色，所以断言也打在控件上。
+    """
+    import re
+
+    monkeypatch.setenv(build_variant._ENV_KEY, "internal")
+    window = MainWindow()
+    label = window._registration_label
+    assert label is not None
+    css = label.styleSheet()
+    assert "#d32f2f" in css.lower()  # 红色
+    assert re.search(r"font-weight\s*:\s*bold", css)  # 加粗
+    assert label.objectName() == "internalBuildLabel"
+    # 挂在状态栏的常驻区（最右端），因此是状态栏的子控件。
+    assert window.statusBar().isAncestorOf(label)
+
+
+def test_release_build_has_no_internal_label(qapp, reg_dir, monkeypatch):
+    """正式版不能出现「内部评估版本」字样。"""
+    monkeypatch.setenv(build_variant._ENV_KEY, "release")
+    window = MainWindow()
+    texts = [lab.text() for lab in window.findChildren(QtWidgets.QLabel)]
+    assert build_variant.INTERNAL_STATUS_TEXT not in texts
+
+
 # ---------------------------------------------------------------------------
 # 启动弹窗行为（确定性替身：替换 PySide6.QtWidgets.QMessageBox，不真弹模态框）
 # ---------------------------------------------------------------------------
