@@ -146,7 +146,7 @@ v1.7.0 起同时产出两个二进制。**v3.0.0 起两个版本都内置默认�
 
 | 附件 | 体积 | SHA-256（前 16 位） |
 |---|---|---|
-| `XinMatch-Setup-3.0.0.exe`（正式版安装包，内置 COD-Inorg 库） | 200.4 MiB | `de567ddbbb8cafed…` |
+| `XinMatch-Setup-3.0.0.exe`（正式版安装包，内置 COD-Inorg 库） | 244.5 MiB | `de567ddbbb8cafed…` |
 | `XinMatch-Internal-3.0.0.zip`（便携包 = 内部评估版，红字标识，内置 COD-Inorg 库） | 340.0 MiB | `b252249956477d16…` |
 | `XinMatch-Databases-COD-Inorg-3.0.0.zip`（COD 无机物库独立包 `*.xinDB`） | 86.9 MiB | `9c1f6f982033634f…` |
 | `SHA256SUMS.txt` | — | — |
