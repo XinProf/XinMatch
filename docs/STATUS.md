@@ -1,4 +1,4 @@
-﻿# Implementation status
+# Implementation status
 
 Tracks progress against [ROADMAP_v3.md](../ROADMAP_v3.md).
 
@@ -713,4 +713,57 @@ PolyXRD 只挂实验 COD，PCOD/TCOD 只给 XinMatch）。
 
 **推迟**：`slow` 套件补跑、实机静默安装、`max_peaks=64` 保真对照、
 `core/pipeline.py` 三入口统一、`main_window.py` 拆分、Ed25519 注册升级。
+
+## v3.0.0 版本发布（2026-10-23）✅
+
+**版本**：2.0.0 → **3.0.0**（参考库格式收口为单一 `.xinDB`，默认库随包内置）。
+
+**主特性（`7605e06`）**
+
+- **`.xinDB` v3 列存单一格式**：单文件 SQLite，`meta` / `entries` / `peak_chunks`
+  （每 4096 相一块的 CSR + 预筛矩阵）/ `element_inv` 四张表；只读打开、
+  `journal_mode=DELETE`、无 `-wal/-shm` 侧车，可直接放 NAS 只读共享。
+- **三个无机物库按来源分库**：`COD-Inorg` 78,036 相 / `PCOD-Inorg` 1,061,953 相 /
+  `TCOD-Inorg` 46,846 相，`entry_id` 号段 0 / +2e7 / +1e8 互不遮蔽
+  （库本体在 `XinMatch-DataBase` 仓库发布，不入本仓）。
+- **默认库内置**：便携包 `<exe>/data/COD-Inorg-<快照>.xinDB`，安装即能检索；
+  运行期库目录解析 `XINMATCH_XINDB_DIR` → `<exe>/data` → `<exe>/_internal/data` →
+  `../XinMatch-DataBase/data`（源码态）。外部 `.xinDB` 可从任意目录挂载。
+- **旧格式运行期代码删除**：v2 行表读取、PolyXRD dump、PDF-2 转换层删除；
+  `search_match` 按对象类型分派到 `search_match_v3`（评分/排序仍是原 v2 代码）。
+- **内部评估版**：状态栏右侧红色加粗「内部评估版本」；正式版保留注册机制。
+
+**发布时记录**：`pytest tests` 1570 passed / 4 skipped / 1 xfail（12m14s）。
+> 该数字复现不出来：同一份 v3.0.0 源码 2026-10-24 复验为
+> **1347 passed / 6 skipped / 51 deselected / 1 xfailed**（16m47s，`QT_QPA_PLATFORM=offscreen`，
+> 含 `slow` 之外的 1354 项）。发布记录里 tests/ui 实际未跑（v3.0.0-验收报告 §5 自述），
+> 所以「全量 1570 passed」应按本次复验更正。详见 `docs/CODE-REVIEW-v3.0.0-20261024.md`。
+
+**产物**：`XinMatch-Setup-3.0.0.exe`（256,400,880 B）+ `XinMatch-Internal-3.0.0.zip`
+（356,466,971 B）+ `XinMatch-Databases-COD-Inorg-3.0.0.zip`（91,175,782 B）+ `SHA256SUMS.txt`；
+三个附件的 SHA-256 与 `SHA256SUMS.txt` 逐位一致（2026-10-24 复核），
+分发包内的 `.xinDB` 与已验收库逐字节相同。
+
+**Release**：GitHub `v3.0.0`；验收 `docs/ACCEPTANCE-v3.0.0-20261023.md`、
+`docs/v3.0.0-验收报告.md`、`docs/ACCEPTANCE-3COD-20261024.md`。
+
+## v3.0.0 全面复验与修复（2026-10-24）✅
+
+**范围**：代码审查 + 静态分析 + 真实缺陷修复 + 检索性能优化 + 三库独立验收 + 文档一致性。
+完整报告 `docs/CODE-REVIEW-v3.0.0-20261024.md`。
+
+- **静态门恢复 green**：`ruff check xinmatch tools tests` **0 error**（复验前 218）、
+  `mypy` **119 files 0 error**（复验前 6）。此前 v3.0.0 未跑质量门，CI 实际是红的。
+- **修真实缺陷**：峰引擎 180° 边界假峰（COD 5 + PCOD 7 个相只剩 d=0.7703 假峰）、
+  gemmi 默认晶胞假峰（3 相，含晶胞恢复）、`batch --json` stdout 被进度行污染、
+  `report --input-report` 崩溃/静默空报告、GUI 配置非原子写 + 损坏即崩、
+  参考库异常逃逸 Qt 槽、坏 `XINMATCH_XINDB_DIR` 覆盖导致内置库静默不可用、
+  冻结包漏收 `atomic_scattering_params.json`、`reader_v3` 路径含 `#` 的 URI 转义。
+- **性能优化**：`reader_v3` prescreen 行块化 + `fetch_peaks` 按 chunk 定位/仅解码命中块 +
+  mmap；候选集/排序逐位等价（3 库 parity）。
+- **三库验收**：`validate_xindb` COD 0F/1W、PCOD 0F/0W、TCOD 0F/0W；
+  全量独立复核（118 万条 id、全部 chunk）0 违规；自召回 COD 38/40、PCOD 40/40、TCOD 40/40。
+  已知坏相（COD 8、PCOD 7）登记在 `docs/ACCEPTANCE-3COD-20261024.md`，
+  峰引擎已修、重建 COD/PCOD 即可清除。
+
 
