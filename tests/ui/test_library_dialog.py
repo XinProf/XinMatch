@@ -236,9 +236,8 @@ def test_open_search_library_raises_when_everything_is_broken(qapp, monkeypatch)
 
     with patch("PySide6.QtWidgets.QMessageBox.warning"), patch(
         "PySide6.QtWidgets.QMessageBox.critical"
-    ) as critical:
-        with pytest.raises(LibraryNotAvailableError):
-            win.open_search_library()
+    ) as critical, pytest.raises(LibraryNotAvailableError):
+        win.open_search_library()
 
     assert opened == [COD_FULL, COD_INORG]
     assert critical.called

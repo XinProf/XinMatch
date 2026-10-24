@@ -121,12 +121,32 @@ def user_data_dir() -> Path:
     return Path.home() / ".xinmatch"
 
 
+def _has_xindb(directory: Path) -> bool:
+    """True when *directory* actually holds at least one ``.xinDB`` library."""
+    try:
+        return directory.is_dir() and any(directory.glob(f"*{XINDB_SUFFIX}"))
+    except OSError:  # pragma: no cover - unreadable directory
+        return False
+
+
+#: ``XINMATCH_XINDB_DIR`` values already reported as stale.  ``xindb_default_dir``
+#: is called several times per registry refresh (once per built-in library), so
+#: the warning must not be re-emitted for every call.
+_WARNED_ENV_DIRS: set[str] = set()
+
+
 def xindb_default_dir() -> Path:
     """Directory searched for the built-in v3 libraries.
 
     Resolution order:
 
-    1. ``XINMATCH_XINDB_DIR`` (deployment scripts / tests);
+    1. ``XINMATCH_XINDB_DIR`` (deployment scripts / tests) — **only when it
+       actually contains a ``.xinDB``**.  A stale variable pointing at an
+       empty or removed folder used to win unconditionally, which silently
+       hid the bundled library (``available=False`` for a machine that has
+       ``data/COD-Inorg-*.xinDB``): the user sees "library not found" instead
+       of "the environment variable is wrong".  Such an override is now
+       ignored with a warning and the next candidate is used.
     2. ``<data>/`` — ``<exe-dir>/data`` when frozen, ``<repo>/data`` in dev;
     3. the sibling build repo ``<repo>/../XinMatch-DataBase/data`` (dev only).
 
@@ -134,17 +154,30 @@ def xindb_default_dir() -> Path:
     data repo without copying 1.8 GiB around; it is skipped when frozen.
     """
     override = os.environ.get("XINMATCH_XINDB_DIR")
+    candidates: list[Path] = []
     if override:
-        return Path(override)
-    roots = [_data_dir()]
+        env_dir = Path(override)
+        candidates.append(env_dir)
+        if _has_xindb(env_dir):
+            return env_dir
+        if override not in _WARNED_ENV_DIRS:
+            _WARNED_ENV_DIRS.add(override)
+            logger.warning(
+                "XINMATCH_XINDB_DIR=%s 下没有找到任何 .xinDB 库；忽略该环境变量，"
+                "回退到内置库目录。",
+                override,
+            )
+    candidates.append(_data_dir())
     if not getattr(sys, "frozen", False):
-        roots.append(project_root().parent / "XinMatch-DataBase" / "data")
+        candidates.append(project_root().parent / "XinMatch-DataBase" / "data")
     # 取"真的放着 .xinDB"的那个: 源码树的 data/ 里常年只躺着日志与旧格式库,
     # 而库本体在构库仓库 —— 只看目录存在与否会把默认库定位到空目录上。
-    for root in roots:
-        if root.is_dir() and any(root.glob(f"*{XINDB_SUFFIX}")):
+    for root in candidates:
+        if _has_xindb(root):
             return root
-    return roots[0]
+    # 没有任何候选目录真的放着库: 返回内置数据目录(而不是过期/为空的 env
+    # 覆盖目录), 让"未找到库"的报错指向正确位置。
+    return candidates[1] if override else candidates[0]
 
 
 def _latest_snapshot(prefix: str, directory: Path | None = None) -> Path:

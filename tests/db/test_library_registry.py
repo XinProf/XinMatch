@@ -24,13 +24,19 @@ from xinmatch.core.db import multi_db
 
 @pytest.fixture
 def registry(tmp_path, monkeypatch):
-    """把注册表与用户数据目录都隔离到临时目录。"""
+    """把注册表与用户数据目录都隔离到临时目录。
+
+    内置库候选目录（``<repo>/data``、``../XinMatch-DataBase/data``）也指向
+    临时目录，保证"本机没有内置库"的假设不依赖开发机上的真实库。
+    """
     target = tmp_path / "userdata" / "libraries.json"
     monkeypatch.setenv("XINMATCH_USER_DATA", str(tmp_path / "userdata"))
     monkeypatch.delenv("XINMATCH_LIBRARIES_JSON", raising=False)
     libs = tmp_path / "libs"
     libs.mkdir()
     monkeypatch.setenv("XINMATCH_XINDB_DIR", str(libs))
+    monkeypatch.setattr(multi_db, "_data_dir", lambda: tmp_path / "data")
+    monkeypatch.setattr(multi_db, "project_root", lambda: tmp_path / "repo")
     return target
 
 

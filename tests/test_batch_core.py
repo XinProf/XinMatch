@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from xinmatch.core.batch import load_config, run_batch
 from tests.xindb_support import write_xindb
+from xinmatch.core.batch import load_config, run_batch
 from xinmatch.core.model import CellParams, Entry
 
 WL = 1.5406
@@ -182,3 +182,16 @@ def test_batch_legacy_smpf_mode_normalized():
     }
     _validate_config(cfg)
     assert cfg["search"]["mode"] == "fpfm"
+
+
+def test_batch_non_mapping_sample_is_config_error():
+    """``samples`` 里出现字符串时必须是可读的 ValueError，而不是 AttributeError。
+
+    旧实现只在 ``run_sample`` 内部捕获异常，而 ``sample_cfg.get(...)`` 在
+    ``run_batch`` 的 try 之外执行，于是整个批处理直接崩掉而不是报配置错误。
+    """
+    from xinmatch.core.batch import _validate_config
+
+    cfg = {"samples": ["x.txt"], "search": {"db": "d.db"}}
+    with pytest.raises(ValueError, match="must be a mapping"):
+        _validate_config(cfg)

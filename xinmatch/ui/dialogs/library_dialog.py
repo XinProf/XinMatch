@@ -13,7 +13,6 @@ v3.0.0 把"能检索的参考库"收敛成一种格式 —— 列存 ``.xinDB``�
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 

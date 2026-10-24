@@ -65,23 +65,22 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from xinmatch.core.db.cif_meta import PhaseMeta  # noqa: E402
-from xinmatch.core.db.peak_compute import (  # noqa: E402
-    DEFAULT_DMIN,
-    DEFAULT_MAX_PEAKS,
-    compute_pattern,
-)
-from xinmatch.core.db.writer_v3 import XinDBWriter  # noqa: E402
-
 from xinmatch.core.db.cif_scan import (  # noqa: E402
     DEFAULT_COD_ROOT,
     DEFAULT_INORG_COD_ROOT,
     iter_cod_cifs,
+)
+from xinmatch.core.db.peak_compute import (  # noqa: E402
+    DEFAULT_DMIN,
+    DEFAULT_MAX_PEAKS,
+    compute_pattern,
 )
 from xinmatch.core.db.schema_v3 import (  # noqa: E402
     CHUNK_SIZE,
     TOP_K,
     XINDB_SUFFIX,
 )
+from xinmatch.core.db.writer_v3 import XinDBWriter  # noqa: E402
 
 logger = logging.getLogger("tools.build_cod_xindb")
 

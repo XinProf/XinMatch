@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """原地补全 COD-Inorg 库的元数据（只改 entries 的元数据列，不碰 peak_chunks）。
 
 背景

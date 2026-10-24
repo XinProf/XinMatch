@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """验收 v3 峰引擎（``xinmatch.core.db.peak_compute``）。
 
 背景：PolyXRD 上游无机库 ``COD_inorganics.sqlite`` 的峰表**不可精确复现** ——
@@ -63,7 +62,7 @@ TOP_N = 10
 
 def _load_rows(n: int) -> list[tuple]:
     """均匀抽样，覆盖不同空间群与晶系。"""
-    conn = sqlite3.connect("file:%s?mode=ro" % UPSTREAM_DB, uri=True)
+    conn = sqlite3.connect(f"file:{UPSTREAM_DB}?mode=ro", uri=True)
     total = conn.execute(
         "SELECT COUNT(*) FROM phases WHERE cif_gz IS NOT NULL AND n_peaks BETWEEN 20 AND 500"
     ).fetchone()[0]
@@ -71,7 +70,7 @@ def _load_rows(n: int) -> list[tuple]:
     rows = conn.execute(
         "SELECT cod_id, formula, space_group, n_peaks, peaks_d, peaks_i, cif_gz "
         "FROM phases WHERE cif_gz IS NOT NULL AND n_peaks BETWEEN 20 AND 500 "
-        "AND rowid %% %d = 0 ORDER BY cod_id LIMIT ?" % step,
+        f"AND rowid % {step} = 0 ORDER BY cod_id LIMIT ?",
         (n,),
     ).fetchall()
     conn.close()
@@ -118,7 +117,7 @@ def _pymatgen_batch(items: list[tuple]) -> dict[int, tuple[np.ndarray, np.ndarra
         input=json.dumps(payload), capture_output=True, text=True, timeout=900,
     )
     if proc.returncode != 0:
-        raise RuntimeError("pymatgen 子进程失败: %s" % proc.stderr[-1500:])
+        raise RuntimeError(f"pymatgen 子进程失败: {proc.stderr[-1500:]}")
     raw = json.loads(proc.stdout.strip().splitlines()[-1])
     out: dict[int, tuple[np.ndarray, np.ndarray, bool]] = {}
     for key, val in raw.items():
@@ -148,10 +147,13 @@ def main(argv=None) -> int:
     ap.add_argument("--pmg", type=int, default=10, help="G2 用多少条跑 pymatgen（0=跳过）")
     args = ap.parse_args(argv)
 
-    print("峰口径 : %s" % PEAK_CONVENTION)
-    print("d 范围 : [%.4f, %.1f] A   max_peaks=%d" % (DEFAULT_DMIN, DEFAULT_DMAX, DEFAULT_MAX_PEAKS))
+    print(f"峰口径 : {PEAK_CONVENTION}")
+    print(
+        f"d 范围 : [{DEFAULT_DMIN:.4f}, {DEFAULT_DMAX:.1f}] A   "
+        f"max_peaks={DEFAULT_MAX_PEAKS}"
+    )
     rows = _load_rows(args.num)
-    print("抽样   : %d 条（带 cif_gz）\n" % len(rows))
+    print(f"抽样   : {len(rows)} 条（带 cif_gz）\n")
     if not rows:
         return 1
 
@@ -163,7 +165,7 @@ def main(argv=None) -> int:
         try:
             txt = gzip.decompress(gz).decode("utf-8", "replace")
         except Exception as exc:  # noqa: BLE001
-            uncomputable.append((cid, "gzip:%s" % type(exc).__name__))
+            uncomputable.append((cid, f"gzip:{type(exc).__name__}"))
             continue
         res_full = compute_pattern_from_text(txt, max_peaks=0)
         if res_full is None:
@@ -172,8 +174,11 @@ def main(argv=None) -> int:
         full[cid] = res_full
         trunc[cid] = compute_pattern_from_text(txt, max_peaks=DEFAULT_MAX_PEAKS) or res_full
     dt = time.perf_counter() - t0
-    print("本引擎 : 成功 %d / %d，不可计算 %d，%.2f s (%.1f 相/s)\n"
-          % (len(full), len(rows), len(uncomputable), dt, len(rows) / dt if dt else 0.0))
+    rate = len(rows) / dt if dt else 0.0
+    print(
+        f"本引擎 : 成功 {len(full)} / {len(rows)}，不可计算 {len(uncomputable)}，"
+        f"{dt:.2f} s ({rate:.1f} 相/s)\n"
+    )
 
     # ── G1 / G3 / G4 ─────────────────────────────────────
     g1_pass = g1_fail = 0
@@ -199,7 +204,7 @@ def main(argv=None) -> int:
             else:
                 g1_fail += 1
                 g1_bad.append((len(miss) / max(1, int(strong.sum())), cid,
-                               "%s 缺 %d/%d" % (formula, len(miss), int(strong.sum()))))
+                               f"{formula} 缺 {len(miss)}/{int(strong.sum())}"))
 
         k = min(TOP_N, i_ref.size, i_full.size)
         if k >= 3:
@@ -249,8 +254,8 @@ def main(argv=None) -> int:
                 g4_pass += 1
             else:
                 g4_fail += 1
-                g4_bad.append((cid, "%s n_full=%d n_tr=%d" % (
-                    formula, i_full.size, n_tr)))
+                g4_bad.append(
+                    (cid, f"{formula} n_full={i_full.size} n_tr={n_tr}"))
 
         # G4b 报告：强线保留率
         for threshold in (G3_MIN_I, G4_STRONG_I):
@@ -275,7 +280,7 @@ def main(argv=None) -> int:
     if args.pmg > 0:
         try:
             ref = _pymatgen_batch(rows[: args.pmg])
-            print("pymatgen: 成功 %d / %d" % (len(ref), min(args.pmg, len(rows))))
+            print(f"pymatgen: 成功 {len(ref)} / {min(args.pmg, len(rows))}")
             # 解析策略差异（与物理无关）也要单独归因，否则会被当成实现错误：
             #   * CIF 自带温度因子 -> 本引擎施加 Debye-Waller，pymatgen 默认不施加
             #   * 部分占据位点     -> pymatgen 的 occupancy_tolerance 会重整占据数
@@ -315,50 +320,54 @@ def main(argv=None) -> int:
                 else:
                     g2_fail += 1
         except Exception as exc:  # noqa: BLE001
-            print("pymatgen 基准不可用（跳过 G2）: %s" % exc)
+            print(f"pymatgen 基准不可用（跳过 G2）: {exc}")
 
     # ── 汇总 ─────────────────────────────────────────────
     print("\n" + "=" * 74)
     n1 = g1_pass + g1_fail
-    print("G1 无信息丢失(上游 I>=%.0f 的峰) : %d/%d (%.2f%%)"
-          % (G1_MIN_I, g1_pass, n1, 100.0 * g1_pass / n1 if n1 else 0.0))
+    print(f"G1 无信息丢失(上游 I>={G1_MIN_I:.0f} 的峰) : {g1_pass}/{n1} "
+          f"({100.0 * g1_pass / n1 if n1 else 0.0:.2f}%)")
     n3 = g3_pass + g3_fail
-    print("G3 前 10 强排序保持             : %d/%d (%.2f%%)  相关系数中位 %.5f"
-          % (g3_pass, n3, 100.0 * g3_pass / n3 if n3 else 0.0,
-             float(np.median(g3_corr)) if g3_corr else float("nan")))
+    _g3_med = float(np.median(g3_corr)) if g3_corr else float("nan")
+    print(f"G3 前 10 强排序保持             : {g3_pass}/{n3} "
+          f"({100.0 * g3_pass / n3 if n3 else 0.0:.2f}%)  "
+          f"相关系数中位 {_g3_med:.5f}")
     n4 = g4_pass + g4_fail
-    print("G4a 截断只丢弱线(保留的恰为最强 %d 条): %d/%d 相 (%.3f%%)"
-          % (DEFAULT_MAX_PEAKS, g4_pass, n4, 100.0 * g4_pass / n4 if n4 else 0.0))
+    print(f"G4a 截断只丢弱线(保留的恰为最强 {DEFAULT_MAX_PEAKS} 条): "
+          f"{g4_pass}/{n4} 相 ({100.0 * g4_pass / n4 if n4 else 0.0:.3f}%)")
     for _thr in sorted(g4b_stats):
         _got, _tot = g4b_stats[_thr]
-        print("G4b 强线保留率 I>=%-4.0f          : %d/%d 峰 (%.3f%%)  [报告指标，非闸门]"
-              % (_thr, _got, _tot, 100.0 * _got / _tot if _tot else 0.0))
+        print(f"G4b 强线保留率 I>={_thr:<4.0f}          : {_got}/{_tot} 峰 "
+              f"({100.0 * _got / _tot if _tot else 0.0:.3f}%)  [报告指标，非闸门]")
     for _cid, _desc in g4_bad[:5]:
-        print("   G4a 未过: cod_id=%s  %s" % (_cid, _desc))
+        print(f"   G4a 未过: cod_id={_cid}  {_desc}")
     if g2_bad:
         n2 = g2_pass + g2_fail
-        print("G2 与 pymatgen 逐峰一致         : %d/%d (%.2f%%)  max|ΔI| 中位 %.3f%s"
-              % (g2_pass, n2, 100.0 * g2_pass / n2 if n2 else 0.0,
-                 float(np.median([b[0] for b in g2_bad])),
-                 "  [其中 %d 条差异由 CIF 自带温度因子解释]" % g2_dw_explained
-                 if g2_dw_explained else ""))
+        _med_dev = float(np.median([b[0] for b in g2_bad]))
+        _dw_note = (
+            f"  [其中 {g2_dw_explained} 条差异由 CIF 自带温度因子解释]"
+            if g2_dw_explained else ""
+        )
+        print(f"G2 与 pymatgen 逐峰一致         : {g2_pass}/{n2} "
+              f"({100.0 * g2_pass / n2 if n2 else 0.0:.2f}%)  "
+              f"max|ΔI| 中位 {_med_dev:.3f}{_dw_note}")
         for dev, cid, _dw in sorted(g2_bad, reverse=True)[:5]:
             if dev > PMG_I_TOL:
-                print("   偏差: cod_id=%s max|ΔI|=%.2f" % (cid, dev))
+                print(f"   偏差: cod_id={cid} max|ΔI|={dev:.2f}")
     else:
         print("G2 与 pymatgen 逐峰一致         : 未执行")
 
     g1_bad.sort(reverse=True)
     for frac, cid, note in g1_bad[:6]:
-        print("   G1 未过: cod_id=%-9s 缺失率 %.1f%%  %s" % (cid, 100 * frac, note))
+        print(f"   G1 未过: cod_id={cid:<9} 缺失率 {100 * frac:.1f}%  {note}")
     if uncomputable:
-        print("   不可计算 %d 条，样例: %s" % (len(uncomputable), uncomputable[:4]))
+        print(f"   不可计算 {len(uncomputable)} 条，样例: {uncomputable[:4]}")
 
     # 硬闸门只看「峰位对不对」「强度是否与权威实现一致」「截断是否只丢弱线」。
     # G3 与上游排序的对比仅作参照：上游库内部口径不一致（CaF2 收至 2θ=156°、
     # 透辉石只到 112°），其强度排序本身不可复现，不能当正确性标准。
     ok = (g1_fail == 0 and g2_fail == 0 and g4_fail == 0)
-    print("\nRESULT: %s" % ("ALL GATES PASSED" if ok else "GATE FAILED"))
+    print(f"\nRESULT: {'ALL GATES PASSED' if ok else 'GATE FAILED'}")
     return 0 if ok else 1
 
 

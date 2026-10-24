@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """探测 PolyXRD 官方无机库 ``COD_inorganics.sqlite`` 的权威峰表约定（只读）。
 
 目的
@@ -30,8 +29,8 @@
 from __future__ import annotations
 
 import argparse
-import json
 import gzip
+import json
 import math
 import os
 import sqlite3
@@ -559,7 +558,7 @@ def stage_gemmi_diff() -> None:
     fastcif, fastxrd = _load_ref_tools()
     import gemmi
 
-    with open(SCAT_JSON, "r", encoding="utf-8") as fh:
+    with open(SCAT_JSON, encoding="utf-8") as fh:
         fast_tab = json.load(fh)
 
     # ── 5a 散射因子表：fastxrd(JSON, Z-形式) vs gemmi ITC-1992 ──────────────
@@ -778,7 +777,7 @@ def _gemmi_it92_f(el: str, s: float):
 
 def json_load(path):
     import json
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
 
@@ -943,7 +942,7 @@ def stage_detail(cod_ids=None) -> None:
     fastcif, fastxrd = _load_ref_tools()
     import gemmi
 
-    with open(SCAT_JSON, "r", encoding="utf-8") as fh:
+    with open(SCAT_JSON, encoding="utf-8") as fh:
         fast_tab = json.load(fh)
 
     conn = sqlite3.connect("file:%s?mode=ro" % UPSTREAM_DB, uri=True)

@@ -20,6 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tools._probe_sf_timing import timed_structure_factors  # noqa: E402
 from xinmatch.core.db.peak_compute import (  # noqa: E402
     DEFAULT_DMAX,
     DEFAULT_DMIN,
@@ -28,7 +29,6 @@ from xinmatch.core.db.peak_compute import (  # noqa: E402
     _reciprocal_matrix,
     _structure_factors,
 )
-from tools._probe_sf_timing import timed_structure_factors  # noqa: E402
 
 UPSTREAM_DB = "D:/Project/XRD/PolyXRD/cod_data/COD_inorganics.sqlite"
 
@@ -61,7 +61,7 @@ def main() -> int:
           f"{'old':>10}{'new':>10}{'spd':>7}")
     worst = 0.0
     n_bad = 0
-    for cod_id, formula, gz in rows:
+    for cod_id, _formula, gz in rows:
         txt = gzip.decompress(gz).decode("utf-8", "replace")
         try:
             ss = gemmi.make_small_structure_from_block(

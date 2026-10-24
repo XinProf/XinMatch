@@ -52,9 +52,11 @@ include = ["xinmatch*"]
 
 # Non-Python files required at runtime.  Without these declarations a plain
 # ``pip install xinmatch`` produces a wheel that imports but cannot create a
-# reference database (``schema.sql`` missing) and whose 3D viewer has no JS.
+# reference database (``schema.sql`` missing), cannot compute reference peaks
+# from a CIF (``atomic_scattering_params.json`` missing, which froze the peak
+# engine only when a CIF was actually imported) and whose 3D viewer has no JS.
 [tool.setuptools.package-data]
-"xinmatch.core.db" = ["*.sql"]
+"xinmatch.core.db" = ["*.sql", "data/*.json"]
 "xinmatch.ui.assets" = ["3dmol/*"]
 
 # ---- Tool config ----
@@ -87,6 +89,15 @@ ignore = ["E501"]
 # (UTF-8 coding declaration, typing.Optional) predates this repo's ruff
 # settings; exempted here instead of editing the vendored copy.
 "xinmatch/utils/registration.py" = ["UP009", "UP045"]
+
+# ``tools/_probe_peak_convention.py`` is an archived one-off diagnostic used to
+# derive and verify the frozen peak convention (docs/峰口径冻结-v3.0.0.md).  It
+# is evidence, not runtime code: its %-formatting, short math variable names and
+# unused loop targets are deliberate, and rewriting 138 print statements would
+# only make the historical record harder to diff against the numbers in that
+# document.  Every other file under ``tools`` is still linted, so a newly added
+# probe cannot hide behind this exemption.
+"tools/_probe_peak_convention.py" = ["UP031", "B007", "B905", "N806", "E741", "F841", "SIM105"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

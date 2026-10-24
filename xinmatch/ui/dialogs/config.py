@@ -20,6 +20,9 @@ portable file instead of the Windows registry:
 
 from __future__ import annotations
 
+import contextlib
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +39,8 @@ __all__ = [
     "config_path",
     "DEFAULTS",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 #: Default configuration mirroring every Options / Colors page.
@@ -163,23 +168,63 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     config file never breaks the dialogs.  Keys written by pre-v1.6.1
     versions (``smpf_*``) are migrated to their ``fpfm_*`` names before the
     merge, so legacy user settings keep working (and win over defaults).
+
+    A damaged config file (truncated by an interrupted write, hand-edited
+    syntax error, or replaced by a directory) must not brick the GUI: such
+    files are reported in the log and the built-in defaults are returned.
+    The unusable file is left on disk untouched so the user can inspect or
+    delete it.  (:func:`save_config` writes atomically, so an interrupted
+    ``save_config`` can no longer produce a truncated file in the first
+    place — this guard covers files damaged by other means.)
     """
     file = Path(path) if path is not None else config_path()
     cfg = default_config()
-    if file.exists():
+    if not file.exists():
+        return cfg
+    try:
         with file.open("r", encoding="utf-8") as fh:
             on_disk = yaml.safe_load(fh) or {}
-        _migrate_legacy_fpfm_keys(on_disk)
-        _merge(cfg, on_disk)
+    except (OSError, yaml.YAMLError) as exc:
+        logger.warning(
+            "ignoring unreadable config file %s (%s: %s); using defaults",
+            file, type(exc).__name__, exc,
+        )
+        return cfg
+    if not isinstance(on_disk, dict):
+        logger.warning(
+            "ignoring config file %s: top-level YAML node is %s, expected mapping",
+            file, type(on_disk).__name__,
+        )
+        return cfg
+    _migrate_legacy_fpfm_keys(on_disk)
+    _merge(cfg, on_disk)
     return cfg
 
 
 def save_config(cfg: dict[str, Any], path: str | Path | None = None) -> None:
-    """Write *cfg* to YAML (UTF-8, no anchor explosion)."""
+    """Write *cfg* to YAML (UTF-8, no anchor explosion) **atomically**.
+
+    The document is serialised to a sibling ``*.tmp`` file and then
+    ``os.replace``-d onto the target.  A crash / kill during the write can
+    therefore never leave a half-written ``xinmatch.yaml`` behind (which
+    previously made every ``load_config()`` caller raise ``yaml.YAMLError``
+    on the next launch).  On any serialisation error the previous file is
+    left untouched.
+    """
     file = Path(path) if path is not None else config_path()
     file.parent.mkdir(parents=True, exist_ok=True)
-    with file.open("w", encoding="utf-8") as fh:
-        yaml.safe_dump(cfg, fh, allow_unicode=True, sort_keys=False)
+    tmp = file.with_name(file.name + ".tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(cfg, fh, allow_unicode=True, sort_keys=False)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, file)
+    finally:
+        # 失败路径（序列化异常 / 磁盘满 / replace 失败）清掉半成品临时文件。
+        if tmp.exists():
+            with contextlib.suppress(OSError):  # pragma: no cover - defensive
+                tmp.unlink()
 
 
 def _merge(base: dict[str, Any], override: dict[str, Any]) -> None:

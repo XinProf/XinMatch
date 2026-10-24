@@ -12,9 +12,9 @@ v3.0.0 把可检索的参考库收敛成一种格式（列存 ``.xinDB``），�
 """
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
-from pathlib import Path
 
 import pytest
 
@@ -23,12 +23,18 @@ from xinmatch.core.db import multi_db
 
 @pytest.fixture
 def isolated(tmp_path, monkeypatch):
-    """隔离：库搜索目录 / 用户数据目录 / 注册表全部指到临时目录。"""
+    """隔离：库搜索目录 / 用户数据目录 / 注册表全部指到临时目录。
+
+    同时把内置候选目录（``<repo>/data`` 与 ``../XinMatch-DataBase/data``）也
+    指到临时目录，否则"空库目录"用例在本机真实库存在时会失去隔离性。
+    """
     libs = tmp_path / "libs"
     libs.mkdir()
     monkeypatch.setenv("XINMATCH_XINDB_DIR", str(libs))
     monkeypatch.setenv("XINMATCH_USER_DATA", str(tmp_path / "userdata"))
     monkeypatch.delenv("XINMATCH_LIBRARIES_JSON", raising=False)
+    monkeypatch.setattr(multi_db, "_data_dir", lambda: tmp_path / "data")
+    monkeypatch.setattr(multi_db, "project_root", lambda: tmp_path / "repo")
     return libs
 
 
@@ -156,13 +162,86 @@ def test_open_search_database_rejects_corrupt_xindb(isolated, tmp_path):
         multi_db.open_search_database(bad)
 
 
+@pytest.mark.parametrize("name", ["My Lib 中文.xinDB", "hash#tag 中文.xinDB"])
+def test_open_search_database_special_paths(tmp_path, xindb_factory, name):
+    """Windows 合法文件名里的空格 / 中文 / ``#`` 必须能只读打开。
+
+    旧 reader 用未转义的 ``file:{path}?mode=ro``：``#`` 被当成 URI fragment，
+    打开的是截断路径，且 ``probe`` 会在目录里创建一个 0 字节幽灵文件。
+    """
+    directory = tmp_path / "路径 with space"
+    lib = xindb_factory(directory / name)
+    reader = multi_db.open_search_database(lib)
+    try:
+        assert reader.entry_count() > 0
+    finally:
+        reader.close()
+    # 只读路径不得留下任何额外文件（幽灵文件回归）
+    assert sorted(p.name for p in lib.parent.iterdir()) == [lib.name]
+
+
+def test_count_entries_readonly_uri_escapes_hash(tmp_path, xindb_factory):
+    """``_readonly_uri`` 用 ``Path.as_uri()``，``#``/空格不得截断路径或建出幽灵文件。"""
+    lib = xindb_factory(tmp_path / "hash#tag 中文.xinDB")
+    assert multi_db._count_xindb_entries(lib) is not None
+    assert multi_db._count_xindb_entries(lib) > 0
+    # 只读计数不得在目录里留下任何额外文件
+    assert sorted(p.name for p in lib.parent.iterdir()) == [lib.name]
+
+
 # ── 4. 目录解析 ─────────────────────────────────────────────
 
-def test_env_override_wins(isolated, monkeypatch, tmp_path):
+def test_env_override_wins_when_it_has_a_library(
+    isolated, monkeypatch, tmp_path, xindb_factory
+):
+    """env 覆盖目录里有库时仍优先（部署/测试语义保留）。"""
     other = tmp_path / "other"
     other.mkdir()
+    lib = xindb_factory(other / "COD-Inorg-20261020.xinDB")
     monkeypatch.setenv("XINMATCH_XINDB_DIR", str(other))
     assert multi_db.xindb_default_dir() == other
+    assert multi_db.xindb_cod_inorg_path() == lib
+
+
+def test_empty_env_override_falls_back_to_data_dir(
+    isolated, monkeypatch, tmp_path, xindb_factory
+):
+    """过期/空的环境变量不得静默让内置默认库失效（本机实况回归）。"""
+    stale = tmp_path / "stale-env"
+    stale.mkdir()
+    monkeypatch.setenv("XINMATCH_XINDB_DIR", str(stale))
+    # 没有任何候选目录有库 -> 回到内置数据目录，而不是那个空 env 目录
+    assert multi_db.xindb_default_dir() == tmp_path / "data"
+    # 候选目录真有库时立即采用它
+    lib = xindb_factory(tmp_path / "data" / "COD-Inorg-20261020.xinDB")
+    assert multi_db.xindb_default_dir() == tmp_path / "data"
+    assert multi_db.xindb_cod_inorg_path() == lib
+
+
+def test_empty_env_override_falls_back_to_sibling(
+    isolated, monkeypatch, tmp_path, xindb_factory
+):
+    """源码态：内置 data/ 空、但构库仓库 ../XinMatch-DataBase/data 有库。"""
+    stale = tmp_path / "stale-env"
+    stale.mkdir()
+    monkeypatch.setenv("XINMATCH_XINDB_DIR", str(stale))
+    sibling = tmp_path / "XinMatch-DataBase" / "data"
+    lib = xindb_factory(sibling / "COD-Inorg-20261020.xinDB")
+    assert multi_db.xindb_default_dir() == sibling
+    assert multi_db.xindb_cod_inorg_path() == lib
+
+
+def test_stale_env_warns_only_once(isolated, monkeypatch, tmp_path, caplog):
+    """注册表一次刷新会多次调用 ``xindb_default_dir``，告警只能记一次。"""
+    stale = tmp_path / "stale-env"
+    stale.mkdir()
+    monkeypatch.setenv("XINMATCH_XINDB_DIR", str(stale))
+    monkeypatch.setattr(multi_db, "_WARNED_ENV_DIRS", set())
+    with caplog.at_level(logging.WARNING, logger="xinmatch.core.db.multi_db"):
+        multi_db.xindb_default_dir()
+        multi_db.xindb_default_dir()
+    hits = [r for r in caplog.records if "XINMATCH_XINDB_DIR" in r.getMessage()]
+    assert len(hits) == 1
 
 
 def test_real_repo_library_is_discoverable():

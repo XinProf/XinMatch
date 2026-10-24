@@ -73,8 +73,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from xinmatch.core.io import load_pattern
 from xinmatch.core.db.multi_db import open_search_database
+from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Restraints
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.report import (
@@ -296,7 +296,11 @@ def run_sample(
 
     # 3. Search-match against the reference DB (per-sample connection keeps
     #    one bad sample from poisoning the shared connection).
-    db_path = _resolve(config_dir, str(search_cfg["db"]))
+    db_value = search_cfg.get("db")
+    if not db_value:
+        raise ValueError("search.db (reference .xinDB path) is required")
+    db_path = _resolve(config_dir, str(db_value))
+    assert db_path is not None  # non-empty str() never resolves to None
     top_n = int(search_cfg.get("top_n", 20))
     weights_raw = search_cfg.get("weights")
     weights = FomWeights(**weights_raw) if isinstance(weights_raw, dict) else None
@@ -376,6 +380,15 @@ def _validate_config(config: dict[str, Any]) -> None:
     samples = config.get("samples")
     if not isinstance(samples, list) or not samples:
         raise ValueError("config must define a non-empty 'samples' list")
+    for index, sample in enumerate(samples):
+        if not isinstance(sample, dict):
+            # Without this check ``run_batch`` dies with an AttributeError on
+            # ``sample_cfg.get(...)`` *outside* the per-sample error boundary,
+            # aborting the whole batch instead of reporting a config error.
+            raise ValueError(
+                f"config['samples'][{index}] must be a mapping with a 'path' key, "
+                f"got {type(sample).__name__}"
+            )
     search_cfg = config.get("search")
     if not isinstance(search_cfg, dict) or not search_cfg.get("db"):
         raise ValueError(

@@ -87,6 +87,37 @@ class SearchV3Result:
     truncated: bool
 
 
+def _exp_d_intensity_pairs(
+    exp_peaks: list[Peak], wavelength: float
+) -> list[tuple[float, float]]:
+    """Return ``(d, intensity)`` pairs, skipping peaks that yield no finite d.
+
+    Peaks that carry an explicit ``d`` use it; the rest are converted from
+    2θ with Bragg's law ``d = λ / (2 sin θ)``.  Skipping is why the pair list
+    has to be built in one pass: taking the first *N* intensities separately
+    from the first *N* d-spacings silently mispairs them as soon as one peak
+    is skipped (the surviving weights would decorate the wrong measurement
+    windows).
+    """
+    pairs: list[tuple[float, float]] = []
+    for peak in exp_peaks:
+        d: float | None = None
+        if peak.d is not None and peak.d > 0:
+            d = float(peak.d)
+        else:
+            try:
+                sin_theta = math.sin(math.radians(peak.two_theta) / 2.0)
+            except ValueError:
+                d = None
+            else:
+                if sin_theta > 0.0:
+                    d = wavelength / (2.0 * sin_theta)
+        if d is None:
+            continue
+        pairs.append((d, float(peak.intensity or 0.0)))
+    return pairs
+
+
 def _exp_d_values(exp_peaks: list[Peak], wavelength: float) -> list[float]:
     """Extract the d-spacings of *exp_peaks*.
 
@@ -96,19 +127,7 @@ def _exp_d_values(exp_peaks: list[Peak], wavelength: float) -> list[float]:
     conversion used to carry a spurious ``1.0 / d`` here, which fed the
     prescreen reciprocal spacings and made every real search miss.
     """
-    out: list[float] = []
-    for peak in exp_peaks:
-        if peak.d is not None and peak.d > 0:
-            out.append(float(peak.d))
-            continue
-        try:
-            sin_theta = math.sin(math.radians(peak.two_theta) / 2.0)
-        except ValueError:
-            continue
-        if sin_theta <= 0.0:
-            continue
-        out.append(wavelength / (2.0 * sin_theta))
-    return out
+    return [d for d, _intensity in _exp_d_intensity_pairs(exp_peaks, wavelength)]
 
 
 def _entry_from_meta(meta: dict) -> Entry:
@@ -189,17 +208,18 @@ def search_match_v3(
         key=lambda p: (p.intensity if p.intensity is not None else 0.0),
         reverse=True,
     )[:PRESCREEN_TOP_K]
-    peak_ds = _exp_d_values(strong, wavelength)
-    if not peak_ds:
+    pairs = _exp_d_intensity_pairs(strong, wavelength)
+    if not pairs:
         return SearchV3Result(
             candidates=[], seconds=time.perf_counter() - t0,
             n_prescreened=0, truncated=False,
         )
-    strong_i = [float(p.intensity or 0.0) for p in strong[: len(peak_ds)]]
+    peak_ds = [d for d, _intensity in pairs]
+    strong_i = [intensity for _d, intensity in pairs]
 
     screen = reader.prescreen(
         peak_ds,
-        strong_i if len(strong_i) == len(peak_ds) else None,
+        strong_i,
         tolerance=tolerance,
         tolerance_rel=tolerance_rel,
         min_match=min_match,

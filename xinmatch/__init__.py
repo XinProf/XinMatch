@@ -197,14 +197,14 @@ def identify_phase(
 
     The pattern is auto-processed (smoothing → background → Kα2 strip →
     peak search) to obtain the experimental peak list, which is then
-    matched against the SQLite database at *db_path*.
+    matched against the ``.xinDB`` reference library at *db_path*.
 
     Parameters
     ----------
     pattern:
         The (raw or processed) diffraction pattern.
     db_path:
-        Path to the reference ``.db`` file.
+        Path to the reference ``.xinDB`` file (v3 columnar library).
     restraints:
         Optional :class:`Restraints` for pre-search filtering.
     top_n:
@@ -257,7 +257,7 @@ def full_analysis(
     pattern_file:
         Path to the diffraction data file.
     db_path:
-        Path to the reference ``.db`` file.
+        Path to the reference ``.xinDB`` file (v3 columnar library).
     output_report:
         Optional path to write the rendered report.  The format is
         inferred from the suffix (``.html`` / ``.txt`` / ``.md``).

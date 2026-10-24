@@ -140,6 +140,11 @@ else:
 # Project data files (see module docstring for why these exact destinations).
 datas += [
     ("xinmatch/core/db/schema.sql", "xinmatch/core/db"),
+    # CIF→峰 计算用的原子散射因子表（``peak_compute._PARAMS_PATH`` 在运行时
+    # 按 ``Path(__file__).with_name("data")`` 读取）。历史上漏在这里：
+    # 开发机能算，冻结包一调用 compute_peaks 就 FileNotFoundError。
+    ("xinmatch/core/db/data/atomic_scattering_params.json",
+     "xinmatch/core/db/data"),
     # Brand assets (logo / splash / icons).  Read at runtime through
     # ``_asset_path`` (``Path(__file__).resolve().parents[2] / "assets"``),
     # which in the onedir bundle resolves to ``_internal/assets`` — so the

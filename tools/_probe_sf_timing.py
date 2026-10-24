@@ -21,9 +21,9 @@ import gemmi
 import numpy as np
 
 from xinmatch.core.db.peak_compute import (
-    DEFAULT_DMIN,
-    DEFAULT_DMAX,
     _CM_PREFACTOR,
+    DEFAULT_DMAX,
+    DEFAULT_DMIN,
     _atomic_numbers,
     _enumerate_hkl,
     _expand_sites,
@@ -117,7 +117,7 @@ def main() -> int:
     ).fetchall()
     conn.close()
 
-    for cod_id, formula, gz, n_peaks in rows:
+    for cod_id, formula, gz, _n_peaks in rows:
         txt = gzip.decompress(gz).decode("utf-8", "replace")
         block = gemmi.cif.read_string(txt).sole_block()
         ss = gemmi.make_small_structure_from_block(block)

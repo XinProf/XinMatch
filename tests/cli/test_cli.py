@@ -161,6 +161,14 @@ class TestImport:
         data = json.loads(result.stdout)
         assert data["wavelength"] == pytest.approx(1.7889)
 
+    def test_import_missing_file_friendly_error(self, tmp_path: Path) -> None:
+        """缺文件时给中文可读提示（核心层异常消息只有路径）。"""
+        result = run_cli("import", str(tmp_path / "nope.xy"))
+        assert result.returncode == 1
+        assert not result.stdout.strip()
+        assert "文件不存在" in result.stderr
+        assert "nope.xy" in result.stderr
+
 
 # ---------------------------------------------------------------------------
 # Tests: process
@@ -265,6 +273,98 @@ class TestReport:
         assert result.returncode == 0
         content = out.read_text(encoding="utf-8")
         assert "# XinMatch" in content
+
+    def test_report_default_output_uses_format_suffix(self, pattern_file: Path) -> None:
+        """省略 --output 时扩展名必须跟随 --format（旧实现永远是 .html）。"""
+        result = run_cli("report", str(pattern_file), "--format", "md", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data["output"].endswith(".md")
+        assert "# XinMatch" in Path(data["output"]).read_text(encoding="utf-8")
+
+    def test_report_input_report_default_output(self, tmp_path: Path) -> None:
+        """``report --input-report X`` 省略 -o 时不得再崩在 Path(None) 上。"""
+        from xinmatch.core.report.report_model import Report, SampleInfo
+
+        src = tmp_path / "report_in.json"
+        Report.now(sample_info=SampleInfo(sample_name="t", wavelength=WL)).to_json(src)
+        result = run_cli("report", "--input-report", str(src), "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data["output"].endswith("-report.html")
+        assert Path(data["output"]).is_file()
+        assert data["bytes"] > 0
+
+    def test_report_without_input_reports_friendly_error(self) -> None:
+        result = run_cli("report")
+        assert result.returncode == 1
+        assert not result.stdout.strip()
+        assert "pattern_file" in result.stderr or "input-report" in result.stderr
+
+    def test_report_rejects_non_report_json(self, tmp_path: Path) -> None:
+        """检索结果摘要（search --json）不是报告，必须报错而不是静默出空报告。"""
+        junk = tmp_path / "search_result.json"
+        junk.write_text(json.dumps({"n_candidates": 0, "candidates": []}),
+                        encoding="utf-8")
+        result = run_cli("report", "--input-report", str(junk))
+        assert result.returncode == 1
+        assert "报告" in result.stderr
+        assert not junk.with_name("search_result-report.html").exists()
+
+    def test_report_input_report_missing_file(self, tmp_path: Path) -> None:
+        result = run_cli("report", "--input-report", str(tmp_path / "nope.json"))
+        assert result.returncode == 1
+        assert "not found" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Tests: batch (T14.3) — --json 的 stdout 必须是完整可解析的 JSON
+# ---------------------------------------------------------------------------
+class TestBatch:
+    def _write_config(
+        self, tmp_path: Path, pattern_file: Path, db_path: Path
+    ) -> Path:
+        out_dir = tmp_path / "batch_out"
+        cfg = tmp_path / "batch.yaml"
+        cfg.write_text(
+            "samples:\n"
+            "  - name: s1\n"
+            f"    path: {pattern_file.as_posix()}\n"
+            "search:\n"
+            f"  db: {db_path.as_posix()}\n"
+            "  mode: peaks\n"
+            "  top_n: 5\n"
+            "output:\n"
+            f"  dir: {out_dir.as_posix()}\n"
+            "  formats: [md, txt]\n",
+            encoding="utf-8",
+        )
+        return cfg
+
+    def test_batch_json_stdout_is_pure_json(
+        self, pattern_file: Path, db_path: Path, tmp_path: Path
+    ) -> None:
+        """回归：core.batch 的进度行曾混进 stdout，导致 json.loads 失败。"""
+        cfg = self._write_config(tmp_path, pattern_file, db_path)
+        result = run_cli("batch", str(cfg), "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)  # 整个 stdout 必须是一个 JSON 文档
+        assert data["n_ok"] == 1
+        assert data["n_failed"] == 0
+        assert data["samples"][0]["top_entry_id"] == "TRUTH"
+        assert Path(data["summary_path"]).is_file()
+        # 进度信息改道 stderr，人类仍然看得到。
+        assert "[s1] running" in result.stderr
+        assert "OK:" in result.stderr
+
+    def test_batch_text_keeps_progress_on_stdout(
+        self, pattern_file: Path, db_path: Path, tmp_path: Path
+    ) -> None:
+        cfg = self._write_config(tmp_path, pattern_file, db_path)
+        result = run_cli("batch", str(cfg))
+        assert result.returncode == 0, result.stderr
+        assert "[s1] running" in result.stdout
+        assert "n_ok: 1" in result.stdout
 
 
 # ---------------------------------------------------------------------------

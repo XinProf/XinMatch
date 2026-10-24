@@ -54,6 +54,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import gemmi
 
@@ -62,6 +63,7 @@ __all__ = [
     "ELEMENT_BIT_TABLE_HASH",
     "IUPAC_ELEMENTS",
     "PhaseMeta",
+    "cell_parameters_from_block",
     "element_bit_positions",
     "element_mask",
     "elements_from_formula",
@@ -163,9 +165,7 @@ def _looks_like_base64(text: str) -> bool:
         return True
     # More than half the characters being base64 letters that cannot start
     # a valid element symbol run is another giveaway.
-    if len(stripped) >= 8 and not stripped[0].isalpha():
-        return True
-    return False
+    return len(stripped) >= 8 and not stripped[0].isalpha()
 
 
 #: Leading element symbol of an ``_atom_site_type_symbol`` value.  CIF writes
@@ -194,7 +194,9 @@ def elements_from_sites(structure: object) -> list[str]:
     """
     found: set[str] = set()
     try:
-        sites = structure.sites
+        # The parameter is typed ``object`` so that tests and callers can pass
+        # any duck-typed stand-in; real callers always pass a gemmi structure.
+        sites = cast("gemmi.SmallStructure", structure).sites
     except Exception:
         return []
     for site in sites:
@@ -450,6 +452,58 @@ def _to_int(text: str | None) -> int | None:
         return None
 
 
+#: The six CIF tags that define a unit cell, in ``gemmi.UnitCell`` order.
+_CELL_TAGS: tuple[str, ...] = (
+    "_cell_length_a",
+    "_cell_length_b",
+    "_cell_length_c",
+    "_cell_angle_alpha",
+    "_cell_angle_beta",
+    "_cell_angle_gamma",
+)
+
+
+def cell_parameters_from_block(
+    block: gemmi.cif.Block | None,
+) -> tuple[float, float, float, float, float, float] | None:
+    """Read the six unit-cell parameters from a CIF block.
+
+    This is the fallback used when :func:`gemmi.read_small_structure` fails to
+    map the cell: a handful of COD files split the cell over several tags (one
+    of them hidden in a trailing single-column ``loop_``), so the text is the
+    only place the complete cell can be recovered from.  Values may carry the
+    usual standard-uncertainty suffix (``4.913(2)``).
+
+    Args:
+        block: The CIF block, or ``None`` when the file could not be parsed.
+
+    Returns:
+        ``(a, b, c, alpha, beta, gamma)`` in A and degrees, or ``None`` unless
+        all six tags are present and describe a physically usable cell
+        (positive lengths, 0 < angles < 180 degrees).
+    """
+    if block is None:
+        return None
+    values = [
+        _to_float(_first_block_value(block, tag)) for tag in _CELL_TAGS
+    ]
+    a, b, c, alpha, beta, gamma = values
+    if (
+        a is None
+        or b is None
+        or c is None
+        or alpha is None
+        or beta is None
+        or gamma is None
+    ):
+        return None
+    if a <= 0.0 or b <= 0.0 or c <= 0.0:
+        return None
+    if not (0.0 < alpha < 180.0 and 0.0 < beta < 180.0 and 0.0 < gamma < 180.0):
+        return None
+    return (a, b, c, alpha, beta, gamma)
+
+
 def parse_meta(cif_path: str | Path, *, entry_id: str = "") -> PhaseMeta | None:
     """Read the scalar metadata of a CIF file.
 
@@ -485,15 +539,7 @@ def parse_meta(cif_path: str | Path, *, entry_id: str = "") -> PhaseMeta | None:
             return None
         return _first_block_value(block, name)
 
-    a = _to_float(item("_cell_length_a"))
-    b = _to_float(item("_cell_length_b"))
-    c = _to_float(item("_cell_length_c"))
-    alpha = _to_float(item("_cell_angle_alpha"))
-    beta = _to_float(item("_cell_angle_beta"))
-    gamma = _to_float(item("_cell_angle_gamma"))
-    cell: tuple[float, float, float, float, float, float] | None = None
-    if None not in (a, b, c, alpha, beta, gamma):
-        cell = (a, b, c, alpha, beta, gamma)  # type: ignore[arg-type]
+    cell = cell_parameters_from_block(block)
 
     space_group = item("_symmetry_space_group_name_H-M") or item(
         "_space_group_name_H-M_alt"

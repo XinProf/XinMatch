@@ -130,6 +130,30 @@ def test_no_pattern_still_informs_in_each_mode(qapp, monkeypatch):
         assert win._candidates == []
 
 
+def test_open_library_error_is_reported_not_raised(qapp, monkeypatch):
+    """打开参考库抛非 LibraryNotAvailableError 异常时，必须在 GUI 动作边界
+    转成错误框，而不是让异常逃进 Qt 事件循环（槽函数里只有 traceback、用户
+    看不到原因，且 PySide6 会打印未捕获异常）。"""
+    from xinmatch.core.model.pattern import Pattern
+
+    win = MainWindow()
+    win.set_pattern(Pattern(np.linspace(10.0, 80.0, 200), np.ones(200)))
+
+    def _boom():
+        raise RuntimeError("database is gone")
+
+    monkeypatch.setattr(win, "open_search_library", _boom)
+    recorded: list[tuple] = []
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox, "critical",
+        lambda *args, **kwargs: recorded.append(args),
+    )
+    win._run_search_match()  # 不得抛异常
+    assert recorded, "打开库失败时必须提示用户"
+    assert "database is gone" in str(recorded[0])
+    assert win._candidates == []
+
+
 # ---------------------------------------------------------------------------
 # 2. FPFM 结果 → CandidateResult 转换（纯函数单测）
 # ---------------------------------------------------------------------------

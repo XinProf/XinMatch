@@ -30,14 +30,29 @@ surviving phase is bit-for-bit the score the v2 engine would give.
 
 Access pattern
 --------------
-The reader opens the database read-only and caches decoded chunks in a small
-LRU.  Peak data is decoded with :func:`numpy.frombuffer` (zero-copy over the
-bytes object SQLite hands back), and the prescreen matrix is decoded once per
-chunk and reused across queries.
+The reader opens the database read-only, maps the file (``PRAGMA mmap_size``)
+and caches decoded chunks in a small LRU.  Peak data is decoded with
+:func:`numpy.frombuffer` (zero-copy over the bytes object SQLite hands back),
+and the prescreen matrix is decoded once per chunk and reused across queries.
+
+The two hot paths are shaped around the memory hierarchy:
+
+* **prescreen** walks the strong-peak matrix in row blocks that fit in CPU
+  cache and re-reads each block once per measurement window.  The old code
+  re-read the *whole* matrix per window (40 full-matrix passes), so its cost
+  was dominated by main-memory bandwidth; the blocked version keeps the block
+  hot while all 40 windows are evaluated.  The per-row "does any reflection
+  fall inside the window" reduction is done by reinterpreting the ``(rows, K)``
+  boolean block as 64-bit words and OR-ing them, which avoids NumPy's slow
+  row-at-a-time ``any(axis=1)`` reduction.
+* **fetch_peaks** locates candidates through a cached chunk-offset table
+  instead of rescanning ``peak_chunks`` and only touches the chunks that
+  actually contain a requested phase.
 """
 
 from __future__ import annotations
 
+import bisect
 import contextlib
 import logging
 import sqlite3
@@ -71,10 +86,70 @@ DEFAULT_RANK_LIMIT = 800
 _CHUNK_CACHE_MAX = 8
 
 #: The prescreen matrix is the hot structure: it is decoded once per
-#: database and kept for the process lifetime.  Its size is
-#: ``n_entries × TOP_K × 2 × 4 B`` — 18 MB for 71 k phases, 137 MB for the
-#: full 535 k archive.
+#: database and kept for the process lifetime.  Only the columns the
+#: prescreen uses are kept: the full ``(n_entries, TOP_K)`` d-spacing matrix
+#: plus the phase's strongest intensity as a flat ``(n_entries,)`` array
+#: (the old reader also concatenated the whole ``top_i`` matrix, which the
+#: prescreen never used beyond column 0).
 _MATRIX_CACHE_MAX = 2
+
+#: Row block used by :meth:`XinDBReader.prescreen`.
+#:
+#: 8192 rows × TOP_K float32 is ~1 MiB, i.e. it stays in L2 cache across all
+#: measurement windows while being large enough to amortise the per-window
+#: NumPy call overhead.  Benchmarked on PCOD (1.06 M phases): 4096/8192/12288
+#: are within a few percent of each other and 16384+ falls over once the block
+#: no longer fits in cache.
+_PRESCREEN_BLOCK = 8192
+
+#: ``PRAGMA mmap_size`` applied to the read-only connection.  The PCOD library
+#: is 1.7 GiB, so mapping it avoids SQLite copying every 2.4 MiB peak chunk
+#: through its page cache in :meth:`XinDBReader.fetch_peaks` (1.4 s → 0.69 s
+#: for 800 candidates on the benchmark machine).  Mapped pages are reclaimable
+#: file-backed memory, so they do not become private commit.
+_MMAP_SIZE = 2 * 1024 * 1024 * 1024
+
+
+def _readonly_uri(path: Path) -> str:
+    """Return a ``file:`` URI for *path* that is safe for special characters.
+
+    ``#`` is a legal Windows filename character but a URI fragment delimiter:
+    interpolating the raw path made SQLite open the truncated path, and because
+    the ``mode=ro`` query then landed inside the fragment it even *created* a
+    zero-byte file.  ``Path.as_uri()`` percent-encodes such characters;
+    :func:`~xinmatch.core.db.multi_db._readonly_uri` uses the same convention.
+    """
+    try:
+        return path.resolve().as_uri() + "?mode=ro"
+    except (OSError, ValueError):  # pragma: no cover - defensive
+        return "file:" + path.as_posix() + "?mode=ro"
+
+
+def _block_rows_any(block: np.ndarray, scratch: np.ndarray) -> np.ndarray:
+    """Per-row ``any`` of a boolean ``(rows, k)`` block.
+
+    ``block.any(axis=1)`` is noticeably slow because NumPy reduces one short
+    row at a time.  For the prescreen matrix (``k == TOP_K == 32`` bytes per
+    row) the same answer is much cheaper to get by viewing each row as four
+    64-bit words and OR-ing the words vectorised: a non-zero word means some
+    reflection of that phase fell inside the window.  NumPy booleans are
+    always stored as 0/1 bytes, so this is exact.
+
+    ``scratch`` must be a ``uint64`` buffer of at least ``rows`` elements;
+    it is reused across windows to keep the inner loop allocation-free.
+    """
+    k = block.shape[1]
+    if k % 8 == 0 and block.flags.c_contiguous:
+        rows = block.shape[0]
+        words = block.view(np.uint64).reshape(rows, k // 8)
+        out = scratch[:rows]
+        np.bitwise_or(words[:, 0], words[:, 1], out=out)
+        for j in range(2, words.shape[1]):
+            np.bitwise_or(out, words[:, j], out=out)
+        non_zero: np.ndarray = out != 0
+        return non_zero
+    # Fallback for an unusual ``top_k`` (not a multiple of 8).
+    return np.asarray(block.any(axis=1))
 
 
 @dataclass
@@ -114,9 +189,11 @@ class XinDBReader:
         self.path = Path(db_path)
         self.rank_limit = int(rank_limit)
         self._conn: sqlite3.Connection | None = None
+        self._conn_lock = threading.Lock()
         self._lock = threading.Lock()
         self._chunks: OrderedDict[int, dict] = OrderedDict()
         self._matrices: OrderedDict[str, dict] = OrderedDict()
+        self._layouts: OrderedDict[str, list[tuple[int, int, int, int]]] = OrderedDict()
         self._meta: dict[str, str] | None = None
         self._entry_ids: list[str] | None = None
         self._elem_masks: np.ndarray | None = None
@@ -129,21 +206,34 @@ class XinDBReader:
         return self.path.is_file()
 
     def _get_conn(self) -> sqlite3.Connection | None:
-        """Return the read-only connection, opening it on first use."""
-        if self._conn is not None:
-            return self._conn
-        if not self.available:
-            return None
-        try:
-            conn = sqlite3.connect(
-                f"file:{self.path.as_posix()}?mode=ro", uri=True,
-                check_same_thread=False,
-            )
-        except sqlite3.Error:
-            return None
-        conn.execute("PRAGMA query_only = ON")
-        self._conn = conn
-        return conn
+        """Return the read-only connection, opening it on first use.
+
+        The double-checked :attr:`_conn_lock` keeps two threads that race on
+        the first call from opening two connections (the second would leak,
+        because only one can be remembered in :attr:`_conn`).
+        """
+        conn = self._conn
+        if conn is not None:
+            return conn
+        with self._conn_lock:
+            if self._conn is not None:
+                return self._conn
+            if not self.available:
+                return None
+            try:
+                conn = sqlite3.connect(
+                    _readonly_uri(self.path), uri=True, check_same_thread=False
+                )
+            except sqlite3.Error:
+                return None
+            conn.execute("PRAGMA query_only = ON")
+            with contextlib.suppress(sqlite3.Error):
+                # Read-only memory map: peak chunks are copied out of the
+                # mapped file straight into the Python bytes object instead of
+                # going through SQLite's page cache a page at a time.
+                conn.execute(f"PRAGMA mmap_size = {_MMAP_SIZE}")
+            self._conn = conn
+            return conn
 
     def close(self) -> None:
         """Release the connection and cached data."""
@@ -154,6 +244,7 @@ class XinDBReader:
             self._conn = None
             self._chunks.clear()
             self._matrices.clear()
+            self._layouts.clear()
             self._meta = None
             self._entry_ids = None
             self._elem_masks = None
@@ -264,30 +355,56 @@ class XinDBReader:
         return chunk
 
     @staticmethod
-    def _decode_matrix(blob: object, n: int, k: int) -> np.ndarray:
+    def _blob_bytes(blob: object) -> bytes:
+        """Return a BLOB value as ``bytes``.
+
+        SQLite already hands BLOBs back as an exact ``bytes`` object, and
+        ``bytes(b)`` is a no-op for those, so the common path allocates
+        nothing; the ``bytearray``/``memoryview`` branches exist for callers
+        that pass their own buffer in.
+        """
+        if isinstance(blob, bytes):
+            return blob
+        if isinstance(blob, (bytearray, memoryview)):
+            return bytes(blob)
+        raise TypeError(f"expected a BLOB value, got {type(blob).__name__}")
+
+    @classmethod
+    def _decode_matrix(cls, blob: object, n: int, k: int) -> np.ndarray:
         """Decode a ``(n, k)`` float32 block from a BLOB."""
         if blob is None:
             return np.zeros((n, k), dtype=np.float32)
-        data = bytes(blob)
+        data = cls._blob_bytes(blob)
         expected = n * k * 4
         if len(data) < expected:
             # Tolerate a short block rather than raising: a truncated chunk
             # must not take the whole search down.
-            padded = data + b"\x00" * (expected - len(data))
-            data = padded
+            data = data + b"\x00" * (expected - len(data))
         return np.frombuffer(data, dtype="<f4").reshape(n, k)
 
-    @staticmethod
-    def _decode_flat(blob: object) -> np.ndarray:
+    @classmethod
+    def _decode_flat(cls, blob: object) -> np.ndarray:
         """Decode a flat float32 array from a BLOB."""
         if blob is None:
             return np.zeros(0, dtype=np.float32)
-        data = bytes(blob)
+        data = cls._blob_bytes(blob)
         count = len(data) // 4
         return np.frombuffer(data[: count * 4], dtype="<f4")
 
     def _matrix(self) -> dict | None:
-        """Return the full prescreen matrix (concatenated over chunks)."""
+        """Return the prescreen matrix (decoded once per process).
+
+        The returned dict holds ``top_d`` — the ``(n_entries, top_k)``
+        float32 matrix of each phase's strongest reflections — and
+        ``main_i``, the same reflections' intensities as a flat float32
+        array (column 0 of the stored ``top_i`` block).  ``top_i``'s other 31
+        columns are never read by the prescreen, so decoding them (and
+        concatenating another ~130 MB on PCOD) was pure overhead.
+
+        The matrix is pre-allocated and filled chunk by chunk, which keeps the
+        peak resident size at ``top_d`` (~130 MB on PCOD instead of ~260 MB)
+        and avoids the extra full-size copy ``np.concatenate`` used to make.
+        """
         key = str(self.path.resolve()) if self.path.exists() else str(self.path)
         with self._lock:
             cached = self._matrices.get(key)
@@ -298,24 +415,46 @@ class XinDBReader:
         conn = self._get_conn()
         if conn is None:
             return None
+        k = self.top_k()
         try:
-            rows = conn.execute(
-                "SELECT chunk_id, n, top_d, top_i FROM peak_chunks ORDER BY chunk_id"
-            ).fetchall()
-        except sqlite3.Error:
+            total = int(
+                conn.execute(
+                    "SELECT COALESCE(SUM(n), 0) FROM peak_chunks"
+                ).fetchone()[0]
+                or 0
+            )
+        except (sqlite3.Error, TypeError, ValueError):
             return None
-        if not rows:
+        if total <= 0 or k <= 0:
             return None
 
-        k = self.top_k()
-        d_blocks: list[np.ndarray] = []
-        i_blocks: list[np.ndarray] = []
-        for _cid, n, top_d, top_i in rows:
-            d_blocks.append(self._decode_matrix(top_d, int(n), k))
-            i_blocks.append(self._decode_matrix(top_i, int(n), k))
+        top_d = np.zeros((total, k), dtype=np.float32)
+        main_i = np.zeros(total, dtype=np.float32)
+        row = 0
+        try:
+            # Iterate the cursor instead of ``fetchall()``: a fetchall keeps
+            # every ``top_d``/``top_i`` BLOB (260 MB on PCOD) alive at once.
+            for n_blob, top_d_blob, top_i_blob in conn.execute(
+                "SELECT n, top_d, top_i FROM peak_chunks ORDER BY chunk_id"
+            ):
+                n = int(n_blob or 0)
+                if n <= 0:
+                    continue
+                take = min(n, total - row)
+                if take <= 0:
+                    break
+                d_block = self._decode_matrix(top_d_blob, n, k)
+                i_block = self._decode_matrix(top_i_blob, n, k)
+                top_d[row : row + take] = d_block[:take]
+                main_i[row : row + take] = i_block[:take, 0]
+                row += take
+        except sqlite3.Error:
+            return None
+        if row <= 0:
+            return None
         matrix = {
-            "top_d": np.concatenate(d_blocks, axis=0) if d_blocks else np.zeros((0, k)),
-            "top_i": np.concatenate(i_blocks, axis=0) if i_blocks else np.zeros((0, k)),
+            "top_d": top_d[:row],
+            "main_i": main_i[:row],
         }
         with self._lock:
             self._matrices[key] = matrix
@@ -323,6 +462,66 @@ class XinDBReader:
             while len(self._matrices) > _MATRIX_CACHE_MAX:
                 self._matrices.popitem(last=False)
         return matrix
+
+    def _chunk_layout(self) -> list[tuple[int, int, int, int]] | None:
+        """Cached ``(chunk_id, first_reflection, n_d, n_i)`` table.
+
+        The prescreen matrix holds phases in rowid order, and the CSR peak
+        arrays hold reflections in the same order, so a phase's global
+        ``peak_off`` (a reflection index) can be mapped to a chunk with a
+        binary search over the cumulative reflection counts.  The counts are
+        derived from ``length(all_d) // 4`` / ``length(all_i) // 4`` — exactly
+        the element counts :meth:`_decode_flat` produces — so locating a
+        phase through this table yields the same slice the old full scan did,
+        including for a truncated BLOB.
+        """
+        key = str(self.path.resolve()) if self.path.exists() else str(self.path)
+        with self._lock:
+            cached = self._layouts.get(key)
+            if cached is not None:
+                self._layouts.move_to_end(key)
+                return cached
+        conn = self._get_conn()
+        if conn is None:
+            return None
+        try:
+            rows = conn.execute(
+                "SELECT chunk_id, length(all_d), length(all_i) "
+                "FROM peak_chunks ORDER BY chunk_id"
+            ).fetchall()
+        except sqlite3.Error:
+            return None
+        layout: list[tuple[int, int, int, int]] = []
+        first = 0
+        for chunk_id, d_bytes, i_bytes in rows:
+            n_d = int(d_bytes or 0) // 4
+            n_i = int(i_bytes or 0) // 4
+            layout.append((int(chunk_id), first, n_d, n_i))
+            first += n_d
+        with self._lock:
+            self._layouts[key] = layout
+            self._layouts.move_to_end(key)
+            while len(self._layouts) > _MATRIX_CACHE_MAX:
+                self._layouts.popitem(last=False)
+        return layout
+
+    @staticmethod
+    def _locate_chunk(
+        layout: list[tuple[int, int, int, int]], peak_off: int
+    ) -> tuple[int, int, int] | None:
+        """Return ``(chunk_id, local_offset, n_d)`` for a global peak offset.
+
+        ``bisect_right`` over the cumulative chunk ends returns the first
+        chunk whose end is *after* ``peak_off`` — the same chunk the old
+        "walk the chunks accumulating their sizes" loop picked, including for
+        zero-length chunks.
+        """
+        ends = [first + n_d for _cid, first, n_d, _n_i in layout]
+        idx = bisect.bisect_right(ends, peak_off)
+        if idx >= len(layout):
+            return None
+        chunk_id, first, n_d, _n_i = layout[idx]
+        return chunk_id, peak_off - first, n_d
 
     # ── phase data ────────────────────────────────────────
     def fetch_meta(self, entry_id: str) -> dict | None:
@@ -398,45 +597,47 @@ class XinDBReader:
     ) -> tuple[list[float], list[float]]:
         """Decode one phase's reflections from the CSR arrays.
 
-        ``peak_off`` is the phase's **global** peak index; the chunk that
-        holds it is found by asking the database for the chunk boundaries
-        (cached per call sequence via a small local scan).
+        ``peak_off`` is the phase's **global** peak index; the chunk that holds
+        it is found from the cached chunk layout and only that chunk is
+        decoded, instead of walking every chunk in the library.
         """
         if peak_n <= 0:
             return [], []
         conn = self._get_conn()
         if conn is None:
             return [], []
-        # Locate the chunk: chunks are stored in order and each holds a
-        # contiguous global peak range, so a single ordered scan finds it.
+        layout = self._chunk_layout()
+        if not layout:
+            return [], []
+        located = self._locate_chunk(layout, peak_off)
+        if located is None:
+            return [], []
+        chunk_id, local, _n_d = located
         try:
-            rows = conn.execute(
-                "SELECT chunk_id, n, all_d, all_i FROM peak_chunks "
-                "ORDER BY chunk_id"
-            ).fetchall()
+            row = conn.execute(
+                "SELECT all_d, all_i FROM peak_chunks WHERE chunk_id = ?",
+                (chunk_id,),
+            ).fetchone()
         except sqlite3.Error:
             return [], []
-        # ``peak_off`` counts reflections; chunk boundaries are expressed in
-        # reflections as well, so walk the chunks accumulating their sizes.
-        cursor = 0
-        for _chunk_id, _n, all_d, all_i in rows:
-            flat_d = self._decode_flat(all_d)
-            flat_i = self._decode_flat(all_i)
-            size = int(flat_d.size)
-            if peak_off < cursor + size:
-                local = peak_off - cursor
-                take = min(peak_n, size - local)
-                ds = flat_d[local : local + take].astype(np.float64)
-                is_ = flat_i[local : local + take].astype(np.float64)
-                return ds.tolist(), is_.tolist()
-            cursor += size
-        return [], []
+        if row is None:
+            return [], []
+        flat_d = self._decode_flat(row[0])
+        flat_i = self._decode_flat(row[1])
+        size = int(flat_d.size)
+        take = min(peak_n, size - local)
+        ds = flat_d[local : local + take].astype(np.float64)
+        is_ = flat_i[local : local + take].astype(np.float64)
+        return ds.tolist(), is_.tolist()
 
     def fetch_peaks(self, entry_ids: list[str]) -> dict[str, tuple[list[float], list[float]]]:
         """Batch-decode the reflections of several phases.
 
-        One ordered scan over ``peak_chunks`` serves every requested phase,
-        instead of one query per phase.
+        Candidates are grouped by chunk through the cached chunk layout and
+        only the chunks that actually hold a requested phase are read, so one
+        batch serves every candidate without decoding the whole library.  The
+        insertion order of the result is unchanged (chunk order, then the
+        order SQLite returned the requested rows).
         """
         if not entry_ids:
             return {}
@@ -455,37 +656,55 @@ class XinDBReader:
         if not rows:
             return {}
 
-        # rowid → (name, global peak offset, count)
-        needed: dict[int, tuple[str, int, int]] = {
-            int(r[0]): (str(r[1]), int(r[2] or 0), int(r[3] or 0))
-            for r in rows
-        }
-        out: dict[str, tuple[list[float], list[float]]] = {}
-        try:
-            chunk_rows = conn.execute(
-                "SELECT n, all_d, all_i FROM peak_chunks ORDER BY chunk_id"
-            ).fetchall()
-        except sqlite3.Error:
+        layout = self._chunk_layout()
+        if not layout:
             return {}
-        cursor = 0
-        for _n, all_d, all_i in chunk_rows:
-            flat_d = self._decode_flat(all_d)
-            flat_i = self._decode_flat(all_i)
+
+        # group the candidates by chunk, preserving the order in which SQLite
+        # returned the entries (that is the order the old per-chunk loop
+        # appended them in).
+        buckets: dict[int, list[tuple[str, int, int]]] = {}
+        order: list[int] = []
+        for r in rows:
+            name = str(r[1])
+            peak_off = int(r[2] or 0)
+            peak_n = int(r[3] or 0)
+            if peak_n <= 0:
+                continue
+            located = self._locate_chunk(layout, peak_off)
+            if located is None:
+                continue
+            chunk_id, local, _n_d = located
+            if chunk_id not in buckets:
+                buckets[chunk_id] = []
+                order.append(chunk_id)
+            buckets[chunk_id].append((name, local, peak_n))
+
+        out: dict[str, tuple[list[float], list[float]]] = {}
+        for chunk_id in sorted(order):
+            items = buckets[chunk_id]
+            try:
+                row = conn.execute(
+                    "SELECT all_d, all_i FROM peak_chunks WHERE chunk_id = ?",
+                    (chunk_id,),
+                ).fetchone()
+            except sqlite3.Error:
+                return out
+            if row is None:
+                continue
+            flat_d = self._decode_flat(row[0])
+            flat_i = self._decode_flat(row[1])
             size = int(flat_d.size)
-            for _rowid, (name, peak_off, peak_n) in needed.items():
-                if peak_n <= 0 or name in out:
+            for name, local, peak_n in items:
+                if name in out:
                     continue
-                if peak_off < cursor or peak_off >= cursor + size:
-                    continue
-                local = peak_off - cursor
                 take = min(peak_n, size - local)
+                if take <= 0:
+                    continue
                 out[name] = (
                     flat_d[local : local + take].astype(np.float64).tolist(),
                     flat_i[local : local + take].astype(np.float64).tolist(),
                 )
-            cursor += size
-            if len(out) == len(needed):
-                break
         return out
 
     # ── prescreen ─────────────────────────────────────────
@@ -531,7 +750,6 @@ class XinDBReader:
             return PrescreenResult(candidate_ids=[], truncated=False, n_hits=0)
 
         top_d = matrix["top_d"]
-        top_i = matrix["top_i"]
         n = top_d.shape[0]
         if n == 0:
             return PrescreenResult(candidate_ids=[], truncated=False, n_hits=0)
@@ -566,34 +784,50 @@ class XinDBReader:
         hits = np.zeros(n, dtype=np.int32)
         whits = np.zeros(n, dtype=np.float64)
         main_hit = np.zeros(n, dtype=bool)
-        main_d = top_d[:, 0]
-        # The strongest reference line of each phase, used for the Hanawalt
-        # "main peak" test.  ``top_i`` is the intensity of the same
-        # reflections, so the phase's strongest line is column 0 of both
-        # matrices (they are stored in descending-intensity order).
-        main_i = top_i[:, 0]
-        for k in range(n_meas):
-            lo = float(md[k] - t_meas[k])
-            hi = float(md[k] + t_meas[k])
-            in_window = (top_d >= lo) & (top_d <= hi)
-            any_k = in_window.any(axis=1)
-            hits += any_k
+        # The windows are evaluated against row blocks of the matrix.  Doing
+        # all windows for one block before moving on keeps the block in CPU
+        # cache; the old loop streamed the whole ``(n, TOP_K)`` matrix once per
+        # window (40 full passes on PCOD, i.e. ~5 GB of memory traffic).
+        # ``lo``/``hi`` stay Python floats, the exact scalar objects the old
+        # per-window comparison used, so the float32 comparisons NumPy
+        # performs are bit-identical.
+        win_lo = [float(v) for v in (md - t_meas)]
+        win_hi = [float(v) for v in (md + t_meas)]
+        main_i_scaled = matrix["main_i"] / 1000.0
+        block_rows = min(_PRESCREEN_BLOCK, n)
+        row_or_buf = np.empty(block_rows, dtype=np.uint64)
+        for start in range(0, n, block_rows):
+            stop = min(start + block_rows, n)
+            rows = stop - start
+            d_block = top_d[start:stop]
+            i_block = main_i_scaled[start:stop]
+            b_hits = np.zeros(rows, dtype=np.int32)
+            b_main = np.zeros(rows, dtype=bool)
+            b_whits: np.ndarray | None = None
             if w_norm is not None:
-                whits += any_k * float(w_norm[k])
-            # Strength of the phase's *strongest* line when it falls inside
-            # the window: a phase whose 100 % line is observed deserves to
-            # outrank a phase that only matched with weak lines.  This is
-            # the prescreen's contribution to the Hanawalt main-peak
-            # principle, and it is what lets the candidate ordering
-            # approximate the final FoM ordering.
-            if w_norm is not None:
+                b_whits = np.zeros(rows, dtype=np.float64)
+            for k in range(n_meas):
+                lo = win_lo[k]
+                hi = win_hi[k]
+                in_window = d_block >= lo
+                in_window &= d_block <= hi
+                any_k = _block_rows_any(in_window, row_or_buf)
+                b_hits += any_k
+                # Column 0 is the phase's strongest reflection (the matrices
+                # are stored in descending-intensity order), so it carries
+                # both the Hanawalt "main peak" flag and the intensity-weighted
+                # hit term.  ``in_window[:, 0]`` is exactly the old
+                # ``(main_d >= lo) & (main_d <= hi)`` mask.
                 strongest_in = in_window[:, 0]
-                whits += (
-                    strongest_in
-                    * (main_i / 1000.0)
-                    * float(w_norm[k])
-                )
-            main_hit |= (main_d >= lo) & (main_d <= hi)
+                if b_whits is not None and w_norm is not None:
+                    wn = float(w_norm[k])
+                    b_whits += any_k * wn
+                    b_whits += strongest_in * i_block * wn
+                b_main |= strongest_in
+            hits[start:stop] = b_hits
+            if b_whits is not None:
+                whits[start:stop] = b_whits
+            main_hit[start:stop] = b_main
 
         need = max(1, min(int(min_match), top_d.shape[1]))
         cand = hits >= need
@@ -655,9 +889,14 @@ class XinDBReader:
                 ).fetchone()
                 if row is not None:
                     blob = row[0] or b""
+                    # A truncated/corrupt BLOB must not take library discovery
+                    # down: keep the whole uint32 prefix, mirroring the
+                    # tolerance of the float32 peak decoders.
+                    usable = (len(blob) // 4) * 4
                     result = (
-                        np.frombuffer(blob, dtype=np.uint32)
-                        if len(blob) >= 4 else np.empty(0, dtype=np.uint32)
+                        np.frombuffer(blob[:usable], dtype=np.uint32)
+                        if usable
+                        else np.empty(0, dtype=np.uint32)
                     )
         self._elem_index[key] = result
         return result
@@ -730,7 +969,13 @@ class XinDBReader:
         version = meta.get("schema_version")
         if version is None:
             return False, "no_schema_version"
-        if int(version) != SCHEMA_VERSION:
+        try:
+            parsed = int(version)
+        except (TypeError, ValueError):
+            # A corrupt / foreign library must be rejected, not crash callers
+            # such as ``multi_db.list_libraries()`` with ValueError.
+            return False, f"schema_version:{version}"
+        if parsed != SCHEMA_VERSION:
             return False, f"schema_version:{version}"
         return True, ""
 

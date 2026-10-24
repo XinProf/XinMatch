@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import random
 import sqlite3
 import sys
@@ -57,9 +56,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from xinmatch.core.db.peak_compute import DEFAULT_MAX_PEAKS  # noqa: E402
-from xinmatch.core.db.peak_compute import INTENSITY_SCALE  # noqa: E402
-from xinmatch.core.db.peak_compute import PEAK_CONVENTION  # noqa: E402
+from xinmatch.core.db.peak_compute import (  # noqa: E402
+    DEFAULT_MAX_PEAKS,  # noqa: E402
+    INTENSITY_SCALE,  # noqa: E402
+    PEAK_CONVENTION,  # noqa: E402
+)
 from xinmatch.core.db.schema_v3 import META_KEYS, REQUIRED_TABLES  # noqa: E402
 
 #: Intensity scale the ``norm-1000`` convention promises.  A phase's strongest
@@ -309,7 +310,7 @@ def _check_entries(conn: sqlite3.Connection, rep: Report, meta: dict[str, str], 
         bounds,
     ).fetchone()
     labels = ("a", "b", "c", "volume", "alpha", "beta", "gamma")
-    bad = {lbl: int(v) for lbl, v in zip(labels, row) if int(v)}
+    bad = {lbl: int(v) for lbl, v in zip(labels, row, strict=True) if int(v)}
     total = int(conn.execute("SELECT count(*) FROM entries").fetchone()[0] or 0)
     if bad:
         detail = ", ".join(f"{k}={v:,}" for k, v in bad.items())

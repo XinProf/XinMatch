@@ -109,6 +109,26 @@ def test_list_text_output_mentions_default(isolated_env):
     assert result.returncode == 0, result.stderr
     assert "xindb_cod_inorg" in result.stdout
     assert "默认" in result.stdout
+    # 文本模式只打印表格（+ 动作提示），不再被 _emit 重复一遍
+    # "action: list / libraries: N item(s)" 摘要。
+    assert "item(s)" not in result.stdout
+    assert "action: list" not in result.stdout
+
+
+def test_add_text_mode_prints_mounted_id(external_lib, isolated_env):
+    result = run_cli("libraries", "--add", str(external_lib), env=isolated_env)
+    assert result.returncode == 0, result.stderr
+    assert "已挂载" in result.stdout
+    assert "ext_" in result.stdout
+
+
+def test_add_and_remove_are_mutually_exclusive(external_lib, isolated_env):
+    result = run_cli(
+        "libraries", "--add", str(external_lib), "--remove", "ext_x",
+        env=isolated_env,
+    )
+    assert result.returncode == 2  # argparse usage error
+    assert "not allowed with" in result.stderr
 
 
 # ---------------------------------------------------------------------------

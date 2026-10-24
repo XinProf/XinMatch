@@ -55,14 +55,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from xinmatch.core.db.peak_compute import DEFAULT_DMIN, DEFAULT_MAX_PEAKS  # noqa: E402
-
 from tools.build_cod_xindb import build, default_out_dir  # noqa: E402
 from xinmatch.core.db.cif_scan import (  # noqa: E402
     DEFAULT_INORG_COD_ROOT,
     DEFAULT_INORG_PCOD_ROOT,
     DEFAULT_INORG_TCOD_ROOT,
 )
+from xinmatch.core.db.peak_compute import DEFAULT_DMIN, DEFAULT_MAX_PEAKS  # noqa: E402
 
 logger = logging.getLogger("tools.build_cod_inorg_xindb")
 

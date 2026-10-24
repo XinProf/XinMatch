@@ -26,6 +26,7 @@ import argparse
 import contextlib
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,6 @@ from xinmatch.core.batch import load_config as load_batch_config
 from xinmatch.core.batch import run_batch
 from xinmatch.core.db.multi_db import (
     add_external_library,
-    library_by_id,
     list_libraries,
     open_search_database,
     remove_external_library,
@@ -76,6 +76,23 @@ def _emit(result: dict[str, Any], as_json: bool) -> None:
             print(f"{key}: {len(value)} entry(ies)")
         else:
             print(f"{key}: {value}")
+
+
+@contextlib.contextmanager
+def _progress_to_stderr() -> Iterator[None]:
+    """把核心层写往 stdout 的进度行临时改道到 stderr。
+
+    ``core.batch.run_batch`` 用 ``print`` 报告逐样本进度（``[name] running …``
+    / ``[name] OK …``）。``batch --json`` 约定 stdout 是一个完整、可被
+    ``json.loads`` 直接解析的 JSON 文档；进度行混进去会让下游脚本解析失败
+    （实测 ``JSONDecodeError``）。JSON 模式下改道到 stderr：终端里仍然看得见
+    进度，机器读取的 stdout 保持纯净。
+
+    ``print()`` 在调用时读取 ``sys.stdout``，因此此处的重定向对核心层的
+    进度输出有效；C 扩展直接写 fd 1 的情况不在覆盖范围内（当前无此路径）。
+    """
+    with contextlib.redirect_stdout(sys.stderr):
+        yield
 
 
 # ---------------------------------------------------------------------------
@@ -218,16 +235,48 @@ def cmd_quantify(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _load_report_json(path: str) -> Report:
+    """Read a report JSON file written by :meth:`Report.to_json`.
+
+    ``Report.from_dict`` is deliberately lenient (missing sections fall back to
+    empty objects), so a *different* JSON document — e.g. the result summary
+    printed by ``search --json`` / ``run --json`` — would silently produce an
+    empty report.  Validate the shape here and fail with an actionable message
+    instead (the CLI is the user-facing boundary).
+    """
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"report file not found: {p}")
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise ValueError(f"report file is not valid JSON: {p} ({exc})") from exc
+    if not isinstance(data, dict) or not (
+        {"sample_info", "peak_list", "candidate_list"} & set(data)
+    ):
+        raise ValueError(
+            f"{p} 不是 XinMatch 报告 JSON（缺 sample_info / peak_list / "
+            "candidate_list 段）。--input-report 需要 Report.to_json() 写出的"
+            "文件；search / run 的 --json 输出是检索结果摘要，不含报告章节。"
+        )
+    return Report.from_dict(data)
+
+
 def cmd_report(args: argparse.Namespace) -> dict[str, Any]:
     """``xinmatch report`` — render a phase-analysis report.
 
-    Reads a previously saved JSON report (produced by the ``--json``
-    output of ``search`` / ``run``) or builds a minimal report from a
-    pattern file.
+    Reads a report JSON file written by :meth:`Report.to_json` (``--input-report``)
+    or builds a minimal report from a pattern file.
     """
-    if args.input_report and Path(args.input_report).exists():
-        report = Report.from_json(args.input_report)
-    else:
+    fmt = (args.format or "html").lower()
+    ext = "txt" if fmt == "text" else ("md" if fmt in ("md", "markdown") else "html")
+
+    if args.input_report:
+        report = _load_report_json(args.input_report)
+        default_out = Path(args.input_report).with_name(
+            Path(args.input_report).stem + f"-report.{ext}"
+        )
+    elif args.pattern_file:
         pattern = load_pattern(args.pattern_file)
         _processed, peaks = auto_process(pattern)
         sample_info = SampleInfo(
@@ -238,8 +287,13 @@ def cmd_report(args: argparse.Namespace) -> dict[str, Any]:
             sample_info=sample_info,
             peak_list=PeakListSection(peaks=peaks),
         )
+        default_out = Path(args.pattern_file).with_suffix(f".{ext}")
+    else:
+        raise ValueError(
+            "report 需要 positional pattern_file 或 --input-report <report.json> "
+            "中的一个（得到的是 None）。"
+        )
 
-    fmt = (args.format or "html").lower()
     if fmt == "text":
         content = render_text(report)
     elif fmt in ("md", "markdown"):
@@ -247,8 +301,9 @@ def cmd_report(args: argparse.Namespace) -> dict[str, Any]:
     else:
         content = render_html(report)
 
-    out_path = args.output or (str(Path(args.pattern_file).with_suffix("")) + ".html")
-    Path(out_path).write_text(content, encoding="utf-8")
+    out_path = Path(args.output) if args.output else default_out
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(content, encoding="utf-8")
     return {
         "format": fmt,
         "output": str(out_path),
@@ -343,9 +398,17 @@ def cmd_batch(args: argparse.Namespace) -> dict[str, Any]:
     Delegates to :mod:`xinmatch.core.batch`; per-sample reports and the
     batch summary are written to the paths in the config's ``output``
     block.  Returns the aggregated batch result (JSON when ``--json``).
+
+    ``core.batch.run_batch`` prints human-readable progress lines to stdout;
+    in ``--json`` mode those are redirected to stderr so stdout stays one
+    parseable JSON document (see :func:`_progress_to_stderr`).
     """
     config, config_dir = load_batch_config(args.config)
-    batch = run_batch(config, config_dir=config_dir)
+    if getattr(args, "as_json", False):
+        with _progress_to_stderr():
+            batch = run_batch(config, config_dir=config_dir)
+    else:
+        batch = run_batch(config, config_dir=config_dir)
     return batch.to_dict()
 
 
@@ -467,6 +530,16 @@ def cmd_libraries(args: argparse.Namespace) -> dict[str, Any]:
             print(f"{rec['id']:<20} {flag:<3} {entries:>9}  {tag:<7} {rec['path']}")
             if rec["reason"]:
                 print(f"{'':<20} {'':<3} {'':>9}  {'':<7} └─ {rec['reason']}")
+        # 表格已经是完整的人类可读输出，不需要 _emit 再重复一遍
+        # "action: list / libraries: N item(s)" 的通用摘要。
+        if action == "add":
+            print(f"已挂载：{payload['library']['id']}  {payload['library']['path']}")
+        elif action == "remove":
+            print(
+                f"已移除挂载：{args.remove}（removed={payload['removed']}；"
+                "库文件不会被删除）"
+            )
+        args._output_printed = True
     return {"action": action, **payload, "libraries": records}
 
 
@@ -600,8 +673,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="xinmatch",
         description=(
-            "XinMatch — powder XRD phase analysis. "
-            "Subcommands: import, process, search, quantify, report, run."
+            "XinMatch — powder XRD phase analysis. Subcommands: import, "
+            "process, search, quantify, report, run, batch, libraries, "
+            "instrument."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -657,7 +731,10 @@ def build_parser() -> argparse.ArgumentParser:
         "search", help="Run search-match against a reference database."
     )
     p_search.add_argument("pattern_file", help="Path to the pattern file.")
-    p_search.add_argument("--db", required=True, help="Path to the reference .db file.")
+    p_search.add_argument(
+        "--db", required=True,
+        help="Path to the reference library (.xinDB file).",
+    )
     p_search.add_argument(
         "--wavelength", type=float, default=None,
         help="Override radiation wavelength (Å).",
@@ -736,7 +813,10 @@ def build_parser() -> argparse.ArgumentParser:
         "run", help="One-shot pipeline: import → process → search → quantify → report."
     )
     p_run.add_argument("pattern_file", help="Path to the pattern file.")
-    p_run.add_argument("--db", required=True, help="Path to the reference .db file.")
+    p_run.add_argument(
+        "--db", required=True,
+        help="Path to the reference library (.xinDB file).",
+    )
     p_run.add_argument(
         "--output", "-o", required=True, help="Output report path.",
     )
@@ -779,9 +859,16 @@ def build_parser() -> argparse.ArgumentParser:
             "(the library file is never touched)."
         ),
     )
-    p_lib.add_argument("--add", metavar="PATH", help="Mount a .xinDB file from any folder.")
     p_lib.add_argument("--label", help="Display label for --add (default: file stem).")
-    p_lib.add_argument("--remove", metavar="ID", help="Unmount the given library id.")
+    # --add / --remove 是互斥动作（默认 = 列出）；同时给出时 argparse 直接报
+    # usage error（exit 2），而不是静默只执行 --add。
+    p_lib_actions = p_lib.add_mutually_exclusive_group()
+    p_lib_actions.add_argument(
+        "--add", metavar="PATH", help="Mount a .xinDB file from any folder."
+    )
+    p_lib_actions.add_argument(
+        "--remove", metavar="ID", help="Unmount the given library id."
+    )
     _add_json_flag(p_lib)
     p_lib.set_defaults(func=cmd_libraries)
 
@@ -857,11 +944,23 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = args.func(args)
+    except FileNotFoundError as exc:
+        # 输入文件 / 库文件不存在是最常见的用户错误；核心层有的抛
+        # ``FileNotFoundError(path)``（消息只有路径），这里补一句中文前缀，
+        # 已有的 "not found" 消息（如 open_search_database）保持原样。
+        message = str(exc)
+        if "not found" not in message.lower() and "不存在" not in message:
+            message = f"文件不存在：{message}"
+        print(f"error: {message}", file=sys.stderr)
+        return 1
     except Exception as exc:  # noqa: BLE001 — CLI top-level error boundary
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    _emit(result, getattr(args, "as_json", False))
+    # 少数子命令（libraries 文本模式）自己打印了表格/结果，跳过通用摘要，
+    # 避免同一份信息输出两遍；--json 模式永远走 _emit。
+    if not getattr(args, "_output_printed", False):
+        _emit(result, getattr(args, "as_json", False))
     return 0
 
 

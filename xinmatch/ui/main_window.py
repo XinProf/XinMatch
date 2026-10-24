@@ -18,6 +18,7 @@ reused.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -81,6 +82,9 @@ try:  # pragma: no cover
     from xinmatch.core.db.multi_db import library_by_id
 except ImportError:  # pragma: no cover
     library_by_id = None  # type: ignore[assignment]
+
+
+logger = logging.getLogger(__name__)
 
 
 def _asset_path(name: str) -> Path:
@@ -1041,6 +1045,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 "无可用参考数据库",
                 "参考数据库不可用，Search-Match 无法执行。\n"
                 "请在 设置→参考数据库… 中选择一个可用库后重试。",
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 — GUI 动作边界，见下
+            # 库里登记的文件在探测之后被删/被占用/损坏（Windows 上很常见：
+            # 用户一边检索一边替换库），或配置文件损坏等，都可能让
+            # open_search_library 抛出 LibraryNotAvailableError 之外的异常。
+            # 这是 Qt 槽函数，异常逃出去只会留下 traceback、用户看不到原因，
+            # 所以在动作边界统一转成可读错误框。
+            logger.exception("failed to open reference library for search")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "参考数据库打开失败",
+                "无法打开参考数据库，Search-Match 未执行。\n"
+                f"请在 设置→参考数据库… 中检查库是否可用。\n\n原因：{exc}",
             )
             return
 
