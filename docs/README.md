@@ -36,6 +36,7 @@
 | [`数据库重建-v3.0.0-线路图.md`](数据库重建-v3.0.0-线路图.md) | v3 列存库重建链路与验收闸门 |
 | [`数据库提速瘦身-v3.0.0-线路图.md`](数据库提速瘦身-v3.0.0-线路图.md) | 列存 / CSR / 分块方案的量化论证 |
 | [`COD打包规范_CIF到SQLite.md`](COD打包规范_CIF到SQLite.md) | CIF → SQLite 打包规范（v2 时代，历史参考） |
+| [`../XinMatch-DataBase/docs/构建与验收手册.md`](../XinMatch-DataBase/docs/构建与验收手册.md) | **参考库构建与验收手册**（姊妹仓库：六个库 COD/PCOD/TCOD × Inorg/Full 的构建、校验、验收；CIF 源在 `../sync-COD`） |
 | [`COD多库挂载说明.md`](COD多库挂载说明.md) | 多参考库挂载机制（v2 时代，挂载概念仍适用） |
 | [`COD全库优选去重库治理.md`](COD全库优选去重库治理.md) | 优选去重库的构造与治理（含 COD 重复相分析） |
 | [`sample_expansion_20261011.md`](sample_expansion_20261011.md) | 样品集扩充 |

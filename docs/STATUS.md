@@ -765,5 +765,13 @@ PolyXRD 只挂实验 COD，PCOD/TCOD 只给 XinMatch）。
   全量独立复核（118 万条 id、全部 chunk）0 违规；自召回 COD 38/40、PCOD 40/40、TCOD 40/40。
   已知坏相（COD 8、PCOD 7）登记在 `docs/ACCEPTANCE-3COD-20261024.md`，
   峰引擎已修、重建 COD/PCOD 即可清除。
+- **参考库构建/验收工具链重建（2026-10-24，姊妹仓库 `XinMatch-DataBase`）**：
+  六库统一构建入口（`COD/PCOD/TCOD × Inorg/Full`）、单 CIF 单次解析
+  （`build_pipeline.compute_phase`）、结构因子分块按原子数自适应（构建吞吐 ~+10–15%）、
+  `validate_xindb` 新增 E5/E6 坏相检查、新增 6 库通用 `accept_xindb`、仓库内合成夹具测试
+  （152 项）。**约定**：库统一在 `XinMatch-DataBase` 构建（默认 `<repo>/data/`），
+  CIF 源统一在 `../sync-COD`（`XRD_DATA_ROOT` 可覆盖）；详见该仓库
+  `docs/构建与验收手册.md`。本机 `--workers` 实测 8 最优（8C/16T）。
+
 
 

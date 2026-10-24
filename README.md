@@ -49,6 +49,13 @@ workflows, published algorithms and open reference data (COD).
   PolyXRD only ever picks up the experimental one, because the other two ship
   without a `phases` table. See
   [docs/ACCEPTANCE-3COD-20261020.md §6](docs/ACCEPTANCE-3COD-20261020.md).
+- **Reference libraries are built in the sibling repo, not here.**
+  `XinMatch-DataBase` builds all six libraries (`COD` / `PCOD` / `TCOD` ×
+  `Inorg` / `Full`); the CIF sources live one level up in
+  `../sync-COD` (override with `XRD_DATA_ROOT`), and the built `.xinDB`
+  files default to `XinMatch-DataBase/data/`. See that repo's
+  [`docs/构建与验收手册.md`](../XinMatch-DataBase/docs/构建与验收手册.md) for
+  the build/validate/acceptance commands.
 
 ## Design principles
 

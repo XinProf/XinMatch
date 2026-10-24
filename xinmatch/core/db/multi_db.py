@@ -27,7 +27,9 @@ id               file
 ``xindb_cod_inorg``  ``COD-Inorg-*.xinDB``   ← **默认库**
 ``xindb_cod_full``   ``COD-Full-*.xinDB``
 ``xindb_pcod_inorg`` ``PCOD-Inorg-*.xinDB``
+``xindb_pcod_full``  ``PCOD-Full-*.xinDB``
 ``xindb_tcod_inorg`` ``TCOD-Inorg-*.xinDB``
+``xindb_tcod_full``  ``TCOD-Full-*.xinDB``
 ===============  ==============================================
 
 Any other ``.xinDB`` anywhere on disk can be mounted with
@@ -71,7 +73,9 @@ _BUILTIN_PREFIXES: tuple[tuple[str, str], ...] = (
     (DEFAULT_LIBRARY_ID, "COD-Inorg"),
     ("xindb_cod_full", "COD-Full"),
     ("xindb_pcod_inorg", "PCOD-Inorg"),
+    ("xindb_pcod_full", "PCOD-Full"),
     ("xindb_tcod_inorg", "TCOD-Inorg"),
+    ("xindb_tcod_full", "TCOD-Full"),
 )
 
 #: Snapshot date embedded in the file names (``COD-Inorg-20261020.xinDB``).
@@ -215,9 +219,19 @@ def xindb_pcod_inorg_path() -> Path:
     return _latest_snapshot("PCOD-Inorg")
 
 
+def xindb_pcod_full_path() -> Path:
+    """Default location of the v3 full-PCOD library (newest snapshot)."""
+    return _latest_snapshot("PCOD-Full")
+
+
 def xindb_tcod_inorg_path() -> Path:
     """Default location of the v3 TCOD inorganic library."""
     return _latest_snapshot("TCOD-Inorg")
+
+
+def xindb_tcod_full_path() -> Path:
+    """Default location of the v3 full-TCOD library (newest snapshot)."""
+    return _latest_snapshot("TCOD-Full")
 
 
 def default_db_path() -> Path:
@@ -528,7 +542,9 @@ _BUILTIN_NAMES: dict[str, str] = {
     DEFAULT_LIBRARY_ID: "COD Inorganics（默认）",
     "xindb_cod_full": "COD Full",
     "xindb_pcod_inorg": "PCOD Inorganics",
+    "xindb_pcod_full": "PCOD Full",
     "xindb_tcod_inorg": "TCOD Inorganics",
+    "xindb_tcod_full": "TCOD Full",
 }
 
 
@@ -680,6 +696,8 @@ __all__ = [
     "xindb_cod_full_path",
     "xindb_cod_inorg_path",
     "xindb_default_dir",
+    "xindb_pcod_full_path",
     "xindb_pcod_inorg_path",
+    "xindb_tcod_full_path",
     "xindb_tcod_inorg_path",
 ]

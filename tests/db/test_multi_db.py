@@ -72,8 +72,9 @@ def test_list_puts_default_first(isolated, xindb_factory):
     xindb_factory(isolated / "COD-Inorg-20261020.xinDB")
     recs = multi_db.list_libraries()
     assert recs[0].id == "xindb_cod_inorg"
-    assert [r.id for r in recs[:4]] == [
-        "xindb_cod_inorg", "xindb_cod_full", "xindb_pcod_inorg", "xindb_tcod_inorg"]
+    assert [r.id for r in recs[:6]] == [
+        "xindb_cod_inorg", "xindb_cod_full", "xindb_pcod_inorg",
+        "xindb_pcod_full", "xindb_tcod_inorg", "xindb_tcod_full"]
     # 缺失的内置行也在列表里（置灰 + 原因），不是干脆不出现
     missing = {r.id for r in recs if not r.available}
     assert "xindb_cod_full" in missing

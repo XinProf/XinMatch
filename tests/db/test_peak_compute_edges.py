@@ -267,3 +267,35 @@ def test_real_placeholder_cell_phases(
     # 绝不能出现 d = 1.0 的占位晶胞假峰
     assert not np.any(np.isclose(d, 1.0, rtol=0.0, atol=1e-9)), entry_id
     assert math.isfinite(float(d.min()))
+
+
+def test_structure_factor_block_size_is_bit_identical(tmp_path: Path) -> None:
+    """自适应结构因子分块只改变处理顺序，不改变任何一个比特。
+
+    The block size only decides which reflections are evaluated together; each
+    row's sum is computed in the same order, so ``|F|**2`` must be identical for
+    every block size.  The production default (``chunk=None``) sizes the block
+    from the atom count to keep the per-block temporaries cache-resident; this
+    test pins the equivalence and would catch an accidental reduction-order
+    change from a future "optimisation".
+    """
+    path = tmp_path / "boundary.cif"
+    path.write_text(BOUNDARY_CIF, encoding="utf-8")
+    ss = gemmi.read_small_structure(str(path))
+    expanded = pc._expand_sites(ss)
+    recip = pc._reciprocal_matrix(ss.cell)
+    assert expanded is not None and recip is not None
+    frac, occ, b_iso, symbols = expanded
+    enum = pc._enumerate_hkl(
+        ss.cell, dmin=pc.DEFAULT_DMIN, dmax=pc.DEFAULT_DMAX, max_hkl=pc.DEFAULT_MAX_HKL
+    )
+    assert enum is not None
+    hkl, _d = enum
+
+    reference = pc._structure_factors(hkl, frac, occ, b_iso, symbols, recip, chunk=8192)
+    for chunk in (256, 512, 1024, 2048, 4096):
+        got = pc._structure_factors(hkl, frac, occ, b_iso, symbols, recip, chunk=chunk)
+        assert np.array_equal(reference, got), f"chunk={chunk} changed the result"
+    assert np.array_equal(
+        reference, pc._structure_factors(hkl, frac, occ, b_iso, symbols, recip)
+    )
