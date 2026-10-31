@@ -116,6 +116,9 @@ class PatternView(pg.PlotWidget):
         self.apply_theme_colors()
 
         self._records: dict[str, dict] = {}
+        # v3.1.0：参考线条（"stick"）叠加层，独立于实验曲线存放，
+        # 便于按相位增删而不动 _records。
+        self._sticks: dict[str, dict] = {}
         self._counter = itertools.count(1)
         # v1.3.1：轴显示模式（默认 2θ / 计数）。
         self._x_mode = X_MODE_TWO_THETA
@@ -216,6 +219,7 @@ class PatternView(pg.PlotWidget):
                 self._y_display(pattern),
                 connect="finite",
             )
+        self._refresh_all_sticks()
 
     def fit_data_range(self) -> None:
         """X/Y 范围适配当前全部数据（打开数据 / 删数据 / 切轴后调用）。
@@ -311,8 +315,116 @@ class PatternView(pg.PlotWidget):
         """Mapping of handle -> :class:`Pattern` currently displayed."""
         return {k: v["pattern"] for k, v in self._records.items()}
 
+    # ------------------------------------------------------------------
+    # Reference stick patterns (v3.1.0 — sequential phase identification)
+    # ------------------------------------------------------------------
+    def add_stick_pattern(
+        self,
+        name: str,
+        two_theta,
+        heights,
+        color: str | None = None,
+    ) -> str:
+        """Overlay a reference line ("stick") pattern; returns its handle.
+
+        Each reflection is drawn as a vertical bar from ``y = 0`` up to
+        *heights* (in the same intensity unit as the experimental curve), so
+        a confirmed phase's line positions can be compared directly against
+        the measured peaks — the visual check that the sequential
+        identification actually explains the pattern.
+
+        Sticks are added with ``ignoreBounds=True`` (they never disturb the
+        autorange the experimental curve establishes) and rendered as a
+        single ``connect="pairs"`` curve, so a 150-reflection card costs one
+        item instead of 150.
+
+        Parameters
+        ----------
+        name:
+            Legend label (usually ``"<entry_id> <formula>"``).
+        two_theta:
+            Reflection positions in **physical** 2θ degrees; converted to the
+            current X display mode automatically.
+        heights:
+            Bar heights, same length as *two_theta*.
+        color:
+            Bar colour; defaults to the next entry of :data:`PATTERN_COLORS`.
+        """
+        xs = np.asarray(two_theta, dtype=float).ravel()
+        hs = np.asarray(heights, dtype=float).ravel()
+        if xs.size == 0 or xs.size != hs.size:
+            raise ValueError(
+                f"stick arrays must be non-empty and equal length, got "
+                f"{xs.size} positions / {hs.size} heights"
+            )
+        key = f"S{next(self._counter)}"
+        pen_color = color or PATTERN_COLORS[len(self._records) % len(PATTERN_COLORS)]
+        curve = pg.PlotDataItem(
+            [0.0, 0.0],
+            [0.0, 0.0],
+            pen=pg.mkPen(pen_color, width=1.0),
+            connect="pairs",
+            name=name,
+        )
+        self._plot.addItem(curve, ignoreBounds=True)
+        self._sticks[key] = {
+            "two_theta": xs,
+            "heights": hs,
+            "curve": curve,
+            "name": name,
+            "color": pen_color,
+        }
+        self._apply_stick_data(key)
+        self._legend.addItem(curve, name)
+        return key
+
+    def remove_stick_pattern(self, key: str) -> None:
+        """Remove a stick pattern added under *key* (no-op if absent)."""
+        rec = self._sticks.pop(key, None)
+        if rec is None:
+            return
+        self._plot.removeItem(rec["curve"])
+        with contextlib.suppress(KeyError, ValueError):
+            self._legend.removeItem(rec["name"])
+
+    def clear_sticks(self) -> None:
+        """Remove every reference stick pattern."""
+        for key in list(self._sticks):
+            self.remove_stick_pattern(key)
+
+    def stick_count(self) -> int:
+        """Number of reference stick patterns currently overlaid."""
+        return len(self._sticks)
+
+    def _apply_stick_data(self, key: str) -> None:
+        """(Re)compute the display coordinates of one stick pattern."""
+        rec = self._sticks[key]
+        xs = rec["two_theta"]
+        hs = rec["heights"]
+        if self._x_mode == X_MODE_D:
+            xs = np.asarray([self._x_to_display(float(x)) for x in xs], dtype=float)
+            finite = np.isfinite(xs)
+            xs = xs[finite]
+            hs = hs[finite]
+        else:
+            xs = np.asarray(xs, dtype=float)
+        ys = np.asarray([self._y_to_display(float(h)) for h in hs], dtype=float)
+        # connect="pairs" links (0,1), (2,3), … → duplicate each x to get a
+        # bar from the baseline to the reflection height.
+        x_pairs = np.repeat(xs, 2)
+        y_pairs = np.empty(x_pairs.size, dtype=float)
+        y_pairs[0::2] = 0.0
+        y_pairs[1::2] = ys
+        rec["curve"].setData(x_pairs, y_pairs, connect="pairs")
+
+    def _refresh_all_sticks(self) -> None:
+        """Recompute every stick pattern after an axis-mode change."""
+        for key in self._sticks:
+            self._apply_stick_data(key)
+
     def clear(self) -> None:
-        """Remove all overlaid patterns."""
+        """Remove all overlaid patterns (and reference stick patterns)."""
+        self.clear_sticks()
         for key in list(self._records):
             self.remove_pattern(key)
 
@@ -444,6 +556,20 @@ class PatternPanel(QtWidgets.QWidget):
     def patterns(self) -> dict[str, Pattern]:
         """代理到内部视图的 :meth:`PatternView.patterns`。"""
         return self.view.patterns()
+
+    def add_stick_pattern(
+        self, name: str, two_theta, heights, color: str | None = None
+    ) -> str:
+        """代理到内部视图的 :meth:`PatternView.add_stick_pattern`。"""
+        return self.view.add_stick_pattern(name, two_theta, heights, color)
+
+    def remove_stick_pattern(self, key: str) -> None:
+        """代理到内部视图的 :meth:`PatternView.remove_stick_pattern`。"""
+        self.view.remove_stick_pattern(key)
+
+    def clear_sticks(self) -> None:
+        """代理到内部视图的 :meth:`PatternView.clear_sticks`。"""
+        self.view.clear_sticks()
 
     def apply_theme_colors(self) -> None:
         """代理到内部视图的 :meth:`PatternView.apply_theme_colors`。"""

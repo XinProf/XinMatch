@@ -145,7 +145,9 @@ def test_candidate_context_menu(qapp):
     menu = table._build_menu(_center(table))
     texts = [a.text() for a in menu.actions()]
     assert any("查看条目" in t for t in texts)
-    assert any("选中" in t for t in texts)
+    # v3.1.0: the old "选中/取消选中" item became the confirm action that
+    # feeds the sequential phase-identification loop.
+    assert any("确认" in t for t in texts)
 
     viewed: list[str] = []
     table.view_entry.connect(lambda e: viewed.append(e))

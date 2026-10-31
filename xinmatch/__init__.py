@@ -53,7 +53,7 @@ except importlib.metadata.PackageNotFoundError:  # pragma: no cover - source tre
     # Running from a source checkout that was never ``pip install``-ed (or from a
     # frozen bundle stripped of dist-info): keep the package importable.  Keep in
     # sync with ``[project] version`` in pyproject.toml and ``xinmatch.spec``.
-    __version__ = "3.0.0"
+    __version__ = "3.1.0"
 
 __all__ = [
     "__version__",

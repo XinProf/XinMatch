@@ -8,11 +8,13 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.0.0.** Core computation kernel + full GUI + dual-mode search-match
-> (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + true March-Dollase preferred
+> ✅ **v3.1.0.** Core computation kernel + full GUI + dual-mode search-match
+> (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
+> multi-phase identification** (confirm a phase → re-search on the remaining
+> unexplained peaks → confirm the next) + true March-Dollase preferred
 > orientation modeling + GSAS-II refinement pipeline + quantitative Rietveld
 > (main-phase wt% < 3 on certified samples) are complete and packaged
-> (Windows installer / portable). v3.0.0 replaces the last legacy reference
+> (Windows installer / portable). v3.0.0 replaced the last legacy reference
 > formats with the single **v3 columnar `.xinDB`** layout and ships the
 > **COD-Inorg** library as the built-in default:
 >
@@ -31,6 +33,11 @@ workflows, published algorithms and open reference data (COD).
 
 - **Qualitative phase analysis** (search-match): identify crystalline phases
   from an experimental powder diffraction pattern against a reference database.
+- **Sequential multi-phase identification** (v3.1.0): confirm the best phase,
+  subtract what it explains, and re-search the **remaining unexplained peaks**
+  for the next phase — repeat until no significant peak is left.  Each
+  confirmation is reversible, and the residual status (peaks explained /
+  left over / too weak to use) is shown next to the candidate list.
 - **Quantitative phase analysis** (RIR, internal standard, Rietveld).
 - **Raw data preprocessing**: smoothing, background subtraction, Kα₂ stripping,
   zero-point / displacement correction.

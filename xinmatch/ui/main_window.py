@@ -19,6 +19,7 @@ reused.
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -29,7 +30,7 @@ from xinmatch.core.db.multi_db import (
     resolve_default,
 )
 from xinmatch.core.io import load_pattern
-from xinmatch.core.model import Entry
+from xinmatch.core.model import Entry, Peak
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.peak.peak_search import find_peaks
@@ -48,17 +49,23 @@ from xinmatch.core.report.report_model import (
     Report,
     SampleInfo,
 )
+from xinmatch.core.search.correlate import d_to_two_theta
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.fpfm import search_match_fpfm
 from xinmatch.core.search.fpfm import to_candidates as fpfm_to_candidates
 from xinmatch.core.search.search_match import search_match
+from xinmatch.core.search.sequential import (
+    ResidualSearchResult,
+    SequentialIdentifier,
+    search_residual,
+)
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.busy import run_with_busy
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
 from xinmatch.ui.dialogs.config import app_config_dir, load_config, save_config
 from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
-from xinmatch.ui.pattern_view import PatternPanel
+from xinmatch.ui.pattern_view import PATTERN_COLORS, PatternPanel
 from xinmatch.ui.periodic_table import PeriodicTablePanel
 from xinmatch.ui.refinement_wizard import RefinementWizard
 from xinmatch.ui.shortcuts import install_shortcuts
@@ -227,6 +234,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self._pattern_key: str | None = None
         # 统一检索入口模式：默认峰列表 FoM（寻峰）；可在工具栏下拉框切换。
         self._search_mode: str = SEARCH_MODE_PEAKS_FOM
+
+        # ---- v3.1.0 序贯物相鉴定（逐相确认 → 剩余峰再检索）----
+        #: 本次分析的原始峰列表（序贯鉴定的基准，后续只做残差，不重新寻峰）。
+        self._exp_peaks: list[Peak] = []
+        #: 序贯鉴定状态机（已确认相 + 残差峰）；None 表示尚未建立。
+        self._seq: SequentialIdentifier | None = None
+        #: 谱图区已叠加的参考线条句柄（按确认顺序，与 PATTERN_COLORS 对齐）。
+        self._stick_keys: list[str] = []
+        #: 最近一次整谱检索的模式标签（残差检索沿用同一文档口径）。
+        self._last_mode_label: str = ""
+        #: 最近一次确认的提示语（并入随后那条状态栏消息，否则会被覆盖）。
+        self._confirm_note: str = ""
 
         self.module_actions: dict[str, QtGui.QAction] = {}
 
@@ -547,10 +566,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def _build_docks(self) -> None:
         """Dock panels mirroring the reference software working area."""
         # Bottom: candidate list (working_area.md).  T13.3 候选列表表格挂载。
+        # v3.1.0：表格上方加一行序贯操作条（确认该相 / 撤销 / 残差状态），
+        # 让"选中 → 确认 → 剩余峰再检索"的循环有明确入口。
         self.candidate_table = CandidateListTable()
         cand = QtWidgets.QDockWidget("候选列表 Candidate List", self)
         cand.setObjectName("candidateDock")
-        cand.setWidget(self.candidate_table)
+        cand.setWidget(self._build_candidate_panel())
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, cand)
 
         # Upper-right: tabbed restraints / peak list / data sheet.  v1.3.1
@@ -574,6 +595,65 @@ class MainWindow(QtWidgets.QMainWindow):
         match.setWidget(self.match_table)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, match)
         self.tabifyDockWidget(right, match)
+
+        # 序贯流程信号（v3.1.0）：候选双击 / 回车 / 右键"确认为匹配物相"；
+        # 匹配列表双击 / 右键移除 → 回滚该相并重算剩余峰。
+        self.candidate_table.candidate_activated.connect(self.confirm_candidate)
+        self.match_table.phase_activated.connect(self.remove_matched_phase)
+        self.match_table.remove_phase.connect(self.remove_matched_phase)
+
+    def _build_candidate_panel(self) -> QtWidgets.QWidget:
+        """候选列表坞内容：序贯操作条 + 候选表格（v3.1.0）。
+
+        操作条从左到右：确认该相 → 撤销上一相 → 清空匹配列表 → 残差状态
+        标签。状态标签常显"已确认 N 相 / 剩余 M 峰 / 已解释 X% 强度"，
+        是判断"还剩什么没匹配上"的唯一读数。
+        """
+        panel = QtWidgets.QWidget()
+        panel.setObjectName("candidatePanel")
+        layout = QtWidgets.QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+
+        bar = QtWidgets.QHBoxLayout()
+        bar.setContentsMargins(4, 2, 4, 2)
+        bar.setSpacing(6)
+        self.confirm_phase_button = QtWidgets.QPushButton("确认该相（加入匹配列表）")
+        self.confirm_phase_button.setToolTip(
+            "把当前选中的候选确认为匹配物相，然后用**剩余的未解释峰**重新检索。\n"
+            "等价操作：候选列表双击 / 回车 / 右键「确认为匹配物相」。\n"
+            "适用场景：多相样品——先确认主相，再逐相确认次相。"
+        )
+        self.undo_phase_button = QtWidgets.QPushButton("撤销上一相")
+        self.undo_phase_button.setToolTip(
+            "撤回最近一次确认（或双击匹配列表中的行），已解释的峰会归还，"
+            "候选列表按新的剩余峰重新检索。"
+        )
+        self.clear_phases_button = QtWidgets.QPushButton("清空匹配列表")
+        self.clear_phases_button.setToolTip(
+            "撤销全部确认，回到整谱检索状态（峰列表保持不变）。"
+        )
+        self.residual_label = QtWidgets.QLabel("尚未检索")
+        self.residual_label.setObjectName("residualBadge")
+        self.residual_label.setToolTip(
+            "剩余峰 = 尚未被任何已确认物相解释的实验峰。\n"
+            "剩余峰检索只在这些峰上做匹配，因此不会再被主相的强线主导。"
+        )
+
+        bar.addWidget(self.confirm_phase_button)
+        bar.addWidget(self.undo_phase_button)
+        bar.addWidget(self.clear_phases_button)
+        bar.addSpacing(10)
+        bar.addWidget(self.residual_label, 1)
+
+        self.confirm_phase_button.clicked.connect(self.confirm_selected_candidate)
+        self.undo_phase_button.clicked.connect(self.undo_last_phase)
+        self.clear_phases_button.clicked.connect(self.clear_matched_phases)
+
+        layout.addLayout(bar)
+        layout.addWidget(self.candidate_table, 1)
+        self._refresh_sequential_controls()
+        return panel
 
     # ------------------------------------------------------------------
     # T13.5 / T13.6 / T13.7 integration
@@ -691,6 +771,9 @@ class MainWindow(QtWidgets.QMainWindow):
         """Store the latest search-match results and fill the candidate dock."""
         self._candidates = list(results)
         self.candidate_table.set_candidates(self._candidates)
+        # 新候选到达即刷新「确认该相」的可用状态（v3.1.0）。
+        if hasattr(self, "confirm_phase_button"):
+            self._refresh_sequential_controls()
 
     def _selected_candidate_results(self) -> list[CandidateResult]:
         """Candidate rows selected in the dock; fall back to all candidates."""
@@ -857,6 +940,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._pattern_key = None  # clear() 已移除全部曲线
         self._current_filename = fname
         self._raw_pattern = pattern
+        # 换数据 = 换分析：峰列表 / 候选 / 已确认相 / 参考线条全部作废，否则
+        # 序贯确认会拿着上一个样品的峰继续算。
+        self._stick_keys.clear()  # clear() 已一并移除参考线条
+        self._exp_peaks = []
+        self._seq = None
+        self._confirm_note = ""
+        self.set_candidates([])
+        self.match_table.set_phases([])
+        self.peak_table.set_peaks([])
+        self._refresh_sequential_controls()
         self.set_pattern(pattern, name=fname)
         n = len(pattern)
         x0 = float(pattern.two_theta[0]) if n else 0.0
@@ -984,6 +1077,8 @@ class MainWindow(QtWidgets.QMainWindow):
             pattern.two_theta, pattern.intensity, sensitivity="medium"
         )
         self.peak_table.set_peaks(peaks)
+        # v3.1.0：新峰列表即序贯鉴定的新基准（清空上一轮已确认相）。
+        self._start_sequential(peaks)
         self.statusBar().showMessage(
             f"峰检测完成：识别到 {len(peaks)} 个峰（medium 灵敏度）", 6000
         )
@@ -1114,17 +1209,23 @@ class MainWindow(QtWidgets.QMainWindow):
     ) -> None:
         """把检索结果回填候选列表 / 峰列表并更新状态栏（GUI 线程）。"""
         results, mode_label, peaks = payload
+        self._last_mode_label = mode_label
         self.set_candidates(results)
         # FPFM 模式不寻峰：保留上一次峰列表，不覆盖 peak_table。
         if peaks is not None:
             self.peak_table.set_peaks(peaks)
+        # 整谱检索视为**新一轮分析**：峰列表更新、已确认相清空、参考线移除，
+        # 否则匹配列表会残留上一轮结论、与新的候选列表对不上。
+        self._start_sequential(peaks)
         lib_label = self._active_library_id or "默认库"
         if library_by_id is not None and self._active_library_id:
             rec = library_by_id(self._active_library_id)
             if rec is not None:
                 lib_label = rec.display_name
         self.statusBar().showMessage(
-            f"检索完成：{len(results)} 个候选（{mode_label}，库：{lib_label}）", 8000
+            f"检索完成：{len(results)} 个候选（{mode_label}，库：{lib_label}）"
+            f" ｜ 双击/回车可确认为匹配物相，再对剩余峰继续检索",
+            10000,
         )
 
     def _show_search_error(self, message: str) -> None:
@@ -1134,6 +1235,317 @@ class MainWindow(QtWidgets.QMainWindow):
             "Search-Match 检索失败",
             f"检索过程中出现错误：\n\n{message}",
         )
+
+    # ------------------------------------------------------------------
+    # v3.1.0 序贯物相鉴定：确认一相 → 剩余峰再检索 → 再确认
+    # ------------------------------------------------------------------
+    def sequential_identifier(self) -> SequentialIdentifier | None:
+        """当前序贯鉴定状态（供面板/测试读取，可能为 ``None``）。"""
+        return self._seq
+
+    def matched_phases(self) -> list[Phase]:
+        """已确认的匹配物相（按确认顺序）。"""
+        return self._seq.phases if self._seq is not None else []
+
+    def _start_sequential(self, peaks: list[Peak] | None) -> None:
+        """以 *peaks* 为基准重建序贯上下文（清空已确认相）。
+
+        *peaks* 为 ``None`` 时保留既有峰列表、只清空已确认相 —— FPFM 全谱
+        检索不寻峰，但它不应该抹掉"哪些峰"这件事，只是把确认进度归零。
+        """
+        if peaks is not None:
+            self._exp_peaks = list(peaks)
+        if self._exp_peaks:
+            wavelength = (
+                float(self._current_pattern.wavelength)
+                if self._current_pattern is not None
+                else 1.5406
+            )
+            self._seq = SequentialIdentifier(
+                self._exp_peaks, wavelength=wavelength
+            )
+        else:
+            self._seq = None
+        self._sync_phase_views()
+
+    def _ensure_sequential(self) -> bool:
+        """确保序贯上下文可用；必要时惰性寻峰（FPFM 模式 / 仅手动寻峰后）。"""
+        if self._seq is not None and self._seq.n_peaks > 0:
+            return True
+        pattern = self._current_pattern
+        if pattern is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "尚未打开衍射数据",
+                "请先载入衍射谱并完成寻峰，再确认匹配物相。",
+            )
+            return False
+        peaks = find_peaks(pattern.two_theta, pattern.intensity)
+        if not peaks:
+            QtWidgets.QMessageBox.information(
+                self,
+                "没有可用峰",
+                "当前谱图未识别到峰，无法建立剩余峰检索。\n"
+                "请先执行「峰检测」，或调整数据后重试。",
+            )
+            return False
+        self._start_sequential(peaks)
+        self.peak_table.set_peaks(self._exp_peaks)
+        self.statusBar().showMessage(
+            f"已按当前谱图建立峰列表（{len(peaks)} 个峰）用于逐相确认", 6000
+        )
+        return True
+
+    def confirm_selected_candidate(self) -> None:
+        """「确认该相」按钮：确认候选列表中高亮的那一行。"""
+        eid = self.candidate_table.current_entry_id()
+        if eid is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "未选中候选",
+                "请先在候选列表中选中一个物相，再点击「确认该相」。",
+            )
+            return
+        self.confirm_candidate(eid)
+
+    def confirm_candidate(self, entry_id: str) -> None:
+        """把 *entry_id* 确认为匹配物相，并对**剩余未解释峰**重新检索。
+
+        这是序贯鉴定的核心一步（v3.1.0）：
+
+        1. 在 :class:`SequentialIdentifier` 里登记该相（重算相关峰、比例因子
+           与逐峰残差）；
+        2. 刷新匹配列表 / 峰列表关联标记 / 谱图参考线条；
+        3. 用剩余峰再跑一次检索，候选列表换成"还剩下什么"的答案。
+
+        重复确认同一相是幂等的（双击 / 连按回车不会重复入表）。
+        """
+        candidate = next(
+            (c for c in self._candidates if c.entry.entry_id == entry_id), None
+        )
+        if candidate is None:
+            self.statusBar().showMessage(f"候选列表中找不到 {entry_id}", 5000)
+            return
+        if not self._ensure_sequential():
+            return
+        seq = self._seq
+        if seq is None:  # pragma: no cover - _ensure_sequential 已保证
+            return
+        if seq.is_selected(entry_id):
+            self.statusBar().showMessage(
+                f"{entry_id} 已在匹配列表中（如需重选请先撤销）", 5000
+            )
+            return
+
+        covered_before = seq.covered_fraction
+        selection = seq.select(candidate)
+        self._sync_phase_views()
+        entry = selection.phase.entry
+        label = f"{entry.formula}" + (f"（{entry.mineral_name}）" if entry.mineral_name else "")
+        # 增量提示：确认错相时它会"顺手"扣掉别人的峰（残差是减法，不会自我校验）。
+        # 一旦某相几乎不解释新强度，多半是重复条目或假相，必须让用户看到。
+        gain = selection.covered_fraction - covered_before
+        note = ""
+        if len(seq) > 1 and gain < 0.01:
+            note = " ｜ 提示：本相几乎未解释新峰，可能是重复条目或假相，可撤销"
+        self._confirm_note = note
+        self.statusBar().showMessage(
+            f"已确认第 {len(seq)} 相：{label} {entry_id}"
+            f"（解释 {selection.covered_fraction * 100:.1f}% 强度，"
+            f"本相 +{gain * 100:.1f}%，剩余 {selection.n_residual_peaks} 峰）{note}",
+            10000,
+        )
+        self._search_residual_peaks()
+
+    def undo_last_phase(self) -> None:
+        """撤销最近一次确认，并按归还后的剩余峰重新检索。"""
+        if self._seq is None or len(self._seq) == 0:
+            self.statusBar().showMessage("匹配列表为空，无可撤销", 5000)
+            return
+        phase = self._seq.undo()
+        self._sync_phase_views()
+        if phase is not None:
+            self.statusBar().showMessage(
+                f"已撤销：{phase.entry.formula} {phase.entry.entry_id}", 6000
+            )
+        self._search_residual_peaks()
+
+    def remove_matched_phase(self, entry_id: str) -> None:
+        """从匹配列表移除指定相（双击 / 右键），按其位置回滚残差。"""
+        if self._seq is None or not self._seq.remove(entry_id):
+            return
+        self._sync_phase_views()
+        self.statusBar().showMessage(f"已移出匹配列表：{entry_id}", 6000)
+        self._search_residual_peaks()
+
+    def clear_matched_phases(self) -> None:
+        """清空匹配列表：回到整谱检索状态（峰列表不变）。"""
+        if self._seq is None or len(self._seq) == 0:
+            self.statusBar().showMessage("匹配列表已经为空", 5000)
+            return
+        self._seq.clear()
+        self._sync_phase_views()
+        self.statusBar().showMessage("已清空匹配列表（峰列表保持不变）", 6000)
+        self._search_residual_peaks()
+
+    def _sync_phase_views(self) -> None:
+        """把序贯状态同步到三个视图：匹配列表 / 峰列表标记 / 谱图参考线。"""
+        seq = self._seq
+        phases = seq.phases if seq is not None else []
+        self.match_table.set_phases(phases)
+        if seq is not None and self._exp_peaks:
+            mask = seq.correlated_mask
+            for peak, flag in zip(self._exp_peaks, mask, strict=True):
+                peak.correlated = bool(flag)
+            self.peak_table.set_peaks(self._exp_peaks)
+        self._rebuild_reference_sticks()
+        self._refresh_sequential_controls()
+
+    def _refresh_sequential_controls(self) -> None:
+        """更新序贯操作条的可用状态与残差读数（不触碰其他视图）。"""
+        seq = self._seq
+        has_phases = seq is not None and len(seq) > 0
+        self.undo_phase_button.setEnabled(has_phases)
+        self.clear_phases_button.setEnabled(has_phases)
+        self.confirm_phase_button.setEnabled(
+            bool(self._candidates) and (seq is not None or self._current_pattern is not None)
+        )
+        if seq is None or seq.n_peaks == 0:
+            self.residual_label.setText("尚未检索")
+            return
+        text = (
+            f"已确认 {len(seq)} 相 ｜ 剩余 {seq.n_residual_peaks}/{seq.n_peaks} 峰 ｜ "
+            f"已解释 {seq.covered_fraction * 100:.1f}% 强度"
+        )
+        if seq.n_ignored:
+            text += f" ｜ {seq.n_ignored} 个低强度峰不计"
+        if seq.n_residual_peaks == 0:
+            text += " ｜ 无剩余待解释峰"
+        self.residual_label.setText(text)
+
+    def _rebuild_reference_sticks(self) -> None:
+        """按已确认相重画谱图参考线条（与候选行配色一致，便于目视核对）。
+
+        线高 = 该相的比例因子 × 参考相对强度（即它**声称**贡献的计数），
+        因此线条应与实测峰高度大致吻合；明显矮一截说明该相只解释了峰的
+        一部分（重叠峰的另一相还没确认）。
+        """
+        for key in self._stick_keys:
+            self.pattern_view.remove_stick_pattern(key)
+        self._stick_keys.clear()
+        seq = self._seq
+        if seq is None:
+            return
+        wavelength = seq.wavelength
+        for index, selection in enumerate(seq.selections):
+            entry = selection.phase.entry
+            ref_max = float(entry.intensity_max)
+            if selection.scale <= 0.0 or ref_max <= 0.0:
+                continue
+            positions: list[float] = []
+            heights: list[float] = []
+            for d, intensity in zip(entry.d_spacings, entry.intensities, strict=True):
+                two_theta = d_to_two_theta(float(d), wavelength)
+                if not math.isfinite(two_theta):
+                    continue
+                positions.append(two_theta)
+                heights.append(selection.scale * float(intensity) / ref_max)
+            if not positions:
+                continue
+            label = f"{entry.entry_id} {entry.formula}".strip()
+            key = self.pattern_view.add_stick_pattern(
+                label,
+                positions,
+                heights,
+                PATTERN_COLORS[index % len(PATTERN_COLORS)],
+            )
+            self._stick_keys.append(key)
+
+    def _search_residual_peaks(self) -> None:
+        """用剩余未解释峰重新检索（工作线程 + 忙碌窗口）。
+
+        与整谱检索一样，每次打开一个只读库句柄并在工作体内关闭：Windows 上
+        残留句柄会阻止用户替换参考库。
+        """
+        seq = self._seq
+        if seq is None:
+            return
+        if seq.n_residual_peaks == 0:
+            self.set_candidates([])
+            self._refresh_sequential_controls()
+            self.statusBar().showMessage(
+                "全部有效峰已被确认的物相解释，没有剩余峰需要检索"
+                + self._confirm_note,
+                10000,
+            )
+            self._confirm_note = ""
+            return
+        try:
+            conn = self.open_search_library()
+        except LibraryNotAvailableError:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "无可用参考数据库",
+                "参考数据库不可用，无法对剩余峰继续检索。\n"
+                "已确认的物相与峰标记仍保留，可在 设置→参考数据库… 修复后重试。",
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 — GUI 动作边界
+            logger.exception("failed to open reference library for residual search")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "参考数据库打开失败",
+                "无法打开参考数据库，剩余峰检索未执行。\n"
+                f"请检查 设置→参考数据库…\n\n原因：{exc}",
+            )
+            return
+
+        started = run_with_busy(
+            self,
+            "剩余峰检索",
+            f"正在用 {seq.n_residual_peaks} 个未解释峰重新检索参考库…",
+            lambda: self._do_residual_search(conn),
+            on_success=self._apply_residual_results,
+            on_error=self._show_search_error,
+        )
+        if not started:
+            conn.close()
+
+    def _do_residual_search(self, conn) -> ResidualSearchResult:
+        """剩余峰检索工作体（工作线程，禁止触碰 GUI）。"""
+        seq = self._seq
+        if seq is None:  # pragma: no cover - 调用前已保证
+            raise RuntimeError("sequential state is not available")
+        try:
+            return search_residual(seq, conn, top_n=20)
+        finally:
+            conn.close()
+
+    def _apply_residual_results(self, result: ResidualSearchResult) -> None:
+        """回填剩余峰检索结果（GUI 线程）。"""
+        self.set_candidates(result.candidates)
+        self._refresh_sequential_controls()
+        note = self._confirm_note
+        self._confirm_note = ""
+        if result.excluded_ids:
+            note += f"；已排除已确认的 {len(result.excluded_ids)} 条"
+        # 高覆盖度提示：剩余峰往往只是卡片未收录的弱反射或噪声鼓包，此时排行榜
+        # 前排容易是"凑巧命中两三个弱峰"的卡片（实测 synth_02 第 3 轮 FoM≈0.71
+        # 命中 Ca2KNb3O10，全部峰已解释 95.5%）。给一句判据，别让用户以为那是
+        # 一个真物相。
+        if result.covered_fraction >= 0.90:
+            note += "；已解释 ≥90% 强度，剩余多为弱峰，无明确命中即可结束鉴定"
+        if not result.candidates:
+            message = (
+                f"剩余 {result.n_residual_peaks} 个峰中没有可匹配的候选{note}"
+            )
+        else:
+            message = (
+                f"剩余峰检索完成：{result.n_residual_peaks} 个未解释峰 → "
+                f"{len(result.candidates)} 个候选"
+                f"（已解释 {result.covered_fraction * 100:.1f}% 强度）{note}"
+            )
+        self.statusBar().showMessage(message, 12000)
 
     def fpfm_kalpha_wavelengths(
         self, pattern: Pattern | None = None

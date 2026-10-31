@@ -90,6 +90,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.9c | **L3 追平（2026-10-10）** | ✅ Top-1 一致率 **9/13 → 11/13（84.6% ≥ 80% PASS）**、Top-5 重叠 **67.7% → 83.1% PASS**。两处 FoM 算法修正（`core/search/fom_criteria.py`）：① 强度归一化改用「匹配峰最大值」（消除多相次相 I_scale 尺度效应重复惩罚，翻转 5-2/5-2b Hematite）；② sigma_pos 0.1→0.15（修复 4-1 胶着回归，CaF₂ 曾以 0.001 压 ZnO）。终态仅剩 5-1（参考 Magnesite 96-900-0381 快照内容错位为 Teruggite）与 5-3（参考 Kaolinite 96-900-9231 快照缺失）两处不匹配；**13/13 top1 均为真相相**；诊断确认库中这些相正常条目均在、纯排序问题，FPFM 权重模拟崩坏彻底排除权重路线、未补库。详见 docs/l3_traceup_report.md |
 | T6.9b | COD 全库检索质量核验（2026-10-10） | ✅ (用 `data/cod_full.db` 112,734 条目重跑同基线：Top-1 一致率反而降至 1/13——全库含大量重复/低质量卡片稀释排序。**结论：默认检索保持精选无机库 71,199 正确，全库仅作覆盖性挂载**；L3 追平不靠换库，方向仍是逆向参考软件 FoM 内部逻辑或补条目) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
+| T6.11 | **序贯物相鉴定（v3.1.0）**：确认一相 → 扣除其贡献 → 剩余峰再检索 → 再确认 | ✅ (`core/search/sequential.py`：`SequentialIdentifier` 以原始峰列表为基准、每次变更整体重建（相关峰 / 计数域比例因子 / 逐峰残差 / 已解释掩码），`search_residual()` 在剩余峰上跑同一 FoM 引擎并把 pairs 映射回原始峰索引、同时剔除已确认条目；GUI 候选列表双击/回车/「确认该相」→ 匹配列表 + 峰列表关联标记 + 谱图参考线条，双击匹配列表回滚；验收 `docs/序贯物相鉴定-v3.1.0.md`，测试 `tests/search/test_sequential.py` + `tests/ui/test_sequential_ui.py`) |
 
 ## Phase 7 — Restraints application (`core/search/`)
 

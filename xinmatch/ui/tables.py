@@ -322,11 +322,13 @@ class CandidateListTable(QtWidgets.QTableView):
     Signals
     -------
     candidate_activated(str):
-        Double-click; carries the entry id (the reference software "select as matching").
+        Confirm the entry as a matching phase — double-click, Enter, or the
+        context-menu "确认为匹配物相" item (v3.1.0 sequential workflow).
     view_entry(str):
         Context-menu "查看条目".
     toggle_selection(str):
-        Context-menu "选中/取消选中".
+        Reserved: selection toggle requested from outside (kept for API
+        compatibility; no longer exposed in the context menu).
     export_requested():
         Context-menu "导出候选列表".
     """
@@ -359,6 +361,14 @@ class CandidateListTable(QtWidgets.QTableView):
         self._model.set_candidates(results, colors)
         self.resizeColumnsToContents()
 
+    def current_entry_id(self) -> str | None:
+        """Entry id of the highlighted row (``None`` when nothing is selected)."""
+        rows = self.selectionModel().selectedRows() if self.selectionModel() else []
+        if not rows:
+            current = self.currentIndex()
+            return self._entry_id(current) if current.isValid() else None
+        return self._entry_id(rows[0])
+
     def _entry_id(self, proxy_index: QtCore.QModelIndex) -> str | None:
         return self._model.entry_id_at(self._proxy.mapToSource(proxy_index).row())
 
@@ -367,17 +377,29 @@ class CandidateListTable(QtWidgets.QTableView):
         if eid is not None:
             self.candidate_activated.emit(eid)
 
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:  # noqa: N802
+        """Enter / Return confirms the highlighted candidate (v3.1.0)."""
+        if event.key() in (QtCore.Qt.Key.Key_Return, QtCore.Qt.Key.Key_Enter):
+            eid = self.current_entry_id()
+            if eid is not None:
+                self.candidate_activated.emit(eid)
+                return
+        super().keyPressEvent(event)
+
     def _build_menu(self, pos: QtCore.QPoint) -> QtWidgets.QMenu:
         """Build the candidate-list context menu (exposed for inspection/tests)."""
         index = self.indexAt(pos)
         menu = QtWidgets.QMenu(self)
         eid = self._entry_id(index) if index.isValid() else None
+        act_confirm = menu.addAction("确认为匹配物相（加入匹配列表）  Enter")
+        act_confirm.setEnabled(eid is not None)
+        act_confirm.triggered.connect(
+            lambda _c=False, e=eid: e and self.candidate_activated.emit(e)  # type: ignore[func-returns-value]
+        )
+        menu.addSeparator()
         act_view = menu.addAction("查看条目...")
         act_view.setEnabled(eid is not None)
         act_view.triggered.connect(lambda _c=False, e=eid: e and self.view_entry.emit(e))  # type: ignore[func-returns-value]
-        act_toggle = menu.addAction("选中/取消选中")
-        act_toggle.setEnabled(eid is not None)
-        act_toggle.triggered.connect(lambda _c=False, e=eid: e and self.toggle_selection.emit(e))  # type: ignore[func-returns-value]
         menu.addSeparator()
         act_export = menu.addAction("导出候选列表 (CSV)...")
         act_export.triggered.connect(self.export_requested.emit)

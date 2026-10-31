@@ -74,6 +74,15 @@ from .search_match import (
     search_marked_peaks,
     search_match,
 )
+from .sequential import (
+    DEFAULT_ABS_FLOOR,
+    DEFAULT_EXPLAINED_FRAC,
+    DEFAULT_MIN_PEAK_FRAC,
+    PhaseSelection,
+    ResidualSearchResult,
+    SequentialIdentifier,
+    search_residual,
+)
 
 __all__ = [
     # correlate
@@ -124,4 +133,12 @@ __all__ = [
     "recompute_fom_after_selection",
     "build_residual_peaks",
     "EXPLAINED_THRESHOLD",
+    # Sequential / iterative phase identification (v3.1.0)
+    "SequentialIdentifier",
+    "PhaseSelection",
+    "ResidualSearchResult",
+    "search_residual",
+    "DEFAULT_EXPLAINED_FRAC",
+    "DEFAULT_ABS_FLOOR",
+    "DEFAULT_MIN_PEAK_FRAC",
 ]
