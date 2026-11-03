@@ -796,12 +796,12 @@ _peaks<=1 均为 0。
   Full 库与对应 Inorg 库的公共相**逐字节相同**（COD 78,035/78,035、TCOD 46,846/46,846，0 差异）。
 - **产物位置**：D:\Project\XRD\XinMatch-DataBase\data\
   COD-Inorg-20261020.xinDB、TCOD-Inorg-20261020.xinDB、PCOD-Inorg-20261020.xinDB、
-  TCOD-Full-20261020.xinDB、COD-Full-20261020.xinDB；旧库在 data/_prev/（供对比/回滚）。
-- **应用侧自检**：清空 XINMATCH_XINDB_DIR 后 libraries --json → 5 个库全部 vailable=true，
+  TCOD-Full-20261020.xinDB、COD-Full-20261020.xinDB；旧库与旧 `20261020` Release 已于 2026-11-04 删除，重建版发布为 GitHub Release `20261020-rebuild`。
+- **应用侧自检**：清空 XINMATCH_XINDB_DIR 后 libraries --json → 5 个库全部 available=true，
   entries 分别为 78,035 / 46,846 / 1,061,953 / 361,701 / 532,038。
 - **工具链修正**：真实全库构建 --workers 14 更优（TCOD 14w 15.2 min vs 旧实现 16.9 min；
   COD 8w 61.6 min 反而略慢于历史 14w 58 min），此前“8 最优”结论仅适用于小切片基准。
 - **验收记录**：姊妹仓库 XinMatch-DataBase 的
-  docs/ACCEPTANCE-20261101-rebuild.md（提交 8679bf0/1bb9c63/4b36f0/13e85b9）。
-- **已知提示**：TCOD-Full 48,732 相 / COD-Full 81,284 相的元素超出 63 位 lem_mask
-  （ntries.elements 与 lement_inv 完整，按元素检索不受影响）；半塌缩边界 WARN 属峰口径边缘现象，不阻塞。
+  docs/ACCEPTANCE-20261101-rebuild.md（提交 8679bf0/1bb9c63/4b36f0/13e85b9）。
+- **已知提示**：TCOD-Full 48,732 相 / COD-Full 81,284 相的元素超出 63 位 lem_mask
+  （ntries.elements 与 lement_inv 完整，按元素检索不受影响）；半塌缩边界 WARN 属峰口径边缘现象，不阻塞。
