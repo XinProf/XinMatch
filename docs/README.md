@@ -58,6 +58,7 @@
 
 | 文档 | 内容 |
 |---|---|
+| [`../XinMatch-DataBase/docs/ACCEPTANCE-20261101-rebuild.md`](../../XinMatch-DataBase/docs/ACCEPTANCE-20261101-rebuild.md) | **2026-11-01/04 参考库重建与 Full 库验收**（COD/TCOD/PCOD-Inorg + TCOD/COD-Full：0 FAIL、坏相清零、与 Inorg 公共相逐字节一致；PCOD-Full 等价跳过） |
 | [`ACCEPTANCE-3COD-20261024.md`](ACCEPTANCE-3COD-20261024.md) | **三个无机物库 `.xinDB` 的独立复验**（COD / PCOD / TCOD：结构、来源、元素索引、峰载荷、自召回） |
 | [`ACCEPTANCE-3COD-20261020.md`](ACCEPTANCE-3COD-20261020.md) | 3COD 建库当次验收（v2.0.0 时期） |
 | [`ACCEPTANCE-v3.0.0-20261023.md`](ACCEPTANCE-v3.0.0-20261023.md) | v3.0.0 发布验收（`.xinDB` 收口 + 内置默认库） |

@@ -776,3 +776,32 @@ PolyXRD 只挂实验 COD，PCOD/TCOD 只给 XinMatch）。
 
 
 
+
+## 参考库重建与 Full 库构建（2026-11-01/04）✅
+
+**范围**：用修复后的峰引擎（2θ=180° 边界 + 占位晶胞）重建 3 个 Inorg 库，并新建 2 个 Full 库；
+PCOD-Full 因 PCOD 全为无机（manifest 1,061,962/1,061,962 is_inorg=1）与 PCOD-Inorg 实质等价，按决定跳过。
+
+| 库 | 相数 | 反射数 | 体积 | 构建 | 验收 |
+|---|---:|---:|---:|---|---|
+| COD-Inorg | 78,035 | 9,395,681 | 113.1 MiB | 61.6 min | validate 0F/1W；accept 0F/1W |
+| TCOD-Inorg | 46,846 | 5,874,790 | 68.0 MiB | 15.2 min | validate 0F/1W；accept 0F/1W；与旧库峰载荷逐字节相同 |
+| PCOD-Inorg | 1,061,953 | 159,275,318 | 1694.1 MiB | 13.3 h | validate 0F/1W；accept 0F/1W；7 条坏相全恢复 |
+| TCOD-Full | 361,701 | 53,099,238 | 594.3 MiB | 12.1 h | validate 0F/2W；accept 0F/1W |
+| COD-Full | 532,038 | 77,458,154 | 879.4 MiB | 36.4 h | validate 0F/2W；accept 0F/2W（bad_phase_ids=0） |
+
+- **坏相清零**：COD 8 条（7 恢复 + 96-210-4629 无晶胞剔除）、PCOD 7 条全部恢复；三 Inorg 库 
+_peaks<=1 均为 0。
+- **等价性**：COD/TCOD/PCOD-Inorg 与旧库逐条目对比，只变化坏相（COD 7 条、PCOD 17 条），其余逐字节相同；
+  Full 库与对应 Inorg 库的公共相**逐字节相同**（COD 78,035/78,035、TCOD 46,846/46,846，0 差异）。
+- **产物位置**：D:\Project\XRD\XinMatch-DataBase\data\
+  COD-Inorg-20261020.xinDB、TCOD-Inorg-20261020.xinDB、PCOD-Inorg-20261020.xinDB、
+  TCOD-Full-20261020.xinDB、COD-Full-20261020.xinDB；旧库在 data/_prev/（供对比/回滚）。
+- **应用侧自检**：清空 XINMATCH_XINDB_DIR 后 libraries --json → 5 个库全部 vailable=true，
+  entries 分别为 78,035 / 46,846 / 1,061,953 / 361,701 / 532,038。
+- **工具链修正**：真实全库构建 --workers 14 更优（TCOD 14w 15.2 min vs 旧实现 16.9 min；
+  COD 8w 61.6 min 反而略慢于历史 14w 58 min），此前“8 最优”结论仅适用于小切片基准。
+- **验收记录**：姊妹仓库 XinMatch-DataBase 的
+  docs/ACCEPTANCE-20261101-rebuild.md（提交 8679bf0/1bb9c63/4b36f0/13e85b9）。
+- **已知提示**：TCOD-Full 48,732 相 / COD-Full 81,284 相的元素超出 63 位 lem_mask
+  （ntries.elements 与 lement_inv 完整，按元素检索不受影响）；半塌缩边界 WARN 属峰口径边缘现象，不阻塞。
