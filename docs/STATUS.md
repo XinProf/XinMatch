@@ -829,4 +829,5 @@ _peaks<=1 均为 0。
   `build_cod_xindb.build(id_mode="mp")`、`accept_xindb --mp-root` 全集归属、`tests/test_mp_scan.py`。
 - **已知 WARN**：5,660 条半塌缩边界相（真实反射 + LP 在 180° 发散，非假峰），不阻塞。
 - **记录**：`XinMatch-DataBase/docs/MP-库构建与验收.md`、`docs/release-notes-20261031-mp.md`；
-  Release `20261031-mp`（MP-20261031.xinDB.zip + SHA256SUMS.txt）。
+  Release [`20261031-mp`](https://github.com/PolyXRD/XinMatch-DataBase/releases/tag/20261031-mp)
+  （MP-20261031.xinDB.zip 197,925,329 B，SHA-256 `d20c4a61…` + SHA256SUMS.txt）。
