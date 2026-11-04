@@ -8,7 +8,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.2.0.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.3.0.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
 > multi-phase identification** (confirm a phase → re-search on the remaining
 > unexplained peaks → confirm the next) + true March-Dollase preferred
@@ -21,6 +21,13 @@ workflows, published algorithms and open reference data (COD).
 > same library, phase-level Top-1 goes from 7/13 to **10/13** simply because
 > "found the right phase on a sibling card" is no longer counted as a miss.
 > It also ships the refreshed logo/icon set and a regenerated splash.
+> v3.3.0 adds **sparse-phase marks** in the residual candidate list: a card
+> whose strongest reference line sits on a strong leftover peak, that is
+> positionally accurate and coherent over its own reflections, is flagged
+> with `★` (the FoM counts *how many* peaks a candidate explains, so a
+> 6-line metal is always outvoted by a 150-reflection card). The mark is
+> informational only — ranking is unchanged, because the same rule also
+> flags a wrong phase on real data (see `docs/基准报告-物相检索-v3.md` §11.5).
 > v3.0.0 replaced the last legacy reference
 > formats with the single **v3 columnar `.xinDB`** layout and ships the
 > **COD-Inorg** library as the built-in default:
@@ -51,6 +58,11 @@ workflows, published algorithms and open reference data (COD).
   group, see `core/search/phase_key.py`); the "变体" column shows how many
   cards were folded, its tooltip lists each card with its cell, and the
   context menu expands them again.
+- **Sparse-phase marks** (v3.3.0): the residual search flags candidates whose
+  strongest reference line sits on a strong leftover peak (`★` in the first
+  column, rule in `core/search/sequential.py`).  The FoM counts *how many*
+  peaks a candidate explains, so a correct 6-line metal never outvotes a
+  150-reflection card; the mark makes it visible without changing the order.
 - **Quantitative phase analysis** (RIR, internal standard, Rietveld).
 - **Raw data preprocessing**: smoothing, background subtraction, Kα₂ stripping,
   zero-point / displacement correction.
@@ -169,7 +181,8 @@ v1.7.0 起同时产出两个二进制。**v3.0.0 起两个版本都内置默认�
 | **正式版**（release） | `XinMatch-Setup-<v>.exe`（安装时可选择安装位置） | **有**：每次启动检查注册状态 | `已注册：<单位部门名称>` / `未注册` |
 | **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | **红色加粗** `内部评估版本` |
 
-**v3.2.0 发布产物**（[Release v3.2.0](https://github.com/PolyXRD/XinMatch/releases/tag/v3.2.0)）：
+**v3.2.0 发布产物**（[Release v3.2.0](https://github.com/PolyXRD/XinMatch/releases/tag/v3.2.0)；
+源码已到 v3.3.0，二进制待发布）：
 
 | 附件 | 体积 | SHA-256（前 16 位） |
 |---|---|---|

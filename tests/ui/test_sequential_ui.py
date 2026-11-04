@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from xinmatch.core.model import Entry, Pattern, Peak
 from xinmatch.core.search.fom import CandidateResult
@@ -78,7 +78,10 @@ def harness(qapp, monkeypatch):
     peaks = _peaks()
     conn = _Conn()
     calls: list[int] = []
-    follow_up = {"candidates": [CandidateResult(entry=entry_b, fom=0.71)]}
+    follow_up = {
+        "candidates": [CandidateResult(entry=entry_b, fom=0.71)],
+        "anchored_ids": [],
+    }
 
     def fake_search_residual(seq, connection, **kwargs):
         calls.append(seq.n_residual_peaks)
@@ -87,6 +90,7 @@ def harness(qapp, monkeypatch):
             n_residual_peaks=seq.n_residual_peaks,
             n_explained=seq.n_explained,
             covered_fraction=seq.covered_fraction,
+            anchored_ids=list(follow_up["anchored_ids"]),
         )
 
     monkeypatch.setattr(mw, "search_residual", fake_search_residual)
@@ -129,6 +133,25 @@ def test_confirm_adds_phase_and_searches_residual(harness):
     assert [c.entry.entry_id for c in win._candidates] == ["B"]
     assert "剩余 3/6 峰" in win.residual_label.text()
     assert harness.connection.closed == 1
+
+
+def test_residual_search_marks_anchored_candidates(harness):
+    """v3.3.0: anchored rows are marked and announced; the order is untouched.
+
+    The mark is the whole point of shipping the anchoring rule off-by-default:
+    the user sees which sparse phase a peak-count FoM buried, but the engine
+    still ranks by FoM, so no sample can be hurt by a forced reordering.
+    """
+    win = harness.window
+    harness.follow_up["anchored_ids"] = ["B"]
+    win.confirm_candidate("A")
+
+    assert win.candidate_table.is_anchored(0) is True
+    mark = win.candidate_table.model().index(0, 0).data(
+        QtCore.Qt.ItemDataRole.DisplayRole
+    )
+    assert mark == "★"
+    assert "★ 1 条" in win.statusBar().currentMessage()
 
 
 def test_confirm_is_idempotent(harness):

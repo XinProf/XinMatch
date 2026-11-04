@@ -29,6 +29,7 @@ offscreen mode.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
@@ -258,10 +259,16 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
     HEADERS = ("", "质量", "条目", "化学式", "晶系", "物相",
                "P(2θ)", "P(I/I₀)", "I缩放", "FoM", "变体")
 
+    #: Marker drawn in the first column for a strong-line anchored candidate
+    #: (v3.3.0).  It sits in the colour band so no column is added.
+    ANCHOR_MARK = "★"
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._results: list[CandidateResult] = []
         self._colors: list[QtGui.QColor | None] = []
+        #: 条目 id → 是否通过「强线锚定」判据（少线相标记，v3.3.0）。
+        self._anchored: set[str] = set()
         #: 相位族（源行索引分组，族内按排名先后）。
         self._families: list[list[int]] = []
         #: 源行 → 族序号（-1 = 不属于任何族）。
@@ -277,7 +284,8 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
                        colors: list[QtGui.QColor | None] | None = None,
                        *,
                        families: list[list[int]] | None = None,
-                       merge: bool | None = None) -> None:
+                       merge: bool | None = None,
+                       anchored_ids: Iterable[str] | None = None) -> None:
         """Replace rows with *results*; optional per-row pattern *colors*.
 
         *families* are index groups from
@@ -285,10 +293,16 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
         computed here when omitted.  With *merge* the table shows one row per
         phase family (its best-ranked member); otherwise every card is a row
         but the "变体" column still reports ``族内名次/族内条数``.
+
+        *anchored_ids* are the entries the sequential engine flagged as
+        strong-line anchored (``ResidualSearchResult.anchored_ids``); their
+        first column gets a marker.  Ordering is never changed here — the mark
+        only tells the user which sparse phases a peak-count FoM buries.
         """
         self.beginResetModel()
         self._results = list(results)
         self._colors = list(colors) if colors is not None else [None] * len(self._results)
+        self._anchored = set(anchored_ids or ())
         if families is None:
             families = group_same_phase([r.entry for r in self._results])
         self._families = [list(g) for g in families if g]
@@ -396,6 +410,22 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
         lines.append("右键 → 展开同相变体，可逐张查看与确认。")
         return "\n".join(lines)
 
+    def is_anchored(self, row: int) -> bool:
+        """Whether display *row* carries the strong-line anchor mark."""
+        if not 0 <= row < len(self._visible):
+            return False
+        return self._results[self._visible[row]].entry.entry_id in self._anchored
+
+    def anchor_tooltip(self, row: int) -> str:
+        """Explanation for the anchor mark (empty when the row is not marked)."""
+        if not self.is_anchored(row):
+            return ""
+        return (
+            "★ 最强参考线落在强残差峰上，且位置精度高、自身反射解释过半。\n"
+            "这类「少线相」在按峰条数计分的 FoM 里天然排在后面，\n"
+            "所以即使排名靠后也值得看一眼——确认前请核对参考线条。"
+        )
+
     # -- model API -------------------------------------------------------
     def rowCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self._visible)
@@ -422,7 +452,7 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
             if entry.mineral_name and entry.formula:
                 phase = f"{entry.formula} ({entry.mineral_name})"
             values = (
-                "",
+                self.ANCHOR_MARK if entry.entry_id in self._anchored else "",
                 entry.quality or "—",
                 entry.entry_id,
                 entry.formula,
@@ -437,13 +467,15 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
             return values[col]
         if role == QtCore.Qt.ItemDataRole.ToolTipRole and col == 10:
             return self.variant_tooltip(index.row()) or None
+        if role == QtCore.Qt.ItemDataRole.ToolTipRole and col == 0:
+            return self.anchor_tooltip(index.row()) or None
         if role == QtCore.Qt.ItemDataRole.BackgroundRole and col == 0:
             color = self._colors[src] if src < len(self._colors) else None
             if color is not None:
                 return QtGui.QBrush(color)
         if role == _SORT_ROLE:
             keys = (
-                0,
+                1 if entry.entry_id in self._anchored else 0,
                 entry.quality or "",
                 entry.entry_id,
                 entry.formula,
@@ -513,13 +545,23 @@ class CandidateListTable(QtWidgets.QTableView):
     def set_candidates(self, results: list[CandidateResult],
                        colors: list[QtGui.QColor | None] | None = None,
                        *,
-                       merge: bool | None = None) -> None:
+                       merge: bool | None = None,
+                       anchored_ids: Iterable[str] | None = None) -> None:
         """Fill from search-match *results* (optionally with pattern colors).
 
         *merge* keeps the fold state across calls when left ``None``.
+        *anchored_ids* marks strong-line anchored rows (see
+        ``_CandidateListModel.set_candidates``).
         """
-        self._model.set_candidates(results, colors, merge=merge)
+        self._model.set_candidates(
+            results, colors, merge=merge, anchored_ids=anchored_ids
+        )
         self.resizeColumnsToContents()
+
+    def is_anchored(self, row: int) -> bool:
+        """Whether **proxy** (display) *row* carries the anchor mark."""
+        src = self._proxy.mapToSource(self._proxy.index(row, 0))
+        return self._model.is_anchored(src.row())
 
     def set_merge_families(self, merge: bool) -> None:
         """Fold / unfold the same-phase variants (no-op when unchanged)."""

@@ -21,6 +21,7 @@ import pytest
 from xinmatch.core.model import Entry, Peak
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.sequential import (
+    AnchorPolicy,
     SequentialIdentifier,
     search_residual,
 )
@@ -379,3 +380,196 @@ def test_search_residual_skips_engine_when_nothing_left():
     assert result.candidates == []
     assert result.n_residual_peaks == 0
     assert result.covered_fraction == pytest.approx(1.0)
+
+
+# --------------------------------------------------------------------------- #
+# Strong-line anchoring (v3.3.0)
+# --------------------------------------------------------------------------- #
+# ``P_npeaks`` rewards the number of measured peaks a candidate explains, so a
+# peak-rich card carpets the residual set and a correct sparse phase (Fe, KCl)
+# never surfaces — measured on the synthetic bench: the true KCl was absent
+# from a 1000-deep pool.  The anchoring rule *identifies* such candidates:
+# strongest reference line on a strong residual peak, positionally accurate,
+# and coherent over its own lines, with a reflection-count cap that keeps the
+# peak-rich cards out.
+#
+# Marking is always on; **reordering is opt-in** (``promote_anchored=True``)
+# because the measured trade-off is not free: it recovers NaCl on synth_07
+# (11/13) but promotes a Bi-Y-O coincidence on real 3-2, where it outranks the
+# true CaF₂ and destroys the sample (5/12 → 4/12).
+def residual_index(seq: SequentialIdentifier, d: float) -> int:
+    """Index of the residual peak sitting at the 2θ of *d*."""
+    target = two_theta(d)
+    residual = seq.residual_peaks
+    return min(range(len(residual)), key=lambda i: abs(residual[i].two_theta - target))
+
+
+def dense_entry(entry_id: str = "D", n_ref: int = 24) -> Entry:
+    """A peak-rich card: *n_ref* reflections, all at unit intensity."""
+    ds = np.linspace(1.2, 3.0, n_ref)
+    return make_entry(entry_id, ds, np.full(n_ref, 100.0))
+
+
+def scored(entry: Entry, fom: float, pairs, **p_values) -> CandidateResult:
+    """Candidate carrying FoM sub-scores (what :func:`search_match` returns)."""
+    base = {"peakpos": 0.995, "intensity": 0.9, "npeaks": 0.4,
+            "ncorr": 0.9, "i_scale": 1.0}
+    base.update(p_values)
+    return CandidateResult(entry=entry, fom=fom, pairs=list(pairs), p_values=base)
+
+
+def search_returning(cands: list[CandidateResult]):
+    """A :func:`search_match` stand-in that returns *cands* verbatim."""
+
+    def fake_search(exp_peaks, conn, wavelength, **kwargs):
+        return list(cands)
+
+    return fake_search
+
+
+def sparse_pairs(seq: SequentialIdentifier) -> list[tuple[int, int]]:
+    """Entry-A-like sparse phase: its three lines land on A's three peaks."""
+    return [(residual_index(seq, d), i) for i, d in enumerate(A_D)]
+
+
+def test_anchor_marks_sparse_phase_without_reordering():
+    """Default: the FoM order is untouched, the sparse phase is only flagged.
+
+    This is what ships — the GUI marks the row so the user can look at the
+    candidate the peak-count criterion buried, but the engine does not decide
+    for them.
+    """
+    seq = identifier()
+    sparse = scored(make_entry("S", A_D, A_I), 0.60, sparse_pairs(seq), npeaks=0.2)
+    dense = scored(dense_entry(), 0.95, [(0, 0), (1, 1), (2, 2), (3, 3)])
+    weak = scored(entry_b(), 0.80, [(residual_index(seq, B_D[2]), 0)])
+
+    result = search_residual(
+        seq, object(), search_fn=search_returning([dense, weak, sparse])
+    )
+
+    assert [c.entry.entry_id for c in result.candidates] == ["D", "B", "S"]
+    # Only the sparse card passes the rule; the 24-reflection carpet does not.
+    assert result.anchored_ids == ["S"]
+
+
+def test_anchor_promotion_is_opt_in_and_puts_the_sparse_phase_first():
+    seq = identifier()
+    sparse = scored(make_entry("S", A_D, A_I), 0.60, sparse_pairs(seq), npeaks=0.2)
+    dense = scored(dense_entry(), 0.95, [(0, 0), (1, 1), (2, 2), (3, 3)])
+    weak = scored(entry_b(), 0.80, [(residual_index(seq, B_D[2]), 0)])
+
+    result = search_residual(
+        seq, object(), promote_anchored=True,
+        search_fn=search_returning([dense, weak, sparse]),
+    )
+
+    assert [c.entry.entry_id for c in result.candidates] == ["S", "D", "B"]
+    # Nothing is dropped and no FoM is rewritten — promotion is ordering only.
+    assert [c.fom for c in result.candidates] == pytest.approx([0.60, 0.95, 0.80])
+    assert result.anchored_ids == ["S"]
+
+
+def test_anchor_never_marks_dense_cards():
+    """A 24-reflection card is excluded even with a perfect anchor.
+
+    Without the reflection cap this candidate passes every other condition
+    (position 0.999, all pairs on strong peaks, ``ncorr`` 1.0) — the cap is
+    the only thing keeping the carpet out.
+    """
+    seq = identifier()
+    dense = scored(
+        dense_entry("D", 24), 0.95,
+        [(i, i) for i in range(4)], peakpos=0.999, ncorr=1.0,
+    )
+    sparse = scored(make_entry("S", A_D, A_I), 0.60, sparse_pairs(seq), npeaks=0.2)
+
+    strict = search_residual(
+        seq, object(), search_fn=search_returning([dense, sparse])
+    )
+    assert strict.anchored_ids == ["S"]
+
+    # Raise the cap and the very same candidate is flagged — proof that the
+    # cap, not some other condition, was doing the work.
+    loose = search_residual(
+        seq, object(),
+        anchor_policy=AnchorPolicy(max_reflections=30),
+        search_fn=search_returning([dense, sparse]),
+    )
+    assert loose.anchored_ids == ["D", "S"]
+    promoted = search_residual(
+        seq, object(), promote_anchored=True,
+        anchor_policy=AnchorPolicy(max_reflections=30),
+        search_fn=search_returning([dense, sparse]),
+    )
+    assert [c.entry.entry_id for c in promoted.candidates] == ["D", "S"]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"ncorr": 0.2}, id="incoherent-own-lines"),
+        pytest.param({"peakpos": 0.80}, id="position-off"),
+        pytest.param({}, id="weak-anchor-peak"),
+    ],
+)
+def test_anchor_conditions_reject_bad_candidates(overrides):
+    """Each guard on its own is enough to keep a candidate unmarked."""
+    seq = identifier()
+    if overrides:
+        pairs = [(residual_index(seq, A_D[1]), 0), (residual_index(seq, A_D[2]), 1)]
+        bad = scored(make_entry("S", A_D, A_I), 0.60, pairs, **overrides)
+    else:
+        # Strongest line (ref 0 = 3.0 Å) anchored on the *weakest* residual
+        # peak instead of the 1000-count one.
+        pairs = [(residual_index(seq, B_D[2]), 0), (residual_index(seq, A_D[1]), 1)]
+        bad = scored(make_entry("S", A_D, A_I), 0.60, pairs)
+    filler = scored(dense_entry(), 0.90, [(0, 0), (1, 1), (2, 2)])
+
+    result = search_residual(seq, object(), search_fn=search_returning([filler, bad]))
+    assert result.anchored_ids == []
+
+
+def test_anchor_needs_more_than_one_coincidence():
+    """A single matched pair is never enough, however strong the anchor."""
+    seq = identifier()
+    single = scored(make_entry("S", A_D, A_I), 0.60, [(residual_index(seq, A_D[0]), 0)])
+    filler = scored(dense_entry(), 0.90, [(0, 0), (1, 1)])
+
+    result = search_residual(seq, object(), search_fn=search_returning([filler, single]))
+    assert result.anchored_ids == []
+
+
+def test_anchor_is_a_noop_for_degenerate_scores():
+    """Empty pairs / empty ``p_values`` must not crash the rule."""
+    seq = identifier()
+    bare = [
+        CandidateResult(entry=make_entry("P", A_D, A_I), fom=0.9),
+        CandidateResult(entry=make_entry("Q", A_D, A_I), fom=0.8, pairs=[]),
+    ]
+    result = search_residual(
+        seq, object(), promote_anchored=True, search_fn=search_returning(bare)
+    )
+    assert [c.entry.entry_id for c in result.candidates] == ["P", "Q"]
+    assert result.anchored_ids == []
+
+
+
+def test_pairs_are_still_remapped_after_promotion():
+    """Anchoring happens in residual space; the output stays in original space."""
+    peaks = make_peaks()
+    seq = identifier(peaks)
+    seq.select(candidate(entry_a()))
+    b_indices = sorted(index_of(peaks, d) for d in B_D)
+    sparse = scored(entry_b(), 0.60, [(0, 0), (1, 1), (2, 2)], npeaks=1.0)
+    filler = scored(entry_a(), 0.90, [(0, 0)])  # filtered out as already matched
+
+    result = search_residual(
+        seq, object(), exclude_matched=True, promote_anchored=True,
+        search_fn=search_returning([filler, sparse]),
+    )
+    assert [c.entry.entry_id for c in result.candidates] == ["B"]
+    assert [exp for exp, _ in result.candidates[0].pairs] == b_indices
+    assert result.excluded_ids == ["A"]
+    assert result.anchored_ids == ["B"]
+

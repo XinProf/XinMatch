@@ -64,8 +64,15 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "DEFAULT_ABS_FLOOR",
+    "DEFAULT_ANCHOR_ALPHA",
+    "DEFAULT_ANCHOR_MAX_REFLECTIONS",
+    "DEFAULT_ANCHOR_MIN_NCORR",
+    "DEFAULT_ANCHOR_MIN_PAIRS",
+    "DEFAULT_ANCHOR_PEAKPOS",
+    "DEFAULT_ANCHOR_POLICY",
     "DEFAULT_EXPLAINED_FRAC",
     "DEFAULT_MIN_PEAK_FRAC",
+    "AnchorPolicy",
     "PhaseSelection",
     "ResidualSearchResult",
     "SequentialIdentifier",
@@ -96,6 +103,96 @@ DEFAULT_MIN_PEAK_FRAC: float = 0.01
 
 #: Peak-correlation window (degrees 2θ) — the project default.
 DEFAULT_WINDOW_DEG: float = 0.3
+
+
+# --------------------------------------------------------------------------- #
+# Strong-line anchoring (v3.3.0) — sparse-phase recall in the sequential loop
+# --------------------------------------------------------------------------- #
+# Why this exists
+# ---------------
+# ``P_npeaks`` in the FoM counts *how many* measured peaks a candidate
+# explains, as a fraction of the residual peak count.  In a residual set that
+# a "peak-rich" card (a 40-reflection intermetallic) can carpet, that reward
+# is dominated by sheer reflection count: a correct 6-line phase (Fe, KCl,
+# NaCl) explains 2–6 peaks and never reaches the top of the list, even when
+# one of its lines sits exactly on the strongest leftover peak.  Measured on
+# the synthetic bench (synth_07): the true KCl was **absent from a 1000-deep
+# candidate pool**, and Fe entered round 1 at rank #94/1000 with
+# ``P_peakpos = 0.998``, ``P_intensity = 0.99`` and its strongest line on
+# 1.00× the maximum residual intensity.
+#
+# The rule below asks: "does this candidate's **strongest** reference line sit
+# on a strong residual peak, is it positionally accurate, and does it account
+# for at least half of its own reflections?"  A dense card cannot pass the
+# reflection-count guard, so the carpet stays where it is.
+#
+# Measured trade-off (v3.3.0) — why the *ordering* is off by default
+# ------------------------------------------------------------------
+# | bench                | FoM order (default) | anchored first |
+# |----------------------|--------------------:|---------------:|
+# | synthetic_v3, 13 seq |           10/13     | **11/13**      |
+# | synthetic_v3 recall  |           19/24     | **21/24**      |
+# | real 12 samples      |            5/12     | 4/12           |
+# | real 43 phases       |           23/43     | 22/43          |
+#
+# The synthetic gain is real (synth_07's NaCl is recovered from rank 10), but
+# on real sample 3-2 the promoted card is a Bi-Y-O coincidence whose
+# ``P_peakpos`` (0.984) is actually *better* than the true CaF₂'s (0.928);
+# confirming it pollutes the residual and CaF₂ is lost even with 5 rounds.
+# Synthesised patterns carry the reference's exact relative intensities, real
+# ones never do — that is exactly the assumption the rule leans on, so the
+# synthetic bench overstates its value.  Hence: report the candidates it would
+# promote (:attr:`ResidualSearchResult.anchored_ids`, used by the GUI to mark
+# them) and let the user decide, instead of silently reordering.
+DEFAULT_ANCHOR_ALPHA: float = 0.3
+
+#: Minimum ``P_peakpos`` for the anchor rule (position accuracy).
+DEFAULT_ANCHOR_PEAKPOS: float = 0.98
+
+#: Minimum number of correlated pairs (a 1-line coincidence proves nothing).
+DEFAULT_ANCHOR_MIN_PAIRS: int = 2
+
+#: Minimum ``P_ncorr`` — share of the candidate's *own* reflections that the
+#: residual pattern actually accounts for.  This is what separates "a real
+#: phase with few lines" from "a huge card with one lucky coincidence".
+DEFAULT_ANCHOR_MIN_NCORR: float = 0.5
+
+#: Reflection-count ceiling: candidates with more reference lines than this
+#: are never promoted.  They are exactly the dense cards whose ``P_npeaks``
+#: advantage the anchor rule is meant to counterbalance.
+DEFAULT_ANCHOR_MAX_REFLECTIONS: int = 20
+
+
+@dataclass(frozen=True)
+class AnchorPolicy:
+    """Thresholds of the strong-line anchoring rule (see module constants).
+
+    Attributes
+    ----------
+    alpha:
+        Minimum strength of the residual peak the candidate's strongest
+        reference line is anchored on, as a fraction of the strongest
+        residual peak.
+    min_peakpos:
+        Minimum ``P_peakpos`` of the candidate.
+    min_pairs:
+        Minimum number of correlated ``(exp, ref)`` pairs.
+    min_ncorr:
+        Minimum ``P_ncorr`` (share of the candidate's own lines explained).
+    max_reflections:
+        Candidates with more reference lines than this are never promoted.
+    """
+
+    alpha: float = DEFAULT_ANCHOR_ALPHA
+    min_peakpos: float = DEFAULT_ANCHOR_PEAKPOS
+    min_pairs: int = DEFAULT_ANCHOR_MIN_PAIRS
+    min_ncorr: float = DEFAULT_ANCHOR_MIN_NCORR
+    max_reflections: int = DEFAULT_ANCHOR_MAX_REFLECTIONS
+
+
+#: Policy used when :func:`search_residual` is called without an explicit
+#: *anchor_policy*.
+DEFAULT_ANCHOR_POLICY: AnchorPolicy = AnchorPolicy()
 
 
 # --------------------------------------------------------------------------- #
@@ -162,6 +259,14 @@ class ResidualSearchResult:
         explained.
     excluded_ids:
         Entry ids filtered out because they are already confirmed phases.
+    anchored_ids:
+        Entry ids that satisfy the strong-line anchoring rule (v3.3.0):
+        strongest reference line on a strong residual peak, accurate
+        position, ≥ half of their own reflections accounted for, and few
+        enough reflections to not be a peak-rich carpet.  The GUI marks
+        these rows — they are the sparse phases a pure FoM ranking buries.
+        Empty when promotion is disabled *and* the caller does not ask for
+        the marks; see :func:`search_residual`.
     """
 
     candidates: list[CandidateResult] = field(default_factory=list)
@@ -170,6 +275,7 @@ class ResidualSearchResult:
     n_ignored: int = 0
     covered_fraction: float = 0.0
     excluded_ids: list[str] = field(default_factory=list)
+    anchored_ids: list[str] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -592,12 +698,94 @@ def _default_search_fn() -> Callable[..., list[CandidateResult]]:
     return search_match
 
 
+def _anchor_ok(
+    cand: CandidateResult,
+    residual_intensity: np.ndarray,
+    peak_max: float,
+    policy: AnchorPolicy,
+) -> bool:
+    """Whether *cand* satisfies the strong-line anchoring rule.
+
+    ``cand.pairs`` must still be in **residual** peak order, i.e. this runs
+    before the pairs are remapped to original experimental indices.
+
+    Everything is defensive: candidates that carry no ``p_values``, no
+    ``pairs`` or an entry without intensities simply do not qualify.
+    """
+    p_values = cand.p_values
+    if not p_values:
+        return False
+    intensities = cand.entry.intensities
+    if intensities is None:
+        return False
+    n_ref = int(intensities.size)
+    if n_ref == 0 or n_ref > policy.max_reflections:
+        return False
+    if float(p_values.get("peakpos", 0.0)) < policy.min_peakpos:
+        return False
+    if len(cand.pairs) < policy.min_pairs:
+        return False
+    if float(p_values.get("ncorr", 0.0)) < policy.min_ncorr:
+        return False
+    strongest = int(np.argmax(intensities))
+    anchored = next((e for e, r in cand.pairs if r == strongest), None)
+    if anchored is None or not 0 <= anchored < residual_intensity.size:
+        return False
+    return bool(residual_intensity[anchored] >= policy.alpha * peak_max)
+
+
+def _anchor_flags(
+    candidates: list[CandidateResult],
+    residual_intensity: np.ndarray,
+    policy: AnchorPolicy,
+) -> list[bool]:
+    """Per-candidate "is strong-line anchored" verdicts.
+
+    All ``False`` when there is nothing to compare against (empty residual set
+    or a flat one) — the rule never promotes on degenerate input.
+    """
+    if not candidates or residual_intensity.size == 0:
+        return [False] * len(candidates)
+    peak_max = float(residual_intensity.max())
+    if peak_max <= 0.0:
+        return [False] * len(candidates)
+    return [
+        _anchor_ok(cand, residual_intensity, peak_max, policy)
+        for cand in candidates
+    ]
+
+
+def _promote_anchored(
+    candidates: list[CandidateResult],
+    flags: list[bool],
+) -> list[CandidateResult]:
+    """Move anchored candidates to the front, keeping the order otherwise.
+
+    A stable partition: promoted candidates come first (still by descending
+    FoM), the rest keep their original relative order.  Nothing is dropped and
+    no FoM is recomputed.
+
+    **Off by default** — see the module-level note on the measured trade-off.
+    """
+    if len(candidates) < 2:
+        return candidates
+    if not any(flags) or all(flags):
+        return candidates
+    hot = [c for c, f in zip(candidates, flags, strict=True) if f]
+    cold = [c for c, f in zip(candidates, flags, strict=True) if not f]
+    hot.sort(key=lambda c: c.fom, reverse=True)
+    logger.debug("anchored promotion: %d/%d candidates", len(hot), len(candidates))
+    return hot + cold
+
+
 def search_residual(
     identifier: SequentialIdentifier,
     conn: object,
     *,
     top_n: int = 20,
     exclude_matched: bool = True,
+    promote_anchored: bool = False,
+    anchor_policy: AnchorPolicy | None = None,
     search_fn: Callable[..., list[CandidateResult]] | None = None,
     **search_kwargs: object,
 ) -> ResidualSearchResult:
@@ -610,7 +798,10 @@ def search_residual(
        set is smaller);
     3. drop entries that are already confirmed phases
        (*exclude_matched*, default on) so the list answers "what is left?";
-    4. remap every candidate's ``pairs`` from residual indices back to
+    4. flag the candidates that pass the strong-line anchoring rule and
+       report them as :attr:`ResidualSearchResult.anchored_ids` — the sparse
+       phases a peak-count-driven FoM buries;
+    5. remap every candidate's ``pairs`` from residual indices back to
        original experimental peak indices, so the GUI can highlight the
        measured peaks a candidate would explain.
 
@@ -625,12 +816,21 @@ def search_residual(
         Number of candidates to keep.
     exclude_matched:
         Drop already confirmed entry ids from the result.
+    promote_anchored:
+        Promote the anchored candidates to the **front** of the list instead
+        of only marking them.  **Off by default**: it recovers a sparse phase
+        on the synthetic bench (10/13 → 11/13) but costs one real sample
+        (5/12 → 4/12) — see the module-level note.  Interactive use can turn
+        it on; the autonomous bench should not.
+    anchor_policy:
+        Thresholds of the rule; ``None`` uses :data:`DEFAULT_ANCHOR_POLICY`.
     search_fn:
         Injection point for tests / alternative engines.  Defaults to
         :func:`~xinmatch.core.search.search_match.search_match`.
     **search_kwargs:
         Forwarded to *search_fn* (``weights``, ``window_deg``,
-        ``restraints``, …).
+        ``restraints``, …).  The anchoring flags are deliberately **not**
+        forwarded — they belong to this layer, not to the search engine.
 
     Returns
     -------
@@ -671,6 +871,27 @@ def search_residual(
         if exclude_matched and eid in matched:
             excluded.append(eid)
             continue
+        kept.append(cand)
+
+    # Anchoring runs while ``pairs`` still index the residual peak list — the
+    # rule compares against residual intensity, so it must see the un-remapped
+    # indices.
+    residual_intensity = np.fromiter(
+        (float(p.intensity) for p in residual_peaks),
+        dtype=np.float64,
+        count=len(residual_peaks),
+    )
+    policy = DEFAULT_ANCHOR_POLICY if anchor_policy is None else anchor_policy
+    flags = _anchor_flags(kept, residual_intensity, policy)
+    anchored_ids = [
+        cand.entry.entry_id
+        for cand, flag in zip(kept, flags, strict=True)
+        if flag
+    ]
+    if promote_anchored:
+        kept = _promote_anchored(kept, flags)
+
+    for cand in kept:
         # Residual index → original index.  Guard the upper bound: a
         # candidate whose pairs came from somewhere else must not produce an
         # out-of-range index that later crashes the peak-list highlight.
@@ -679,7 +900,6 @@ def search_residual(
             for exp_idx, ref_idx in cand.pairs
             if 0 <= exp_idx < len(indices)
         ]
-        kept.append(cand)
 
     return ResidualSearchResult(
         candidates=kept,
@@ -688,4 +908,5 @@ def search_residual(
         n_ignored=n_ignored,
         covered_fraction=covered,
         excluded_ids=excluded,
+        anchored_ids=anchored_ids,
     )

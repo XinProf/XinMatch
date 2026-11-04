@@ -265,10 +265,61 @@ def test_candidate_context_menu(qapp):
     assert viewed == ["COD-100001"]
 
 
+def test_candidate_table_marks_anchored_rows(qapp):
+    """v3.3.0: strong-line anchored rows get a ★ in the colour band.
+
+    The mark is informational only — no column is added and the FoM order is
+    untouched, so a sparse phase the peak-count criterion buried becomes
+    *visible* without the engine deciding for the user.
+    """
+    results = [
+        _candidate(0.90, "96-900-0001", formula="Si O2"),
+        _candidate(0.60, "96-900-0004", formula="Cl Na"),
+    ]
+    table = CandidateListTable()
+    table.set_candidates(results, anchored_ids=["96-900-0004"])
+    table.resize(600, 200)
+    table.show()
+
+    marks = [table.model().index(r, 0).data(QtCore.Qt.ItemDataRole.DisplayRole)
+             for r in range(table.model().rowCount())]
+    assert marks == ["", "★"]
+    assert table.is_anchored(0) is False
+    assert table.is_anchored(1) is True
+    tip = table.model().index(1, 0).data(QtCore.Qt.ItemDataRole.ToolTipRole)
+    assert tip and "少线相" in tip
+    assert table.model().index(0, 0).data(QtCore.Qt.ItemDataRole.ToolTipRole) is None
+    # Ranking is unchanged: the marked row is still the lower-FoM row.
+    assert [r.entry.entry_id for r in table.visible_results()] == [
+        "96-900-0001", "96-900-0004",
+    ]
+
+
+def test_candidate_table_anchor_mark_survives_family_fold(qapp):
+    """A marked member keeps its mark when its family folds into one row."""
+    results = [
+        _candidate(0.90, "96-900-0001", formula="Al2 Be3 Si6 O18", cell=_BERYL_CELL),
+        _candidate(0.85, "96-900-0002", formula="Al1.5 Be3 Si6 O18", cell=_BERYL_CELL),
+        _candidate(0.60, "96-900-0004", formula="C Ca O3", cell=_CALCITE_CELL),
+    ]
+    table = CandidateListTable()
+    table.set_candidates(results, anchored_ids=["96-900-0002"])
+    table.resize(600, 200)
+    table.show()
+    assert table.model().rowCount() == 2
+    # The folded family is represented by its best card (0001), which is not
+    # the marked one — so the representative row carries no mark, and the mark
+    # comes back when the variants are unfolded.
+    assert table.is_anchored(0) is False
+    table.set_merge_families(False)
+    ids = [r.entry.entry_id for r in table.visible_results()]
+    assert ids[1] == "96-900-0002"
+    assert table.is_anchored(1) is True
+
+
 # ---------------------------------------------------------------------------
 # Match list
-# ---------------------------------------------------------------------------
-def test_match_table_fills_rows(qapp):
+# ---------------------------------------------------------------------------def test_match_table_fills_rows(qapp):
     phases = [Phase(entry=_make_entry("P-1", "Si O2", "Quartz"), weight_fraction=0.5)]
     table = MatchListTable()
     table.set_phases(phases)

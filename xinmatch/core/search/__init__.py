@@ -84,8 +84,15 @@ from .search_match import (
 )
 from .sequential import (
     DEFAULT_ABS_FLOOR,
+    DEFAULT_ANCHOR_ALPHA,
+    DEFAULT_ANCHOR_MAX_REFLECTIONS,
+    DEFAULT_ANCHOR_MIN_NCORR,
+    DEFAULT_ANCHOR_MIN_PAIRS,
+    DEFAULT_ANCHOR_PEAKPOS,
+    DEFAULT_ANCHOR_POLICY,
     DEFAULT_EXPLAINED_FRAC,
     DEFAULT_MIN_PEAK_FRAC,
+    AnchorPolicy,
     PhaseSelection,
     ResidualSearchResult,
     SequentialIdentifier,
@@ -149,6 +156,14 @@ __all__ = [
     "DEFAULT_EXPLAINED_FRAC",
     "DEFAULT_ABS_FLOOR",
     "DEFAULT_MIN_PEAK_FRAC",
+    # Strong-line anchoring / sparse-phase marks (v3.3.0)
+    "AnchorPolicy",
+    "DEFAULT_ANCHOR_POLICY",
+    "DEFAULT_ANCHOR_ALPHA",
+    "DEFAULT_ANCHOR_PEAKPOS",
+    "DEFAULT_ANCHOR_MIN_PAIRS",
+    "DEFAULT_ANCHOR_MIN_NCORR",
+    "DEFAULT_ANCHOR_MAX_REFLECTIONS",
     # Phase-level identity / near-duplicate families (v3.2.0)
     "PhaseFamily",
     "parse_composition",

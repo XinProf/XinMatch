@@ -770,10 +770,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self._current_pattern = pattern
         self._pattern_key = self.pattern_view.add_pattern(pattern, name=name)
 
-    def set_candidates(self, results: list[CandidateResult]) -> None:
-        """Store the latest search-match results and fill the candidate dock."""
+    def set_candidates(self, results: list[CandidateResult],
+                       *, anchored_ids: list[str] | None = None) -> None:
+        """Store the latest search-match results and fill the candidate dock.
+
+        *anchored_ids* marks the rows the residual search flagged as
+        strong-line anchored (v3.3.0): sparse phases whose strongest
+        reference line sits on a strong leftover peak.  The order is not
+        changed — the mark only tells the user where to look.
+        """
         self._candidates = list(results)
-        self.candidate_table.set_candidates(self._candidates)
+        self.candidate_table.set_candidates(
+            self._candidates, anchored_ids=anchored_ids
+        )
         # 新候选到达即刷新「确认该相」的可用状态（v3.1.0）。
         if hasattr(self, "confirm_phase_button"):
             self._refresh_sequential_controls()
@@ -1523,12 +1532,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _apply_residual_results(self, result: ResidualSearchResult) -> None:
         """回填剩余峰检索结果（GUI 线程）。"""
-        self.set_candidates(result.candidates)
+        self.set_candidates(result.candidates, anchored_ids=result.anchored_ids)
         self._refresh_sequential_controls()
         note = self._confirm_note
         self._confirm_note = ""
         if result.excluded_ids:
             note += f"；已排除已确认的 {len(result.excluded_ids)} 条"
+        if result.anchored_ids:
+            note += (
+                f"；★ {len(result.anchored_ids)} 条最强线命中强残差峰"
+                "（少线相，排名靠后也值得核对）"
+            )
         # 高覆盖度提示：剩余峰往往只是卡片未收录的弱反射或噪声鼓包，此时排行榜
         # 前排容易是"凑巧命中两三个弱峰"的卡片（实测 synth_02 第 3 轮 FoM≈0.71
         # 命中 Ca2KNb3O10，全部峰已解释 95.5%）。给一句判据，别让用户以为那是
