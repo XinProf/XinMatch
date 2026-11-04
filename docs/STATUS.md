@@ -858,3 +858,28 @@ _peaks<=1 均为 0。
 - **外挂数据库**：两个二进制均内置 `COD-Inorg-20261020.xinDB`；更大的 PCOD / TCOD / Full / MP 库在
   [`XinMatch-DataBase` Releases](https://github.com/PolyXRD/XinMatch-DataBase/releases) 分发，
   下载解压后经「设置 → 参考数据库…」或 `XinMatch.exe libraries --add <path>` 挂载，可多库并存。
+
+## v3.3.0 发布（2026-11-05）✅
+
+**范围**：少线相**强线锚定标记**（`AnchorPolicy` + `ResidualSearchResult.anchored_ids` + 候选表 ★），
+排序默认不变。详见 `docs/RELEASE-NOTES-v3.3.0.md`、基准报告 §11.5。
+
+| 附件 | 字节 | SHA-256（前 16 位） |
+|---|---:|---|
+| `XinMatch-Setup-3.3.0.exe` | 254,071,430 | `6e93c548dbd09ad8…` |
+| `XinMatch-Internal-3.3.0.zip` | 353,728,377 | `71f410fbef7eedad…` |
+| `SHA256SUMS.txt` | 190 | — |
+
+- **二进制稳健性 5 轮全通过**（`tools/verify_binary.py`，报告 `.scratch/binary_verify_330.json`）：
+  哈希清单回读一致；便携解包 variant=internal、内置库 118,640,640 B / 78,035 相、随包 logo 逐字节一致；
+  冻结 GUI 三钩子（REG=内部评估版本 / LIBS=10 条库 / ABOUT PNG 9,117 B）+ 3 次冷启动 exit 0；
+  `/VERYSILENT /CURRENTUSER` 静默安装 variant=release 成功；安装后真实谱检索 118 峰 → 5 候选、
+  榜首 `96-210-0189`，GUI 钩子 `variant=release, registration_enabled=true, 未注册`。
+- **验收工具修复**：`verify_binary` 的 `--workdir` 传相对路径会让轮 3/4 把相对路径交给子进程
+  （cwd 即 work 目录）→ 冻结 GUI 写文件抛 `FileNotFoundError` 被 Qt 吞掉、表现为自测超时 +
+  静默安装 rc=1。`main()` 现在先 `resolve()` 所有输入路径。
+- **全量回归**：1488 项 1483 passed / 4 skipped / 1 xfailed / 0 failed（15m27s）；ruff 全通过、
+  mypy 121 文件 Success。
+- **基准终态（默认口径与 v3.2.0 逐项相同）**：合成谱相位级 T1 11/13、T5 12/13、序贯 10/13、
+  相召回 19/24；真实谱 T1 10/12、T5 12/12、卡级 24/43、族级 27/43、序贯 5/12。
+  开启 `promote_anchored=True`：合成 11/13 · 21/24，真实 4/12（故默认关闭）。

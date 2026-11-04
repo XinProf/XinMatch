@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. Runs `pyinstaller xinmatch.spec` (onedir).  Exe icon comes from the
-       committed assets/icons/logo.ico; version resource (3.2.0 + contact
+       committed assets/icons/logo.ico; version resource (3.3.0 + contact
        sshztx@outlook.com) is embedded by the spec.
     2. Since v3.0.0 the **default reference library** `COD-Inorg-*.xinDB`
        (v3 columnar) IS bundled: the spec collects it into `data/` and this
@@ -35,7 +35,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "3.2.0",
+    [string]$Version = "3.3.0",
     [ValidateSet("release", "internal")]
     [string]$Variant = "release"
 )

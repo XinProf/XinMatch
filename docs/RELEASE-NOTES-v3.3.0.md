@@ -116,7 +116,34 @@ NaCl 17 条、KCl 约 9 条）只解释两三个峰，`P(npeaks)` 很低，于�
 
 ### 七、发布产物
 
-本版二进制在发布时构建，按既定 5 轮稳健性验收（SHA-256 回下载 / 便携启动 /
-冻结 GUI 冒烟 / 静默安装 / 安装后启动）通过后上传；具体附件与哈希见 Release 页面。
-参考库沿用 v3.2.0 的内置 `COD-Inorg-20261020.xinDB`，扩展库仍从
+| 附件 | 字节 | SHA-256 |
+|---|---:|---|
+| `XinMatch-Setup-3.3.0.exe` | 254,071,430 | `6e93c548dbd09ad82dcb3a3e59c8b41218d3a9a11515e45acc62b519f9770791` |
+| `XinMatch-Internal-3.3.0.zip` | 353,728,377 | `71f410fbef7eedad7dab785f0703d24af3fc7d10d0bc29d696fe7ba947c144c4` |
+| `SHA256SUMS.txt` | 190 | 上面两个哈希的清单 |
+
+两个二进制都内置 `COD-Inorg-20261020.xinDB`（113 MiB / 78,035 相），解压或安装即可检索；
+更大的扩展库仍从
 [`XinMatch-DataBase`](https://github.com/PolyXRD/XinMatch-DataBase) 挂载。
+
+### 八、二进制稳健性验收（5 轮，全部通过）
+
+对**实际发布的产物**跑 `tools/verify_binary.py`
+（`python -m tools.verify_binary --setup … --zip … --workdir …`），原始结果
+`.scratch/binary_verify_330.json`：
+
+| # | 检查 | 实测结果 |
+|---|---|---|
+| 1 | SHA-256 一致性 | 算哈希 → 写 `SHA256SUMS.txt` → 解析回读并重新哈希比对，一致 ✅ |
+| 2 | 便携模式启动 | 解包 exit 0 → `variant.txt=internal`、内置 `COD-Inorg-20261020.xinDB` 118,640,640 B、随包 `logo_256.png` 与源码逐字节一致；冻结 CLI `libraries --json`（默认库 `entries=78035 / available=true`）与 `import --help` 均 exit 0 ✅ |
+| 3 | 冻结 GUI 冒烟 | `REG` → `variant=internal, registration_enabled=false, 内部评估版本`；`LIBS` → 10 条库记录；`ABOUT` → 渲染出 About 对话框 PNG（9,117 B）；另连续 3 次冷启动均 exit 0 ✅ |
+| 4 | 静默安装 | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /DIR=…` → exit 0，落地 `XinMatch.exe` + `data\COD-Inorg-20261020.xinDB`，`variant.txt=release` ✅ |
+| 5 | 安装后启动 | 安装目录冻结 CLI `libraries --json` exit 0；**真实谱端到端检索** `search 5-1.txt --db <安装目录内置库> --top-n 5 --json` → 118 峰 / 5 候选 / 榜首 `96-210-0189`（方解石，与基准一致）；release GUI 钩子 `variant=release, registration_enabled=true, 未注册` ✅ |
+
+> 本轮踩到一个**验收工具自身的坑**并已修掉：`--workdir` 传相对路径时，轮 3/4 会把
+> 相对路径当环境变量 / `/LOG=` 参数交给子进程（子进程 cwd 就是 work 目录），解析成
+> 不存在的路径 → 冻结 GUI 里写文件抛 `FileNotFoundError` 被 Qt 吞掉、事件循环继续跑，
+> 表现为「自测 120 s 超时」＋「静默安装 rc=1」，极易误判成产物有问题。
+> `verify_binary.main()` 现在把所有输入路径先 `resolve()`。
+
+人工双击验收仍建议由使用者做一次（自动化只覆盖离屏路径）。

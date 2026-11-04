@@ -281,13 +281,18 @@ def main() -> int:
                     help="Where to write the JSON report (default .scratch/binary_verify.json).")
     ap.add_argument("--skip-install", action="store_true")
     args = ap.parse_args()
+    # 所有输入路径先绝对化。为什么必须：轮 3/4 把 work 目录里的文件路径当环境变量
+    # （XINMATCH_SELFTEST_*_OUT）和 `/LOG=` 参数交给子进程，而子进程的 cwd 就是
+    # work 本身——相对 workdir 会被解析成 work/work/… 这种不存在的路径，冻结 GUI
+    # 里的写文件抛 FileNotFoundError 被 Qt 吞掉、事件循环继续跑，表现为「自测超时」，
+    # 极易误判成产物有问题（2026-11-04 踩过）。
     if args.sample:
         global SAMPLE
-        SAMPLE = Path(args.sample)
-    setup, zipf = Path(args.setup), Path(args.zip)
+        SAMPLE = Path(args.sample).resolve()
+    setup, zipf = Path(args.setup).resolve(), Path(args.zip).resolve()
     # A fresh directory per run: the verification must never bulk-delete a
     # previous extraction (sandboxes guard that, and evidence is worth keeping).
-    work = Path(args.workdir) / (args.tag or time.strftime("%Y%m%d-%H%M%S"))
+    work = (Path(args.workdir) / (args.tag or time.strftime("%Y%m%d-%H%M%S"))).resolve()
     work.mkdir(parents=True, exist_ok=True)
     report: dict = {"rounds": {}}
     for n, fn in (
@@ -304,7 +309,7 @@ def main() -> int:
         report["rounds"][str(n)] = res
         print(f"[round {n}] ok={res.get('ok')}", flush=True)
     report["all_pass"] = all(r.get("ok") is True for r in report["rounds"].values())
-    out = Path(args.report) if args.report else REPO / ".scratch" / "binary_verify.json"
+    out = Path(args.report).resolve() if args.report else REPO / ".scratch" / "binary_verify.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"report -> {out}; all_pass={report['all_pass']}")
