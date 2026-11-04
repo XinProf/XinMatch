@@ -805,3 +805,28 @@ _peaks<=1 均为 0。
   docs/ACCEPTANCE-20261101-rebuild.md（提交 8679bf0/1bb9c63/4b36f0/13e85b9）。
 - **已知提示**：TCOD-Full 48,732 相 / COD-Full 81,284 相的元素超出 63 位 lem_mask
   （ntries.elements 与 lement_inv 完整，按元素检索不受影响）；半塌缩边界 WARN 属峰口径边缘现象，不阻塞。
+
+## Materials Project 外部库 MP-20261031（2026-11-04）✅
+
+**范围**：把 `D:\Project\MP-summary` 的 Materials Project summary CIF（155,204 个）按 `.xinDB` v3 外部库格式构建为
+`MP-20261031.xinDB`，并完成结构/产品/端到端验收。源数据与产物：
+
+| 项 | 值 |
+|---|---|
+| CIF 源 | 155,204（平铺，文件名为化学式；3 个无 `# mp-id:` 头跳过） |
+| 相数 / 反射数 | **155,201 / 20,900,193**（38 chunk） |
+| 体积 / SHA-256 | **251,633,664 B** / `26D7A9BE…5289EE20`（zip 197,925,329 B） |
+| 构建 | **9.0 min**，17,318 相/分钟（14 workers），errors=0 |
+| 验收 | validate --all-chunks **0F/1W/29**；accept **0F/1W/19**（id 集合与归档 155,201 个 mp-id 完全一致，bad_phase_ids=0）；自重召回 Top-1/Top-5 20/20（中位 0.52 s） |
+
+- **id 约定**：`mp-<number>`（MP 原生 id，如 `mp-862690`），号段 `[0, 20,000,000)`；不套 COD 的 `96-` 前缀。
+- **空间群**：pymatgen 把结构写成 P1，真实空间群只在注释 `# mp-id: ... | spacegroup: ...`；
+  构建器用注释覆盖 `entries.space_group` 并推导晶系（225 个符号 / 7 个晶系，全量核对与归档一致）。
+- **tier = 2**（DFT 计算结构）；journal/author = Materials Project、quality = DFT。
+- **挂载**：`python -m xinmatch.cli.main libraries --add D:\Project\XRD\XinMatch-DataBase\data\MP-20261031.xinDB --label "Materials Project"`；
+  已实测挂载为外部库 `ext_567de5034377`，available=true，entries=155201。
+- **代码**（姊妹仓库 `XinMatch-DataBase` 提交 `19a01b3`）：`mp_scan.py`、`build_mp_xindb.py`、
+  `build_cod_xindb.build(id_mode="mp")`、`accept_xindb --mp-root` 全集归属、`tests/test_mp_scan.py`。
+- **已知 WARN**：5,660 条半塌缩边界相（真实反射 + LP 在 180° 发散，非假峰），不阻塞。
+- **记录**：`XinMatch-DataBase/docs/MP-库构建与验收.md`、`docs/release-notes-20261031-mp.md`；
+  Release `20261031-mp`（MP-20261031.xinDB.zip + SHA256SUMS.txt）。
