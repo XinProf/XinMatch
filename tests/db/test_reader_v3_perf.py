@@ -21,6 +21,13 @@ reader internals under test.  Every prescreen candidate list (including order),
 ``truncated`` flag, ``n_hits`` count and every ``fetch_peaks`` / ``fetch_entry``
 float64 value is compared against it.
 
+The oracle tracks the **current** slot policy, not the 2026-10 one: v3.2.0
+changed the per-slot ordering (a :data:`_DIVERSIFY_SHARE` slice of the quota is
+ordered by hit count alone, and the default quota went 800 → 1000).  When that
+policy changes again, change the oracle with it -- what this file guards is
+"the optimised reader returns exactly what the straightforward implementation
+would", not "the policy never moves".
+
 The real COD/PCOD/TCOD libraries are used when present; those tests skip
 otherwise.  The slow ones are marked ``slow`` (excluded by the default
 ``-m "not slow"`` run) because loading the PCOD matrix and running the
@@ -42,7 +49,11 @@ import numpy as np
 import pytest
 
 from tests.xindb_support import entry_to_meta
-from xinmatch.core.db.reader_v3 import XinDBReader
+from xinmatch.core.db.reader_v3 import (
+    _DIVERSIFY_SHARE,
+    DEFAULT_RANK_LIMIT,
+    XinDBReader,
+)
 from xinmatch.core.db.schema_v3 import TOP_K
 from xinmatch.core.db.writer_v3 import XinDBWriter
 from xinmatch.core.model import CellParams, Entry
@@ -206,7 +217,8 @@ class _ReferenceDb:
         tolerance: float = 0.02,
         tolerance_rel: float = 0.0,
         min_match: int = 3,
-        rank_limit: int | None = 800,
+        rank_limit: int | None = None,
+        diversify_slots: int | None = None,
         elements_allowed: set[str] | frozenset[str] | None = None,
     ) -> tuple[list[str], bool, int]:
         """Old full-matrix implementation; returns (ids, truncated, n_hits)."""
@@ -270,9 +282,26 @@ class _ReferenceDb:
         if sel.size == 0:
             return [], False, 0
         order = sel[np.lexsort((-hits[sel], -whits[sel], ~main_hit[sel]))]
-        limit = int(rank_limit if rank_limit is not None else 800)
+        limit = int(rank_limit if rank_limit is not None else DEFAULT_RANK_LIMIT)
         limit = max(1, limit)
         truncated = order.size > limit
+
+        # v3.2.0 slot policy: a slice of the quota is filled by hit count alone
+        # (see reader_v3.prescreen for why).  The oracle must encode the policy
+        # as well, otherwise it stops describing "what the reader is supposed to
+        # return" and only tests a stale ordering.
+        n_diverse = (
+            max(0, min(int(round(limit * _DIVERSIFY_SHARE)), limit))
+            if diversify_slots is None
+            else max(0, min(int(diversify_slots), limit))
+        )
+        if n_diverse > 0 and order.size > 1:
+            primary = order[: limit - n_diverse]
+            by_hits = sel[np.lexsort((-whits[sel], -hits[sel]))]
+            extra = by_hits[~np.isin(by_hits, primary)][:n_diverse]
+            order = np.concatenate([primary, extra])
+        else:
+            order = order[:limit]
         order = order[:limit]
         return [self.ids[int(r)] for r in order if int(r) < len(self.ids)], truncated, int(
             sel.size

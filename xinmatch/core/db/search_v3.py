@@ -48,12 +48,14 @@ from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.model.peak import Peak
 from xinmatch.core.search.fom import CandidateResult, rank_candidates
 
-from .reader_v3 import XinDBReader
+from .reader_v3 import DEFAULT_RANK_LIMIT, XinDBReader
 
 logger = logging.getLogger(__name__)
 
-#: Default number of candidates handed to the scoring stage.
-DEFAULT_CANDIDATE_LIMIT = 800
+#: Default number of candidates handed to the scoring stage.  Single source of
+#: truth is :data:`xinmatch.core.db.reader_v3.DEFAULT_RANK_LIMIT` (the prescreen
+#: cap); keeping a second literal here silently let the two drift apart.
+DEFAULT_CANDIDATE_LIMIT = DEFAULT_RANK_LIMIT
 
 #: Number of strongest experimental peaks used for the prescreen.  Mirrors
 #: the v2 recall stage (``recall_top_k=40``): the strongest measured lines

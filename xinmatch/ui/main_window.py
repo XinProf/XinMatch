@@ -214,10 +214,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("XinMatch")
         self.resize(1280, 800)
 
-        # Application icon (original assets/logo.png; absent -> Qt default icon).
-        logo = _asset_path("logo.png")
-        if logo.is_file():
-            self.setWindowIcon(QtGui.QIcon(str(logo)))
+        # Application icon — 256 px plate from assets/icons/ (v3.2.0 起的新品牌标志),
+        # 回退到整张 logo.png；都缺失时用 Qt 默认图标。
+        for _icon_name in ("icons/logo_256.png", "logo.png"):
+            _icon_path = _asset_path(_icon_name)
+            if _icon_path.is_file():
+                self.setWindowIcon(QtGui.QIcon(str(_icon_path)))
+                break
 
         # State fed by the controller layer: current experimental pattern and
         # the latest search-match candidate list.
@@ -776,16 +779,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self._refresh_sequential_controls()
 
     def _selected_candidate_results(self) -> list[CandidateResult]:
-        """Candidate rows selected in the dock; fall back to all candidates."""
-        idxs = self.candidate_table.selectionModel().selectedRows()
-        if not idxs:
-            return list(self._candidates)
-        proxy = self.candidate_table.model()
-        selected: list[CandidateResult] = []
-        for idx in idxs:
-            row = proxy.mapToSource(idx).row()  # type: ignore[attr-defined]
-            if 0 <= row < len(self._candidates):
-                selected.append(self._candidates[row])
+        """Candidate rows selected in the dock; fall back to all candidates.
+
+        Goes through :meth:`CandidateListTable.selected_results` because the
+        candidate list folds same-phase variants (v3.2.0), so a display row is
+        no longer a candidate index.
+        """
+        selected = self.candidate_table.selected_results()
         return selected or list(self._candidates)
 
     def _open_refinement_wizard(self) -> None:

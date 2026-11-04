@@ -1,0 +1,156 @@
+"""Unit tests for phase-level identity (v3.2.0)."""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from xinmatch.core.model import CellParams, Entry
+from xinmatch.core.search.phase_key import (
+    families,
+    group_same_phase,
+    normalize_formula,
+    parse_composition,
+    same_phase,
+)
+
+
+def _entry(
+    eid: str,
+    formula: str,
+    *,
+    a: float = 4.0,
+    b: float | None = None,
+    c: float | None = None,
+    space_group: str | None = "F m -3 m",
+) -> Entry:
+    b = a if b is None else b
+    c = a if c is None else c
+    return Entry(
+        entry_id=eid,
+        formula=formula,
+        d_spacings=np.array([3.0, 2.0, 1.5]),
+        intensities=np.array([1000.0, 500.0, 250.0]),
+        mineral_name=None,
+        cell=CellParams(a=a, b=b, c=c, alpha=90.0, beta=90.0, gamma=90.0),
+        space_group=space_group,
+        hkl=None,
+        literature={},
+        quality="",
+        elements=frozenset(parse_composition(formula)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# composition parsing
+# ---------------------------------------------------------------------------
+
+
+def test_parse_composition_counts_and_order():
+    assert parse_composition("Al2 Mg O4") == {"Al": 2.0, "Mg": 1.0, "O": 4.0}
+    assert parse_composition("Ca O3 C") == parse_composition("C Ca O3")
+    assert parse_composition("Mg O") == {"Mg": 1.0, "O": 1.0}
+
+
+def test_parse_composition_decimal_occupancy():
+    comp = parse_composition("H0.95 Ni Ti")
+    assert comp["H"] == pytest.approx(0.95)
+    assert comp["Ni"] == 1.0 and comp["Ti"] == 1.0
+
+
+def test_parse_composition_empty():
+    assert parse_composition("") == {}
+    assert parse_composition(None) == {}
+
+
+def test_normalize_formula_is_canonical():
+    assert normalize_formula("Al2 Mg O4") == "Al2MgO4"
+    assert normalize_formula("Al1.50 Mg O4") == normalize_formula("Al1.5MgO4")
+    # 元素顺序无关
+    assert normalize_formula("O4 Mg Al2") == normalize_formula("Al2 Mg O4")
+
+
+# ---------------------------------------------------------------------------
+# same_phase
+# ---------------------------------------------------------------------------
+
+
+def test_same_entry_is_same_phase():
+    e = _entry("96-210-0858", "Ba O3 Ti")
+    assert same_phase(e, e)
+
+
+def test_sibling_cards_of_same_phase_match():
+    """同相异卡（BaTiO3 0858/0859 那类）必须判为同相。"""
+    a = _entry("96-210-0858", "Ba O3 Ti", a=4.006)
+    b = _entry("96-210-0859", "Ba O3 Ti", a=4.010)
+    assert same_phase(a, b)
+
+
+def test_occupancy_variants_within_tolerance_match():
+    a = _entry("96-901-7558", "Al1.499 Be2.49 Ca3.953 O28 Si9.011", a=9.2, c=9.2)
+    b = _entry("96-900-7487", "Al2 Be2 Ca4 O28 Si9", a=9.21, c=9.21)
+    assert same_phase(a, b)
+
+
+def test_polymorphs_differ_by_cell():
+    """同组成不同晶胞（锐钛矿 vs 金红石）不能合并。"""
+    anatase = _entry("96-500-0223", "O2 Ti", a=3.785, c=9.514)
+    rutile = _entry("96-231-0486", "O2 Ti", a=4.594, c=2.959)
+    assert not same_phase(anatase, rutile)
+
+
+def test_different_elements_never_match():
+    a = _entry("a", "Mg O")
+    b = _entry("b", "Ca O")
+    assert not same_phase(a, b)
+
+
+def test_space_group_conflict_blocks_match():
+    a = _entry("a", "O2 Ti", a=4.6, c=2.96, space_group="P 42/m n m")
+    b = _entry("b", "O2 Ti", a=4.6, c=2.96, space_group="I 41/a m d")
+    assert not same_phase(a, b)
+
+
+def test_missing_cell_is_not_a_mismatch():
+    a = _entry("a", "Mg O")
+    b = _entry("b", "Mg O")
+    object.__setattr__(b, "cell", None) if not isinstance(b, Entry) else setattr(b, "cell", None)
+    assert same_phase(a, b)
+
+
+def test_missing_cell_compares_formula_ratios_not_counts():
+    """库内化学式按晶胞给出（Z 不同），同相会写成 O2 Si / O4 Si2 —— 比值相等即同相。"""
+    a = _entry("96-500-0035", "O2 Si")   # Z=3 quartz
+    b = _entry("96-900-1571", "O4 Si2")  # Z=6 quartz
+    a.cell = b.cell = None
+    assert same_phase(a, b)
+
+    c = _entry("c", "O2 Si")
+    d = _entry("d", "O2 Ti")
+    c.cell = d.cell = None
+    assert not same_phase(c, d)
+
+
+# ---------------------------------------------------------------------------
+# grouping
+# ---------------------------------------------------------------------------
+
+
+def test_group_keeps_rank_order_and_representatives():
+    beryl1 = _entry("96-900-7487", "Al2 Be2 Ca4 O28 Si9", a=9.20, c=9.20)
+    beryl2 = _entry("96-901-7558", "Al1.499 Be2.49 Ca3.953 O28 Si9.011", a=9.21, c=9.21)
+    calcite = _entry("96-210-0992", "C Ca O3", a=4.99, c=17.06)
+    quartz = _entry("96-500-0035", "O2 Si", a=4.913, c=5.405)
+
+    groups = group_same_phase([beryl1, beryl2, calcite, quartz])
+    assert groups == [[0, 1], [2], [3]]
+
+    fams = families([beryl1, beryl2, calcite, quartz])
+    assert [f.representative for f in fams] == [0, 2, 3]
+    assert fams[0].size == 2
+
+
+def test_group_empty_input():
+    assert group_same_phase([]) == []
+    assert families([]) == []

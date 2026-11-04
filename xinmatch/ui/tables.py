@@ -38,6 +38,7 @@ from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.model.peak import Peak
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.search.fom import CandidateResult
+from xinmatch.core.search.phase_key import group_same_phase
 
 __all__ = [
     "PeakListTable",
@@ -81,6 +82,14 @@ def _fmt(value: Any, digits: int = 3) -> str:
     if isinstance(value, (int, float, np.floating)):
         return f"{float(value):.{digits}f}"
     return str(value)
+
+
+def _cell_text(cell: CellParams | None) -> str:
+    """One-line unit-cell summary used by the candidate-list variant tooltip."""
+    if cell is None:
+        return "晶胞未知"
+    return (f"a={cell.a:.4f} b={cell.b:.4f} c={cell.c:.4f} "
+            f"α={cell.alpha:.2f} β={cell.beta:.2f} γ={cell.gamma:.2f}")
 
 
 # ---------------------------------------------------------------------------
@@ -236,31 +245,160 @@ class PeakListTable(QtWidgets.QTableView):
 # Candidate list
 # ---------------------------------------------------------------------------
 class _CandidateListModel(QtCore.QAbstractTableModel):
-    """Table model wrapping ``list[CandidateResult]``."""
+    """Table model wrapping ``list[CandidateResult]`` with phase-family folding.
+
+    A reference library holds many cards for the *same* phase (18 beryl-type
+    entries can fill a Top-40 on their own), so the candidate list folds each
+    phase family into one row by default — see
+    :mod:`xinmatch.core.search.phase_key`.  ``merge=False`` (or
+    :meth:`set_merge`) unfolds every card while keeping the "变体" column, so
+    the user can inspect which card was which.
+    """
 
     HEADERS = ("", "质量", "条目", "化学式", "晶系", "物相",
-               "P(2θ)", "P(I/I₀)", "I缩放", "FoM")
+               "P(2θ)", "P(I/I₀)", "I缩放", "FoM", "变体")
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._results: list[CandidateResult] = []
         self._colors: list[QtGui.QColor | None] = []
+        #: 相位族（源行索引分组，族内按排名先后）。
+        self._families: list[list[int]] = []
+        #: 源行 → 族序号（-1 = 不属于任何族）。
+        self._family_of: list[int] = []
+        #: 源行 → 所在相位族的成员数（1 = 无变体）。
+        self._family_size: list[int] = []
+        #: 展示行 → 源行。合并变体时只保留族代表，所以两者不一定相同。
+        self._visible: list[int] = []
+        self._merge = True
 
+    # -- population ------------------------------------------------------
     def set_candidates(self, results: list[CandidateResult],
-                       colors: list[QtGui.QColor | None] | None = None) -> None:
-        """Replace rows with *results*; optional per-row pattern *colors*."""
+                       colors: list[QtGui.QColor | None] | None = None,
+                       *,
+                       families: list[list[int]] | None = None,
+                       merge: bool | None = None) -> None:
+        """Replace rows with *results*; optional per-row pattern *colors*.
+
+        *families* are index groups from
+        :func:`xinmatch.core.search.phase_key.group_same_phase`; they are
+        computed here when omitted.  With *merge* the table shows one row per
+        phase family (its best-ranked member); otherwise every card is a row
+        but the "变体" column still reports ``族内名次/族内条数``.
+        """
         self.beginResetModel()
         self._results = list(results)
         self._colors = list(colors) if colors is not None else [None] * len(self._results)
+        if families is None:
+            families = group_same_phase([r.entry for r in self._results])
+        self._families = [list(g) for g in families if g]
+        if merge is not None:
+            self._merge = bool(merge)
+        self._rebuild_rows()
         self.endResetModel()
 
-    def entry_id_at(self, row: int) -> str | None:
-        if 0 <= row < len(self._results):
-            return self._results[row].entry.entry_id
+    def set_merge(self, merge: bool) -> None:
+        """Fold (``True``) or unfold (``False``) the same-phase variants."""
+        merge = bool(merge)
+        if merge == self._merge:
+            return
+        self.beginResetModel()
+        self._merge = merge
+        self._rebuild_rows()
+        self.endResetModel()
+
+    @property
+    def merging(self) -> bool:
+        return self._merge
+
+    def has_families(self) -> bool:
+        """True when at least one family holds more than one card."""
+        return any(len(g) > 1 for g in self._families)
+
+    def _rebuild_rows(self) -> None:
+        n = len(self._results)
+        self._family_of = [-1] * n
+        self._family_size = [1] * n
+        visible: list[int] = []
+        covered: set[int] = set()
+        for fi, group in enumerate(self._families):
+            members = [i for i in group if 0 <= i < n]
+            if not members:
+                continue
+            for i in members:
+                self._family_of[i] = fi
+                self._family_size[i] = len(members)
+                covered.add(i)
+            visible.extend(members[:1] if self._merge else members)
+        # 调用方只给了部分族时，落单的行也要显示——否则候选会静默消失。
+        visible.extend(i for i in range(n) if i not in covered)
+        self._visible = visible
+
+    # -- row accessors ---------------------------------------------------
+    def result_at(self, row: int) -> CandidateResult | None:
+        """The :class:`CandidateResult` backing display *row*."""
+        if 0 <= row < len(self._visible):
+            return self._results[self._visible[row]]
         return None
 
+    def visible_results(self) -> list[CandidateResult]:
+        """Candidates in display order (the folded set when merging)."""
+        return [self._results[i] for i in self._visible]
+
+    def family_members(self, row: int) -> list[int]:
+        """Source-row indices of *row*'s phase family (best-ranked first)."""
+        if not 0 <= row < len(self._visible):
+            return []
+        fi = self._family_of[self._visible[row]]
+        if fi < 0:
+            return [self._visible[row]]
+        return [i for i in self._families[fi] if 0 <= i < len(self._results)]
+
+    def family_results(self, row: int) -> list[CandidateResult]:
+        """All candidates of *row*'s phase family, best-ranked first."""
+        return [self._results[i] for i in self.family_members(row)]
+
+    def family_size_at(self, row: int) -> int:
+        """Number of cards in the row's phase family (1 when it has no siblings)."""
+        if 0 <= row < len(self._visible):
+            return self._family_size[self._visible[row]]
+        return 1
+
+    def entry_id_at(self, row: int) -> str | None:
+        if 0 <= row < len(self._visible):
+            return self._results[self._visible[row]].entry.entry_id
+        return None
+
+    def variant_text(self, row: int) -> str:
+        """Text for the "变体" column at display *row*."""
+        if not 0 <= row < len(self._visible):
+            return ""
+        src = self._visible[row]
+        size = self._family_size[src]
+        if size <= 1:
+            return ""
+        if self._merge:
+            return f"{size} 条"
+        members = self.family_members(row)
+        rank = members.index(src) + 1 if src in members else 1
+        return f"{rank}/{size}"
+
+    def variant_tooltip(self, row: int) -> str:
+        """Multi-line tooltip listing every card of the row's family + its cell."""
+        members = self.family_results(row)
+        if len(members) <= 1:
+            return ""
+        lines = [f"同一物相的 {len(members)} 张卡片（按当前排名）："]
+        for k, res in enumerate(members, 1):
+            entry = res.entry
+            mark = "▶" if k == 1 else "  "
+            lines.append(f"{mark} {k}. {entry.entry_id}  {_cell_text(entry.cell)}")
+        lines.append("右键 → 展开同相变体，可逐张查看与确认。")
+        return "\n".join(lines)
+
+    # -- model API -------------------------------------------------------
     def rowCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
-        return 0 if parent.isValid() else len(self._results)
+        return 0 if parent.isValid() else len(self._visible)
 
     def columnCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex = QtCore.QModelIndex()) -> int:  # noqa: N802, B008
         return 0 if parent.isValid() else len(self.HEADERS)
@@ -275,7 +413,8 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
              role: int = QtCore.Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
             return None
-        result = self._results[index.row()]
+        src = self._visible[index.row()]
+        result = self._results[src]
         entry: Entry = result.entry
         col = index.column()
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
@@ -293,10 +432,13 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
                 _fmt(result.p_values.get("intensity")),
                 _fmt(result.i_scale, 3),
                 _fmt(result.fom, 3),
+                self.variant_text(index.row()),
             )
             return values[col]
+        if role == QtCore.Qt.ItemDataRole.ToolTipRole and col == 10:
+            return self.variant_tooltip(index.row()) or None
         if role == QtCore.Qt.ItemDataRole.BackgroundRole and col == 0:
-            color = self._colors[index.row()] if index.row() < len(self._colors) else None
+            color = self._colors[src] if src < len(self._colors) else None
             if color is not None:
                 return QtGui.QBrush(color)
         if role == _SORT_ROLE:
@@ -311,13 +453,20 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
                 result.p_values.get("intensity", 0.0),
                 result.i_scale,
                 result.fom,
+                self._family_size[src],
             )
             return keys[col]
         return None
 
 
 class CandidateListTable(QtWidgets.QTableView):
-    """Sortable candidate-list table.
+    """Sortable candidate-list table with phase-family folding (v3.2.0).
+
+    Rows arrive already ranked by FoM.  Cards describing the *same* phase
+    (``group_same_phase``) are folded into one row by default so a family of
+    18 near-identical entries cannot flood the list; the "变体" column shows
+    ``N 条``, its tooltip lists every card with its unit cell, and the
+    context menu can toggle between folded and unfolded views.
 
     Signals
     -------
@@ -331,12 +480,17 @@ class CandidateListTable(QtWidgets.QTableView):
         compatibility; no longer exposed in the context menu).
     export_requested():
         Context-menu "导出候选列表".
+    family_mode_changed(bool):
+        Emitted after the fold/unfold toggle; ``True`` means variants are
+        merged again.  Any exporter/report should write
+        :meth:`visible_results` so its row count matches what the user sees.
     """
 
     candidate_activated = QtCore.Signal(str)
     view_entry = QtCore.Signal(str)
     toggle_selection = QtCore.Signal(str)
     export_requested = QtCore.Signal()
+    family_mode_changed = QtCore.Signal(bool)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -355,11 +509,47 @@ class CandidateListTable(QtWidgets.QTableView):
         self.doubleClicked.connect(self._on_double_clicked)
         self.horizontalHeader().setStretchLastSection(True)
 
+    # -- public API ------------------------------------------------------
     def set_candidates(self, results: list[CandidateResult],
-                       colors: list[QtGui.QColor | None] | None = None) -> None:
-        """Fill from search-match *results* (optionally with pattern colors)."""
-        self._model.set_candidates(results, colors)
+                       colors: list[QtGui.QColor | None] | None = None,
+                       *,
+                       merge: bool | None = None) -> None:
+        """Fill from search-match *results* (optionally with pattern colors).
+
+        *merge* keeps the fold state across calls when left ``None``.
+        """
+        self._model.set_candidates(results, colors, merge=merge)
         self.resizeColumnsToContents()
+
+    def set_merge_families(self, merge: bool) -> None:
+        """Fold / unfold the same-phase variants (no-op when unchanged)."""
+        before = self._model.merging
+        self._model.set_merge(merge)
+        if self._model.merging != before:
+            self.resizeColumnsToContents()
+            self.family_mode_changed.emit(self._model.merging)
+
+    def is_merging_families(self) -> bool:
+        return self._model.merging
+
+    def visible_results(self) -> list[CandidateResult]:
+        """Candidates in the currently displayed (possibly folded) order."""
+        return self._model.visible_results()
+
+    def result_at(self, row: int) -> CandidateResult | None:
+        """Candidate behind *row* — a **proxy** (display) row index."""
+        src = self._proxy.mapToSource(self._proxy.index(row, 0))
+        return self._model.result_at(src.row())
+
+    def family_size_at(self, row: int) -> int:
+        """Phase-family size of *row* — a **proxy** (display) row index."""
+        src = self._proxy.mapToSource(self._proxy.index(row, 0))
+        return self._model.family_size_at(src.row())
+
+    def family_results_at(self, row: int) -> list[CandidateResult]:
+        """Every card of *row*'s phase family — proxy row index."""
+        src = self._proxy.mapToSource(self._proxy.index(row, 0))
+        return self._model.family_results(src.row())
 
     def current_entry_id(self) -> str | None:
         """Entry id of the highlighted row (``None`` when nothing is selected)."""
@@ -369,9 +559,27 @@ class CandidateListTable(QtWidgets.QTableView):
             return self._entry_id(current) if current.isValid() else None
         return self._entry_id(rows[0])
 
+    def selected_results(self) -> list[CandidateResult]:
+        """Candidates under the selection (falls back to the current row).
+
+        Maps through the model's fold table, so it stays correct while
+        variants are merged (``row != candidate index`` in that mode).
+        """
+        indexes = self.selectionModel().selectedRows() if self.selectionModel() else []
+        if not indexes:
+            current = self.currentIndex()
+            indexes = [current] if current.isValid() else []
+        out: list[CandidateResult] = []
+        for idx in indexes:
+            result = self._model.result_at(self._proxy.mapToSource(idx).row())
+            if result is not None:
+                out.append(result)
+        return out
+
     def _entry_id(self, proxy_index: QtCore.QModelIndex) -> str | None:
         return self._model.entry_id_at(self._proxy.mapToSource(proxy_index).row())
 
+    # -- signals / menu --------------------------------------------------
     def _on_double_clicked(self, proxy_index: QtCore.QModelIndex) -> None:
         eid = self._entry_id(proxy_index)
         if eid is not None:
@@ -400,6 +608,16 @@ class CandidateListTable(QtWidgets.QTableView):
         act_view = menu.addAction("查看条目...")
         act_view.setEnabled(eid is not None)
         act_view.triggered.connect(lambda _c=False, e=eid: e and self.view_entry.emit(e))  # type: ignore[func-returns-value]
+        menu.addSeparator()
+        merging = self._model.merging
+        size = self.family_size_at(index.row()) if index.isValid() else 1
+        if self._model.has_families():
+            label = f"展开同相变体（{size} 条）" if merging else "合并同相变体"
+        else:
+            label = "无同相变体"
+        act_family = menu.addAction(label)
+        act_family.setEnabled(self._model.has_families())
+        act_family.triggered.connect(lambda _c=False: self.set_merge_families(not merging))
         menu.addSeparator()
         act_export = menu.addAction("导出候选列表 (CSV)...")
         act_export.triggered.connect(self.export_requested.emit)

@@ -105,6 +105,68 @@ def _card_peaks(cod_id: int) -> tuple[np.ndarray, np.ndarray, list[tuple[int, in
     )
 
 
+#: 强度/峰位来源。``card`` = 上面那张 v2 SQLite 卡片表（历史行为）；
+#: ``v3`` = 运行期检索用的 ``.xinDB``（与生产同源，见 _card_peaks_v3 注释）。
+_PEAK_SOURCE = "card"
+_V3_LIB: Path | None = None
+_V3_READER = None
+
+
+def _v3_reader():
+    """惰性打开 v3 ``.xinDB``（整个生成过程共用一个连接）。"""
+    global _V3_READER
+    if _V3_READER is None:
+        if _V3_LIB is None:
+            raise RuntimeError("--peak-source v3 需要 --library <*.xinDB>")
+        from xinmatch.core.db.reader_v3 import XinDBReader
+
+        _V3_READER = XinDBReader(_V3_LIB)
+    return _V3_READER
+
+
+def _card_peaks_v3(
+    cod_id: int,
+) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int, int] | None]] | None:
+    """从 ``.xinDB`` 取 d/I，hkl 由 v2 卡片表按 d 对齐补上。
+
+    为什么要有这条路径：v3 重建的库把强度口径改成了带 LP 修正的正常化，
+    而这份生成器原来从 v2 卡片表取强度 —— 两边不同源时，合成谱的强度
+    分布和检索时用的参考强度表对不上，`intensity` 判据被系统性冤枉
+    （`docs/检索基准-v3-诊断-20261104.md` §3：同一条目 MgO 220 线
+    284 vs 570，一次检索就从接近满分掉到 0.26）。
+
+    hkl 只用于 March-Dollase 择优取向的几何权重，与强度口径无关，
+    因此仍从 v2 表按 d 值就近取（容差 0.002 Å）；取不到则该峰不加织构。
+    """
+    s = str(cod_id)
+    eid = f"96-{s[:3]}-{s[3:]}" if len(s) == 7 else None
+    if not eid:
+        return None
+    meta = _v3_reader().fetch_entry(eid)
+    if not meta:
+        return None
+    d = np.asarray(meta["peaks_d_list"], dtype=float)
+    i = np.asarray(meta["peaks_i_list"], dtype=float)
+    if d.size == 0:
+        return None
+
+    hkl_by_d: list[tuple[float, tuple[int, int, int] | None]] = []
+    card = _card_peaks(cod_id)
+    if card is not None:
+        d_card, _i_card, hkl_card = card
+        hkl_by_d = list(zip([float(x) for x in d_card], hkl_card, strict=True))
+    hkls: list[tuple[int, int, int] | None] = []
+    for dv in d:
+        best: tuple[int, int, int] | None = None
+        best_err = 2e-3
+        for d_ref, h in hkl_by_d:
+            err = abs(d_ref - float(dv))
+            if err < best_err:
+                best, best_err = h, err
+        hkls.append(best)
+    return d, i, hkls
+
+
 def _cell_for(cod_id: int) -> tuple[float, float, float, float, float, float] | None:
     """卡片晶胞 (a, b, c, α, β, γ)；无则 None（真 MD 需要倒格矢夹角）。"""
     s = str(cod_id)
@@ -182,14 +244,46 @@ def _formula_elements(formula: str) -> set[str]:
 
 
 def _meta(cod_id: int) -> tuple[str, str]:
-    conn = sqlite3.connect(f"file:{COD_INDEX.as_posix()}?mode=ro", uri=True)
-    row = conn.execute(
-        "SELECT formula, elements FROM cod_entries WHERE cod_id=?", (cod_id,)
-    ).fetchone()
-    conn.close()
-    if row is None:
-        return str(cod_id), ""
-    return row[0] or str(cod_id), row[1] or ""
+    """(化学式, 逗号分隔的元素集)。按 cod_index → .xinDB → v2 卡片表 依次回退。
+
+    ``cod_index.sqlite`` 属于 PolyXRD 侧的归档索引，2026-10 迁移后已不在原路径；
+    生成器不能因此整体失效，故补两条回退（只影响 manifest 里的化学式/元素建议，
+    不参与峰计算）。
+    """
+    if COD_INDEX.is_file():
+        conn = sqlite3.connect(f"file:{COD_INDEX.as_posix()}?mode=ro", uri=True)
+        try:
+            row = conn.execute(
+                "SELECT formula, elements FROM cod_entries WHERE cod_id=?", (cod_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is not None:
+            return row[0] or str(cod_id), row[1] or ""
+
+    s = str(cod_id)
+    eid = f"96-{s[:3]}-{s[3:]}" if len(s) == 7 else None
+    if eid and _V3_LIB is not None:
+        try:
+            meta = _v3_reader().fetch_entry(eid)
+        except Exception:  # 库不可读时继续向下回退
+            meta = None
+        if meta:
+            els = meta.get("elements_list") or ()
+            return str(meta.get("formula") or str(cod_id)), ",".join(els)
+
+    if eid and CARD_DB.is_file():
+        conn = sqlite3.connect(f"file:{CARD_DB.as_posix()}?mode=ro", uri=True)
+        try:
+            row = conn.execute(
+                "SELECT formula FROM entries WHERE entry_id=?", (eid,)
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is not None:
+            formula = row[0] or str(cod_id)
+            return formula, ",".join(sorted(_formula_elements(formula)))
+    return str(cod_id), ""
 
 
 def _two_theta(d: float) -> float:
@@ -396,8 +490,12 @@ def _build_sample(label: str, phases: list[tuple[int, float, tuple | None]],
     truth: list[dict] = []
     for cod_id, wt, po_hkl in phases:
         hkls: list[tuple[int, int, int] | None] | np.ndarray
-        peaks = _card_peaks(cod_id)
-        if peaks is None:
+        peaks = (
+            _card_peaks_v3(cod_id)
+            if _PEAK_SOURCE == "v3"
+            else _card_peaks(cod_id)
+        )
+        if peaks is None and _PEAK_SOURCE != "v3":
             # 库内无此编号：先找库内同元素集卡片（强度与检索 FoM 同源），
             # 再无则回退 CIF 结构因子计算（归一化到 0-100）。
             peaks = _card_peaks_by_formula(cod_id)
@@ -442,6 +540,11 @@ def _element_suggestion(truth: list[dict]) -> list[str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, default=Path(r"D:\Project\XRD\test_xrd\synthetic"))
+    ap.add_argument("--peak-source", choices=("card", "v3"), default="card",
+                    help="峰位/强度来源：card = v2 卡片表（历史行为，与 v3 重建库的"
+                         "强度口径不同源）；v3 = .xinDB 检索库（与运行期同源，需 --library）")
+    ap.add_argument("--library", type=Path, default=None,
+                    help="--peak-source v3 时使用的 .xinDB 路径")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--noise-scale", type=float, default=0.001,
                     help="高斯噪音幅度（相对最强峰），默认 0.001（对齐实测 5-x 谱背底统计量级 "
@@ -449,6 +552,12 @@ def main() -> None:
                          "峰检测会误报大量噪音弱峰")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+    if args.peak_source == "v3":
+        if args.library is None:
+            ap.error("--peak-source v3 必须同时给 --library <*.xinDB>")
+        global _PEAK_SOURCE, _V3_LIB
+        _PEAK_SOURCE = "v3"
+        _V3_LIB = args.library
     rng = np.random.default_rng(args.seed)
 
     rows = []
@@ -478,8 +587,18 @@ def main() -> None:
             "Cu Kα1 1.5406 Å，10–90°，步进 0.02°。\n"
             "文件格式：Profile Data Ascii Dump (XRD) 兼容（/// banner + 测量条件块 + "
             "`<2Theta> <I>` 表头，行宽 81 对齐实测样本），可直接在参考软件中导入并跑 FPFM；"
-            "强度已整数化。\n\n"
+            "强度已整数化。\n"
         )
+        if _PEAK_SOURCE == "v3":
+            fh.write(
+                f"**峰位/强度来源：`.xinDB`（`{_V3_LIB}`）** —— 与运行期检索库同源，"
+                "合成谱的 d/I 即检索时比对的那张表；hkl 仍取自 v2 卡片表（仅供织构几何权重）。\n"
+            )
+        else:
+            fh.write(
+                "**峰位/强度来源：v2 卡片表 `data/cod_inorganics.db`** —— 与 v3 重建库的"
+                "强度口径不同源（见 `docs/检索基准-v3-诊断-20261104.md`）。\n"
+            )
         for r in rows:
             fh.write(f"## {r['file']} — {r['label']}\n")
             fh.write("| COD | 化学式 | 质量分数 |\n|---|---|---|\n")

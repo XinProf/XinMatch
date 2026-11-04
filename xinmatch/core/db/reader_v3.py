@@ -75,10 +75,38 @@ logger = logging.getLogger(__name__)
 
 #: Default number of candidates handed to the scoring stage.
 #:
-#: 800 is the cap the v2 engine used on the inorganics library and is
-#: comfortably above the real top-N of a well-formed pattern, so it keeps a
-#: wide safety margin for the scoring stage to reorder.
-DEFAULT_RANK_LIMIT = 800
+#: 800 was the v2 cap on the inorganics library.  v3.2.0 raised it to 1000 for
+#: one specific reason: 800 slots is not enough to hold *both* the dominant
+#: phase's look-alike cards and the minor phases of a mixture (see
+#: :data:`_DIVERSIFY_SHARE`).  Measured on the two benchmarks: 1000 slots with a
+#: 200-slot hit-count quota recovers +1 Top-1 / +1 sequential recovery on the
+#: synthetic set and +4 phase recall on the real-solids set versus 800, at
+#: +11 % search time on COD-Inorg (0.37 s → 0.41 s) and +26 % on PCOD (1.5→1.9 s).
+DEFAULT_RANK_LIMIT = 1000
+
+#: Share of the prescreen slots reserved for the **hit-count** order instead of
+#: the legacy "main peak first" order.
+#:
+#: The legacy order ranks a card by (is my strongest reflection one of the strong
+#: measured peaks → intensity-weighted hits → hit count).  On a multi-phase
+#: mixture that is effectively "am I the dominant phase", so minor phases never
+#: make the 800-slot cut: in a ZnO + Al₂O₃ + CaF₂ pattern both Al₂O₃ and CaF₂
+#: were absent from an 800-candidate pool although they rank 197 with an
+#: 8000-slot pool (measured 2026-11-04).  Half the slots are therefore handed
+#: out by hit count alone, which is what a *minor* phase can still win.
+_DIVERSIFY_SHARE = 0.2
+
+
+def _diverse_slots(limit: int, override: int | None) -> int:
+    """How many of *limit* slots go to the hit-count order.
+
+    ``override`` is the explicit ``diversify_slots`` argument: ``0`` reproduces
+    the pre-3.2.0 behaviour exactly (all slots legacy), ``limit`` uses the
+    hit-count order alone.
+    """
+    if override is not None:
+        return max(0, min(int(override), limit))
+    return max(0, min(int(round(limit * _DIVERSIFY_SHARE)), limit))
 
 #: Number of decoded chunks kept in memory.  A chunk holds
 #: ``CHUNK_SIZE`` phases, so four chunks cover ~16 k phases; the prescreen
@@ -108,6 +136,11 @@ _PRESCREEN_BLOCK = 8192
 #: for 800 candidates on the benchmark machine).  Mapped pages are reclaimable
 #: file-backed memory, so they do not become private commit.
 _MMAP_SIZE = 2 * 1024 * 1024 * 1024
+
+#: Host parameters per ``entry_id IN (...)`` statement in
+#: :meth:`XinDBReader.fetch_peaks`.  SQLite allows 999 parameters on older
+#: builds and 32766 on current ones; 900 stays under both with room to spare.
+_FETCH_ID_BATCH = 900
 
 
 def _readonly_uri(path: Path) -> str:
@@ -638,19 +671,32 @@ class XinDBReader:
         batch serves every candidate without decoding the whole library.  The
         insertion order of the result is unchanged (chunk order, then the
         order SQLite returned the requested rows).
+
+        The ``entry_id IN (...)`` lookup is issued in batches of
+        :data:`_FETCH_ID_BATCH`: SQLite caps the number of host parameters per
+        statement (999 on older builds, 32766 on current ones), and an
+        oversized list used to raise ``OperationalError`` that the blanket
+        ``except sqlite3.Error`` turned into an **empty result** — a search with
+        ``candidate_limit`` above that cap silently returned no candidates at
+        all (found 2026-11-04 on a 40 000-candidate probe).
         """
         if not entry_ids:
             return {}
-        wanted = set(entry_ids)
+        wanted = list(dict.fromkeys(entry_ids))
         conn = self._get_conn()
         if conn is None:
             return {}
+        rows: list[tuple] = []
         try:
-            rows = conn.execute(
-                "SELECT rowid, entry_id, peak_off, peak_n FROM entries "
-                "WHERE entry_id IN ({})".format(",".join("?" * len(wanted))),
-                tuple(wanted),
-            ).fetchall()
+            for start in range(0, len(wanted), _FETCH_ID_BATCH):
+                part = wanted[start:start + _FETCH_ID_BATCH]
+                rows.extend(
+                    conn.execute(
+                        "SELECT rowid, entry_id, peak_off, peak_n FROM entries "
+                        "WHERE entry_id IN ({})".format(",".join("?" * len(part))),
+                        tuple(part),
+                    ).fetchall()
+                )
         except sqlite3.Error:
             return {}
         if not rows:
@@ -718,6 +764,7 @@ class XinDBReader:
         min_match: int = 3,
         rank_limit: int | None = None,
         elements_allowed: set[str] | None = None,
+        diversify_slots: int | None = None,
     ) -> PrescreenResult:
         """Vectorised candidate prescreen against the strong-peak matrix.
 
@@ -741,6 +788,10 @@ class XinDBReader:
                 backed by the ``element_inv`` inverted index).  An element that
                 occurs in no phase yields zero candidates rather than being
                 ignored.
+            diversify_slots: How many of the ``rank_limit`` slots are filled by
+                the hit-count order instead of the legacy main-peak order
+                (default: :data:`_DIVERSIFY_SHARE` of the limit; ``0`` keeps the
+                pre-3.2.0 ordering, ``rank_limit`` ranks by hit count alone).
 
         Returns:
             A :class:`PrescreenResult`.
@@ -844,10 +895,28 @@ class XinDBReader:
         # lexsort's last key is the primary one and the sort is ascending;
         # negate the numeric keys and invert the boolean to emulate a
         # descending order on (main_hit, whits, hits).
-        order = sel[np.lexsort((-hits[sel], -whits[sel], ~main_hit[sel]))]
+        legacy = sel[np.lexsort((-hits[sel], -whits[sel], ~main_hit[sel]))]
         limit = int(rank_limit if rank_limit is not None else self.rank_limit)
         limit = max(1, limit)
-        truncated = order.size > limit
+        truncated = sel.size > limit
+
+        n_diverse = _diverse_slots(limit, diversify_slots)
+        if n_diverse > 0 and legacy.size > 1:
+            # The legacy order asks "is my **strongest** reflection one of the
+            # strong measured peaks?" — in a multi-phase mixture that question
+            # is really "am I the dominant phase?", so every minor phase loses
+            # its slot to the major one and its look-alike cards (measured
+            # 2026-11-04: Al2O3/CaF2 in a ZnO + Al2O3 + CaF2 mixture never
+            # entered the 800-slot pool).  The second half of the quota is
+            # ordered by hit count alone, which keeps cards that explain many
+            # strong peaks without being the strongest-phase look-alike.
+            n_primary = limit - n_diverse
+            primary = legacy[:n_primary]
+            by_hits = sel[np.lexsort((-whits[sel], -hits[sel]))]
+            extra = by_hits[~np.isin(by_hits, primary)][:n_diverse]
+            order = np.concatenate([primary, extra])
+        else:
+            order = legacy[:limit]
         order = order[:limit]
 
         ids = self.entry_ids()

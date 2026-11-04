@@ -91,6 +91,9 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T6.9b | COD 全库检索质量核验（2026-10-10） | ✅ (用 `data/cod_full.db` 112,734 条目重跑同基线：Top-1 一致率反而降至 1/13——全库含大量重复/低质量卡片稀释排序。**结论：默认检索保持精选无机库 71,199 正确，全库仅作覆盖性挂载**；L3 追平不靠换库，方向仍是逆向参考软件 FoM 内部逻辑或补条目) |
 | T6.10 | Weight tuning (grid/Bayesian) | ✅ (R²=0.9971 ≥ 0.9913 baseline; keep published weights) |
 | T6.11 | **序贯物相鉴定（v3.1.0）**：确认一相 → 扣除其贡献 → 剩余峰再检索 → 再确认 | ✅ (`core/search/sequential.py`：`SequentialIdentifier` 以原始峰列表为基准、每次变更整体重建（相关峰 / 计数域比例因子 / 逐峰残差 / 已解释掩码），`search_residual()` 在剩余峰上跑同一 FoM 引擎并把 pairs 映射回原始峰索引、同时剔除已确认条目；GUI 候选列表双击/回车/「确认该相」→ 匹配列表 + 峰列表关联标记 + 谱图参考线条，双击匹配列表回滚；验收 `docs/序贯物相鉴定-v3.1.0.md`，测试 `tests/search/test_sequential.py` + `tests/ui/test_sequential_ui.py`) |
+| T6.12 | **相位级身份 + 候选聚簇（v3.2.0）**：同相异卡合并、双口径基准 | ✅ (`core/search/phase_key.py`：元素集 + 晶胞（轴长 ±1% / 角 ±1.5°）+ 空间群判同一物相，**有晶胞以晶胞为准**、缺晶胞才退回**化学式比值**（容差 0.25，Z 无关），故占位度变体 `Al1.499`/`Al2` 合并且多晶型不误合；`group_same_phase()` 贪心按排名分组、族代表即族内最优卡。GUI `CandidateListTable` 默认折叠（“变体”列显示 `N 条`、tooltip 逐卡列 entry_id + 晶胞、右键「展开同相变体」/「合并同相变体」切换）；`tools/bench_pattern_set.py` 给出条目级 + 相位级双口径；`tools/generate_synthetic_patterns.py --peak-source v3` 用同一库取强度重建合成谱（旧谱尺子与库不同源）。结果见 `docs/基准报告-物相检索-v3.md`：新谱相位级 Top-1 11/13、Top-5 12/13、序贯完整回收 10/13、相召回 19/24（条目级 7/13 / 11/13 / 2/13 / 9/24，两口径之差全部来自库内同相多卡）；测试 `tests/search/test_phase_key.py` + `tests/ui/test_tables.py`) |
+| T6.13 | **第二组基准：13 组真实测量谱（v3.2.0）** | ✅ (`tools/bench_real_samples.py`：L3 金标准 13 组实测谱 + `auto_process` 全链路 + 生产库，真值以化学式比值承载（固溶体 1-2 / 黑云母 / 角闪石显式排除，不进分母）。COD-Inorg 结果：整谱 Top-1 命中真相相 **10/12**、Top-5 12/12、相召回 Top-20 卡 **24/43** / 折叠后族级 **27/43**、序贯完整回收 5/12；`5-3` 单样品验证折叠的实质增益（1/5 → 5/5，针铁矿洪水）。报告见 `docs/基准报告-物相检索-v3.md` §9) |
+| T6.14 | **预筛名额双路分配 + `fetch_peaks` 参数上限修复（v3.2.0）** | ✅ 根因：`XinDBReader.prescreen` 按 `主峰命中 → 强度加权命中 → 命中数` 排序取前 N，隐含假设"真相相最强线在实测谱里也不弱"，对次相不成立 —— 3-1 的 Al₂O₃/CaF₂ 在 800 名额下不入榜（`candidate_limit=8000` 时 rank 197），`n_hits=75970/78035` 说明 800 名额在做全部判别。**修复**：`DEFAULT_RANK_LIMIT` 800→1000，新增 `diversify_slots`（默认 20%，传 0 恢复旧行为），排序切成 80% 沿用原三级判据 + 20% 只按 `强度加权命中 → 命中数`，次序为 legacy 段在前、diverse 段在后。5 配置扫描（合成 + 真实两套基准）后选定 1000/200：合成相位级 T1 10→**11**/13、T5 11→**12**/13、序贯 9→**10**/13、相召回 18→**19**/24；真实谱 T5 11→**12**/12、卡级 20→**24**/43、族级 24→**27**/43、序贯 4→**5**/12。代价：COD 0.37→0.41 s（+11%）、PCOD 1.50→1.89 s（+26%）。**顺带修复**：`fetch_peaks` 单条 `IN (…)` 超 SQLite 参数上限被 `except sqlite3.Error` 吞成空结果（`candidate_limit=40000` 返回 0 候选），改为 900 一批，回归 `tests/db/test_reader_v3_fetch.py`；名额分配回归 `tests/db/test_prescreen_diversity.py`。详见 `docs/基准报告-物相检索-v3.md` §10 |
 
 ## Phase 7 — Restraints application (`core/search/`)
 
@@ -831,3 +834,25 @@ _peaks<=1 均为 0。
 - **记录**：`XinMatch-DataBase/docs/MP-库构建与验收.md`、`docs/release-notes-20261031-mp.md`；
   Release [`20261031-mp`](https://github.com/PolyXRD/XinMatch-DataBase/releases/tag/20261031-mp)
   （MP-20261031.xinDB.zip 197,925,329 B，SHA-256 `d20c4a61…` + SHA256SUMS.txt）。
+
+## v3.2.0 发布（2026-11-04）✅
+
+**范围**：相位级身份（同相异卡识别 + 候选列表折叠）、两套检索基准（13 组合成谱 + 13 组真实谱）、
+预筛名额双路分配（默认 1000 / 20%）、新 logo 与启动图。详见 `docs/RELEASE-NOTES-v3.2.0.md`。
+
+| 附件 | 字节 | SHA-256（前 16 位） |
+|---|---:|---|
+| `XinMatch-Setup-3.2.0.exe` | 254,143,458 | `350b24cfe0ffb669…` |
+| `XinMatch-Internal-3.2.0.zip` | 353,721,811 | `96e818ee29cbe545…` |
+| `SHA256SUMS.txt` | 185 | — |
+
+- **二进制稳健性 5 轮全通过**（可复跑 `tools/verify_binary.py`，报告 `.scratch/binary_verify_320.json`）：
+  哈希清单回读一致；便携解包 3556 文件 / 785 MiB、随包 logo 与源码逐字节一致、冻结 CLI 识别内置库 78,035 相；
+  冻结 GUI 三钩子（REG / LIBS / ABOUT）+ 3 次冷启动 exit 0；`/VERYSILENT /CURRENTUSER` 静默安装成功；
+  安装后真实谱检索 118 峰 → 5 候选、榜首 `96-210-0189`，安装包与主程序 `ProductVersion=3.2.0`。
+- **全量回归**：1477 项 1472 passed / 4 skipped / 1 xfailed / 0 failed（13m27s）；ruff 全通过、mypy 121 文件 Success。
+- **基准终态**：合成谱相位级 Top-1 11/13、Top-5 12/13、序贯 10/13、相召回 19/24；
+  真实谱 Top-1 10/12、Top-5 12/12、卡级 24/43、族级 27/43、序贯 5/12。
+- **外挂数据库**：两个二进制均内置 `COD-Inorg-20261020.xinDB`；更大的 PCOD / TCOD / Full / MP 库在
+  [`XinMatch-DataBase` Releases](https://github.com/PolyXRD/XinMatch-DataBase/releases) 分发，
+  下载解压后经「设置 → 参考数据库…」或 `XinMatch.exe libraries --add <path>` 挂载，可多库并存。

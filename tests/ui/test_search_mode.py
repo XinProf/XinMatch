@@ -217,7 +217,10 @@ def test_unified_entry_runs_both_modes(qapp, monkeypatch):
         win._run_search_match()
         n_fom = len(win._candidates)
         assert n_fom > 0, "FoM 模式候选列表为空"
-        assert win.candidate_table.model().rowCount() == n_fom
+        # v3.2.0：候选表默认折叠同相变体，行数 = 相位族数而非候选条数。
+        visible_fom = win.candidate_table.visible_results()
+        assert win.candidate_table.model().rowCount() == len(visible_fom)
+        assert 0 < len(visible_fom) <= n_fom
         assert all(isinstance(c, CandidateResult) for c in win._candidates)
         peak_rows_fom = win.peak_table.model().rowCount()
         assert peak_rows_fom > 0  # FoM 模式覆盖峰列表
@@ -233,7 +236,9 @@ def test_unified_entry_runs_both_modes(qapp, monkeypatch):
         win._run_search_match()
         n_fpfm = len(win._candidates)
         assert n_fpfm > 0, "FPFM 模式候选列表为空"
-        assert win.candidate_table.model().rowCount() == n_fpfm
+        visible_fpfm = win.candidate_table.visible_results()
+        assert win.candidate_table.model().rowCount() == len(visible_fpfm)
+        assert 0 < len(visible_fpfm) <= n_fpfm
         assert all(isinstance(c, CandidateResult) for c in win._candidates)
         # FPFM 不寻峰：峰列表保持 FoM 模式的结果，不被覆盖。
         assert win.peak_table.model().rowCount() == peak_rows_fom

@@ -12,7 +12,8 @@
 | [`STATUS.md`](STATUS.md) | 路线图任务完成状态（按 Phase / T 编号，含每个版本的发布记录） |
 | [`../ROADMAP_v3.md`](../ROADMAP_v3.md) | **当前**路线图（v1/v2 为历史版本） |
 | [`../FUNCTION_MAP_v43.md`](../FUNCTION_MAP_v43.md) | **当前**功能映射（对齐参考软件 4.3） |
-| [`RELEASE-NOTES-v3.0.0.md`](RELEASE-NOTES-v3.0.0.md) | **当前版本**（v3.0.0）发布说明 |
+| [`RELEASE-NOTES-v3.2.0.md`](RELEASE-NOTES-v3.2.0.md) | **当前版本**（v3.2.0）发布说明 |
+| [`RELEASE-NOTES-v3.1.0.md`](RELEASE-NOTES-v3.1.0.md) | v3.1.0 发布说明（序贯物相鉴定） |
 
 ## 规范与工程化
 
@@ -22,6 +23,7 @@
 | [`TERMINOLOGY.md`](TERMINOLOGY.md) | 术语映射表（参考软件 ↔ 本软件 ↔ IUCr/ICDD） |
 | [`mypy_baseline.md`](mypy_baseline.md) | 类型检查基线与豁免历史 |
 | [`PACKAGING.md`](PACKAGING.md) | PyInstaller 打包与交付 |
+| [`../tools/verify_binary.py`](../tools/verify_binary.py) | **发布产物 5 轮二进制稳健性验收**（哈希 / 便携启动 / 冻结 GUI / 静默安装 / 安装后检索，产出 JSON 报告） |
 | [`打包交付说明-v1.0.0.md`](打包交付说明-v1.0.0.md) | v1.0.0 交付清单（历史） |
 | [`pytest_full_run_hang_rootcause.md`](pytest_full_run_hang_rootcause.md) | 全量测试耗时根因与分块运行方案 |
 
@@ -33,6 +35,8 @@
 | [`fpfm_mechanism.md`](fpfm_mechanism.md) | FPFM 全谱拟合机制与参数决策 |
 | [`fpfm_research_notes.md`](fpfm_research_notes.md) | FPFM 研究笔记 |
 | [`峰口径冻结-v3.0.0.md`](峰口径冻结-v3.0.0.md) | v3 `.xinDB` 峰口径（波长 / d 范围 / DW / norm-1000）的冻结依据 |
+| [`基准报告-物相检索-v3.md`](基准报告-物相检索-v3.md) | **检索基准（v3.2.0）**：合成谱 + 13 组真实谱两套尺子，条目级 / 相位级双口径 Top-1/Top-5/序贯回收、聚簇效果、GUI 折叠口径、预筛名额扫描与根因 |
+| [`检索基准-v3-诊断-20261104.md`](检索基准-v3-诊断-20261104.md) | 合成谱 vs 库不同源（v2 卡强度 ↔ v3 库 LP 修正）的定位过程 |
 | [`数据库重建-v3.0.0-线路图.md`](数据库重建-v3.0.0-线路图.md) | v3 列存库重建链路与验收闸门 |
 | [`数据库提速瘦身-v3.0.0-线路图.md`](数据库提速瘦身-v3.0.0-线路图.md) | 列存 / CSR / 分块方案的量化论证 |
 | [`COD打包规范_CIF到SQLite.md`](COD打包规范_CIF到SQLite.md) | CIF → SQLite 打包规范（v2 时代，历史参考） |

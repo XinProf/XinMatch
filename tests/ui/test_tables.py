@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from PySide6 import QtCore, QtWidgets
 
-from xinmatch.core.model.entry import Entry
+from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.model.peak import Peak
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.search.fom import CandidateResult
@@ -16,24 +16,43 @@ from xinmatch.ui.tables import (
 )
 
 
-def _make_entry(entry_id: str, formula: str = "Si O2", mineral: str | None = None) -> Entry:
+def _make_entry(entry_id: str, formula: str = "Si O2", mineral: str | None = None,
+                cell: CellParams | None = None, space_group: str | None = None) -> Entry:
     return Entry(
         entry_id=entry_id,
         formula=formula,
         d_spacings=np.array([3.3, 2.4, 1.8]),
         intensities=np.array([1000.0, 600.0, 300.0]),
         mineral_name=mineral,
+        cell=cell,
+        space_group=space_group,
         quality="*",
     )
 
 
-def _candidate(fom: float, entry_id: str) -> CandidateResult:
+def _candidate(fom: float, entry_id: str, *, formula: str = "Si O2",
+               cell: CellParams | None = None) -> CandidateResult:
     return CandidateResult(
-        entry=_make_entry(entry_id),
+        entry=_make_entry(entry_id, formula=formula, cell=cell),
         fom=fom,
         p_values={"peakpos": 0.9, "intensity": 0.8},
         i_scale=1.0,
     )
+
+
+#: 三张 beryl 型卡片 + 一张方解石——折叠口径的标准夹具（族内 3 条）。
+_BERYL_CELL = CellParams(a=9.215, b=9.215, c=9.190)
+_CALCITE_CELL = CellParams(a=4.990, b=4.990, c=17.061)
+
+
+def _family_fixture() -> list[CandidateResult]:
+    """Beryl family ×3 (descending FoM) followed by calcite."""
+    return [
+        _candidate(0.90, "96-900-0001", formula="Al2 Be3 Si6 O18", cell=_BERYL_CELL),
+        _candidate(0.85, "96-900-0002", formula="Al1.5 Be3 Si6 O18", cell=_BERYL_CELL),
+        _candidate(0.80, "96-900-0003", formula="Al2 Be3 Si6 O18", cell=_BERYL_CELL),
+        _candidate(0.60, "96-900-0004", formula="C Ca O3", cell=_CALCITE_CELL),
+    ]
 
 
 def _center(view: QtWidgets.QTableView, row: int = 0) -> QtCore.QPoint:
@@ -112,7 +131,13 @@ def test_peak_context_menu_actions_and_signals(qapp):
 # Candidate list
 # ---------------------------------------------------------------------------
 def test_candidate_table_fills_and_default_fom_sort(qapp):
-    results = [_candidate(0.5, "1"), _candidate(0.9, "2"), _candidate(0.7, "3")]
+    # Distinct compositions → three separate phase families → three rows even
+    # though folding is on by default (v3.2.0).
+    results = [
+        _candidate(0.5, "1", formula="Si O2"),
+        _candidate(0.9, "2", formula="Ti O2"),
+        _candidate(0.7, "3", formula="Al2 O3"),
+    ]
     table = CandidateListTable()
     table.set_candidates(results)
     table.resize(600, 200)
@@ -122,6 +147,91 @@ def test_candidate_table_fills_and_default_fom_sort(qapp):
     foms = [float(table.model().index(r, 9).data(QtCore.Qt.ItemDataRole.DisplayRole))
             for r in range(table.model().rowCount())]
     assert foms == sorted(foms, reverse=True)
+
+
+def test_candidate_table_folds_same_phase_variants(qapp):
+    table = CandidateListTable()
+    table.set_candidates(_family_fixture())
+    table.resize(600, 300)
+    table.show()
+    # 3 beryl cards collapse into 1 row, calcite keeps its own.
+    assert table.model().rowCount() == 2
+    assert table.is_merging_families() is True
+    assert table.family_size_at(0) == 3
+    assert table.family_size_at(1) == 1
+    # Unfolded ids never appear while folded.
+    ids = [r.entry.entry_id for r in table.visible_results()]
+    assert ids == ["96-900-0001", "96-900-0004"]
+    # The "变体" column reports the family size on the representative row.
+    variant = [table.model().index(r, 10).data(QtCore.Qt.ItemDataRole.DisplayRole)
+               for r in range(2)]
+    assert variant[0] == "3 条"
+    assert variant[1] == ""
+    # Its tooltip lists every card plus the unit cell.
+    tip = table.model().index(0, 10).data(QtCore.Qt.ItemDataRole.ToolTipRole)
+    assert "96-900-0001" in tip and "96-900-0003" in tip
+    assert "a=9.2150" in tip
+
+
+def test_candidate_table_expands_and_recollapses(qapp):
+    table = CandidateListTable()
+    table.set_candidates(_family_fixture())
+    table.resize(600, 300)
+    table.show()
+    seen: list[bool] = []
+    table.family_mode_changed.connect(lambda m: seen.append(m))
+
+    table.set_merge_families(False)
+    assert table.model().rowCount() == 4
+    variant = [table.model().index(r, 10).data(QtCore.Qt.ItemDataRole.DisplayRole)
+               for r in range(4)]
+    assert variant == ["1/3", "2/3", "3/3", ""]
+
+    table.set_merge_families(True)
+    assert table.model().rowCount() == 2
+    assert seen == [False, True]
+
+
+def test_candidate_selection_maps_through_fold_table(qapp):
+    """Folded rows are not candidate indices: selection must still resolve."""
+    table = CandidateListTable()
+    table.set_candidates(_family_fixture())
+    table.resize(600, 300)
+    table.show()
+    # Proxy row 1 is calcite (source index 3), not beryl card #2.
+    table.selectRow(1)
+    assert table.current_entry_id() == "96-900-0004"
+    assert [r.entry.entry_id for r in table.selected_results()] == ["96-900-0004"]
+    # Folded mode still exposes the whole family for the representative row.
+    assert [r.entry.entry_id for r in table.family_results_at(0)] == [
+        "96-900-0001", "96-900-0002", "96-900-0003",
+    ]
+
+
+def test_candidate_context_menu_toggles_families(qapp):
+    table = CandidateListTable()
+    table.set_candidates(_family_fixture())
+    table.resize(600, 300)
+    table.show()
+    menu = table._build_menu(_center(table))
+    texts = [a.text() for a in menu.actions()]
+    assert any("展开同相变体" in t for t in texts)
+    next(a for a in menu.actions() if "展开同相变体" in a.text()).trigger()
+    assert table.model().rowCount() == 4
+    # Menu now offers the inverse action.
+    texts2 = [a.text() for a in table._build_menu(_center(table)).actions()]
+    assert any("合并同相变体" in t for t in texts2)
+
+
+def test_candidate_context_menu_without_families(qapp):
+    table = CandidateListTable()
+    table.set_candidates([_candidate(0.9, "COD-100001", formula="Ti O2")])
+    table.resize(600, 200)
+    table.show()
+    action = next(a for a in table._build_menu(_center(table)).actions()
+                  if "变体" in a.text())
+    assert action.text() == "无同相变体"
+    assert action.isEnabled() is False
 
 
 def test_candidate_table_doubleclick_emits_entry_id(qapp):

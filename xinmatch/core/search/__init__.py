@@ -59,6 +59,14 @@ from .pfsm import (
     pfsm_rank,
     pfsm_score,
 )
+from .phase_key import (
+    PhaseFamily,
+    families,
+    group_same_phase,
+    normalize_formula,
+    parse_composition,
+    same_phase,
+)
 from .residual_update import (
     EXPLAINED_THRESHOLD,
     build_residual_peaks,
@@ -141,4 +149,11 @@ __all__ = [
     "DEFAULT_EXPLAINED_FRAC",
     "DEFAULT_ABS_FLOOR",
     "DEFAULT_MIN_PEAK_FRAC",
+    # Phase-level identity / near-duplicate families (v3.2.0)
+    "PhaseFamily",
+    "parse_composition",
+    "normalize_formula",
+    "same_phase",
+    "group_same_phase",
+    "families",
 ]

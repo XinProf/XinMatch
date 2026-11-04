@@ -51,6 +51,14 @@ def create_app(argv: Sequence[str] | None = None) -> QtWidgets.QApplication:
     # base QCoreApplication class omits it.
     app.setApplicationDisplayName("XinMatch — powder XRD phase analysis")  # type: ignore[attr-defined]
     app.setOrganizationName("XinMatch")
+    # 应用级图标：任务栏/Alt-Tab 在窗口出现前就有图标（v3.2.0 起用新标志）。
+    from xinmatch.ui.main_window import _asset_path
+
+    for _name in ("icons/logo_256.png", "logo.png"):
+        _path = _asset_path(_name)
+        if _path.is_file():
+            app.setWindowIcon(QtGui.QIcon(str(_path)))
+            break
     return app
 
 

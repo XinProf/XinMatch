@@ -47,13 +47,45 @@ from xinmatch.core.report.report_model import (
 from xinmatch.core.search import CandidateResult
 from xinmatch.core.search import search_match as _search_match
 
-try:
-    __version__ = importlib.metadata.version("xinmatch")
-except importlib.metadata.PackageNotFoundError:  # pragma: no cover - source tree / frozen
-    # Running from a source checkout that was never ``pip install``-ed (or from a
-    # frozen bundle stripped of dist-info): keep the package importable.  Keep in
-    # sync with ``[project] version`` in pyproject.toml and ``xinmatch.spec``.
-    __version__ = "3.1.0"
+
+def _resolve_version() -> str:
+    """Package version, source tree first.
+
+    ``importlib.metadata`` is authoritative for an installed/frozen build, but a
+    *source checkout* can carry a stale ``xinmatch.egg-info`` (ours said 3.0.0
+    while ``pyproject.toml`` said 3.2.0), and that stale metadata shadows the
+    real value everywhere the GUI shows a version.  So: when a sibling
+    ``pyproject.toml`` exists, believe it; otherwise fall back to the installed
+    metadata, then to the literal below.
+    """
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            import tomllib  # Python 3.11+
+        except ModuleNotFoundError:  # pragma: no cover - Python 3.10
+            tomllib = None  # type: ignore[assignment]
+        try:
+            if tomllib is not None:
+                with pyproject.open("rb") as fh:
+                    version = tomllib.load(fh).get("project", {}).get("version")
+                if isinstance(version, str) and version:
+                    return version
+            else:
+                for line in pyproject.read_text(encoding="utf-8").splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("version") and "=" in stripped:
+                        value = stripped.split("=", 1)[1].strip().strip('"\'')
+                        if value:
+                            return value
+        except OSError:  # pragma: no cover - unreadable file
+            pass
+    try:
+        return importlib.metadata.version("xinmatch")
+    except importlib.metadata.PackageNotFoundError:  # pragma: no cover - frozen
+        return "3.2.0"
+
+
+__version__ = _resolve_version()
 
 __all__ = [
     "__version__",
