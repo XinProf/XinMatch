@@ -29,6 +29,7 @@ import pytest
 from xinmatch.core.db.cif_meta import (
     elements_from_formula,
     elements_from_sites,
+    formula_from_sites,
     parse_meta,
 )
 
@@ -109,7 +110,11 @@ def test_moiety_formula_fallback(tmp_path: Path) -> None:
 
 
 def test_site_list_fallback_when_no_formula(tmp_path: Path) -> None:
-    """With no formula at all the atom sites still identify the elements."""
+    """With no formula at all the atom sites identify elements **and** composition.
+
+    3.4.1 起空式卡不能被判为任何真值相，所以 parse_meta 现在把位点组成写成
+    formula（否则重建后的库会重新长出 416 张「身份不明」的卡）。
+    """
     path = _write_cif(
         tmp_path,
         "_chemical_name_systematic 'no formula in this file'\n",
@@ -117,8 +122,8 @@ def test_site_list_fallback_when_no_formula(tmp_path: Path) -> None:
     )
     meta = parse_meta(path)
     assert meta is not None
-    assert meta.formula is None
-    assert meta.elements == ["Hf", "V"]
+    assert meta.formula == "Hf V"
+    assert elements_from_formula(meta.formula) == meta.elements == ["Hf", "V"]
 
 
 def test_base64_formula_still_rejected(tmp_path: Path) -> None:
@@ -169,3 +174,57 @@ def test_elements_from_sites_ignores_unknown_symbols() -> None:
         sites = [_Site("M"), _Site("O2-"), _Site("Fe3+"), _Site("")]
 
     assert elements_from_sites(_Structure()) == ["Fe", "O"]
+
+
+# ---------------------------------------------------------------------------
+# formula_from_sites (3.4.1: 补式，让缺 _chemical_formula_sum 的相可被判同)
+# ---------------------------------------------------------------------------
+
+class _Site:
+    def __init__(self, symbol: str, occ: float = 1.0) -> None:
+        self.type_symbol = symbol
+        self.occ = occ
+
+
+def test_formula_from_sites_counts_occupancy_and_normalises_isotopes() -> None:
+    """D→H、氧化态后缀剥离、占位度累加、元素排序，四条一次覆盖。"""
+    class _Structure:
+        sites = [
+            _Site("Fe3+", 1.0), _Site("Fe2+", 0.5),
+            _Site("O2-", 1.0), _Site("D", 2.0),
+            _Site("Xx", 1.0),  # 非 IUPAC 元素：忽略，不造伪元素
+        ]
+
+    assert formula_from_sites(_Structure()) == "Fe1.5 H2 O"
+    assert elements_from_formula(formula_from_sites(_Structure())) == ["Fe", "H", "O"]
+
+
+def test_formula_from_sites_handles_missing_occupancy_and_empty_structure() -> None:
+    class _Bare:
+        def __init__(self, symbol: str) -> None:
+            self.type_symbol = symbol
+
+    class _Structure:
+        sites = [_Bare("Si4+"), _Bare("O2-")]
+
+    assert formula_from_sites(_Structure()) == "O Si"
+
+    class _Empty:
+        sites: list[object] = []
+
+    assert formula_from_sites(_Empty()) is None
+
+
+def test_parse_meta_derived_formula_keeps_peak_independence(tmp_path: Path) -> None:
+    """补式只改 formula 一列，且派生式能被 same_phase 的组成解析吃下。"""
+    from xinmatch.core.search.phase_key import parse_composition
+
+    path = _write_cif(
+        tmp_path,
+        "_chemical_name_systematic 'no formula in this file'\n",
+        sites="Al1 Al3+ 0.0 0.0 0.0\nO1 O2- 0.5 0.5 0.5\nO2 O2- 0.5 0.0 0.0\n",
+    )
+    meta = parse_meta(path)
+    assert meta is not None
+    assert meta.formula == "Al O2"
+    assert parse_composition(meta.formula) == {"Al": 1.0, "O": 2.0}

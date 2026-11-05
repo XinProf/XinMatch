@@ -51,6 +51,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -67,6 +68,7 @@ __all__ = [
     "element_bit_positions",
     "element_mask",
     "elements_from_formula",
+    "formula_from_sites",
     "elements_from_sites",
     "parse_meta",
 ]
@@ -207,6 +209,65 @@ def elements_from_sites(structure: object) -> list[str]:
         if symbol in _ELEMENT_SET:
             found.add(symbol)
     return sorted(found)
+
+
+def formula_from_sites(structure: object) -> str | None:
+    """Derive a sum formula from the atom-site list when every formula tag fails.
+
+    ~420 COD files omit ``_chemical_formula_sum`` *and* both alternatives while
+    still carrying a complete atom-site list.  Those phases used to reach the
+    library with an empty ``formula``: :func:`same_phase` cannot compare them
+    (3.4.1 correctly refuses to assert identity without positive evidence), so
+    they are invisible to composition-level truth matching even when the engine
+    identified them.  This restores the missing evidence without touching peaks.
+
+    Sites are **symmetry-expanded** (``get_all_unit_cell_sites``) so that atoms on
+    special positions get their true multiplicity; occupancy is summed per
+    element.  D/T map to H and oxidation-state suffixes are stripped exactly as
+    in :func:`elements_from_sites`, so the result's element set always agrees
+    with the stored ``elements`` column.  Counts are per unit cell (COD's own
+    convention) and rounded to 3 decimals; ratio-based comparisons are
+    scale-invariant anyway.
+
+    Args:
+        structure: A ``gemmi.SmallStructure`` (or any duck-typed stand-in whose
+            ``sites`` items carry ``type_symbol`` / ``occ``).
+
+    Returns:
+        A canonical formula such as ``"B24 H24 O24"``, or ``None`` when no
+        usable site can be read.
+    """
+    try:
+        sites = list(cast("gemmi.SmallStructure", structure).get_all_unit_cell_sites())
+    except Exception:
+        try:
+            sites = list(cast("gemmi.SmallStructure", structure).sites)
+        except Exception:
+            return None
+    counts: dict[str, float] = defaultdict(float)
+    for site in sites:
+        match = _SITE_SYMBOL_RE.match(str(getattr(site, "type_symbol", "") or "").strip())
+        if not match:
+            continue
+        symbol = _HYDROGEN_ISOTOPES.get(match.group(0), match.group(0))
+        if symbol not in _ELEMENT_SET:
+            continue
+        try:
+            occ = float(getattr(site, "occ", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            occ = 1.0
+        if math.isfinite(occ) and occ > 0:
+            counts[symbol] += occ
+    if not counts:
+        return None
+    parts: list[str] = []
+    for symbol in sorted(counts):
+        value = round(counts[symbol], 3)
+        if not math.isfinite(value) or value <= 0:
+            continue
+        text = f"{value:g}"
+        parts.append(symbol if value == 1 else f"{symbol}{text}")
+    return " ".join(parts) or None
 
 
 def elements_from_formula(formula: str | None) -> list[str]:
@@ -592,6 +653,11 @@ def parse_meta(cif_path: str | Path, *, entry_id: str = "") -> PhaseMeta | None:
             if elements_from_formula(candidate):
                 formula = candidate
                 break
+    if not elements_from_formula(formula):
+        # 三种公式标签都给不出可解析组成时，从原子位点合成。这是最后兜底：
+        # 这些相本来有完整晶胞与峰表，只缺组成证据；补上后 same_phase 才能
+        # 拿它们和真值相比（3.4.1 起空式一律判「不同相」）。只影响 formula 列。
+        formula = formula_from_sites(ss) or formula
     mineral_name = item("_chemical_name_mineral") or item("_chemical_name_common")
     if mineral_name is not None and (not mineral_name or mineral_name.isdigit()):
         mineral_name = None
