@@ -115,6 +115,12 @@ def test_export_roundtrip_manifest_and_csv(cod_root: Path, tmp_path: Path) -> No
     assert manifest["peaks"] and manifest["peaks"][0]["two_theta"] == 25.3
     # candidates 摘要默认带
     assert len(manifest["candidates_summary"]) == 3
+    # 候选的 entry_id 必须各自对应，不能退化成「全部等于最后选中相」
+    # （真实 PDF2 S2 验收抓到的泄漏变量缺陷，这里锁死防回归）。
+    assert [c["entry_id"] for c in manifest["candidates_summary"]] == [
+        "96-400-1849", "96-999-9999", "weird-id"]
+    assert manifest["candidates_summary"][0]["source"] == "cod"
+    assert manifest["candidates_summary"][2]["source"] == "unresolved"
 
     # CSV 往返（%.10g，相对误差 ≤ 1e-9）
     lines = csv_text.strip().splitlines()

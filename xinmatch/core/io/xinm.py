@@ -186,11 +186,14 @@ def build_manifest(
             "mineral_name": ph.entry.mineral_name,
         })
 
+    # 注意：这里必须用 ``e.entry_id``，不能复用上面 ``for ph`` 循环的 ``eid``
+    # —— 那个循环变量在循环结束后残留为「最后一个选中相」，会让每个候选都
+    # 指向同一个相（真实 PDF2 S2 验收抓到的缺陷；合成测试当时只断言了数量）。
     candidates_summary = [
         {
-            "name": e.mineral_name or e.formula or eid,
-            "entry_id": eid,
-            "source": _classify_entry(eid, None)[0],
+            "name": e.mineral_name or e.formula or e.entry_id,
+            "entry_id": e.entry_id,
+            "source": _classify_entry(e.entry_id, None)[0],
             "cif_file": None,
         }
         for e, _fom in project.candidates[:20]
