@@ -8,7 +8,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.3.0.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.4.0.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
 > multi-phase identification** (confirm a phase → re-search on the remaining
 > unexplained peaks → confirm the next) + true March-Dollase preferred
@@ -28,6 +28,12 @@ workflows, published algorithms and open reference data (COD).
 > 6-line metal is always outvoted by a 150-reflection card). The mark is
 > informational only — ranking is unchanged, because the same rule also
 > flags a wrong phase on real data (see `docs/基准报告-物相检索-v3.md` §11.5).
+> v3.4.0 adds **phase-analysis export** (`文件 → 导出物相分析（.xinm）…`):
+> the anchor pattern, the selected phases' COD CIFs and their metadata are
+> packed into a self-contained zip that the sister project
+> [XinRefinement](../XinRefinement) imports in one click to start
+> full-profile refinement — no re-importing the pattern, no hunting CIFs in
+> the 522 K-file COD archive. Format contract: `docs/JOINT_PLAN_xinm_xinr.md`.
 > v3.0.0 replaced the last legacy reference
 > formats with the single **v3 columnar `.xinDB`** layout and ships the
 > **COD-Inorg** library as the built-in default:
@@ -181,20 +187,21 @@ v1.7.0 起同时产出两个二进制。**v3.0.0 起两个版本都内置默认�
 | **正式版**（release） | `XinMatch-Setup-<v>.exe`（安装时可选择安装位置） | **有**：每次启动检查注册状态 | `已注册：<单位部门名称>` / `未注册` |
 | **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | **红色加粗** `内部评估版本` |
 
-**v3.3.0 发布产物**：
+**v3.4.0 发布产物**：
 
 | 附件 | 体积 | SHA-256（前 16 位） |
 |---|---|---|
-| `XinMatch-Setup-3.3.0.exe`（正式版安装包，内置 COD-Inorg 库） | 242.3 MiB | `6e93c548dbd09ad8…` |
-| `XinMatch-Internal-3.3.0.zip`（便携包 = 内部评估版，红字标识，内置 COD-Inorg 库） | 337.3 MiB | `71f410fbef7eedad…` |
+| `XinMatch-Setup-3.4.0.exe`（正式版安装包，内置 COD-Inorg 库） | 242.4 MiB | `4962defa7d0e4cf7…` |
+| `XinMatch-Internal-3.4.0.zip`（便携包 = 内部评估版，红字标识，内置 COD-Inorg 库） | 351.4 MiB | `fb82ce897bf4227a…` |
 | `SHA256SUMS.txt` | — | — |
 
 参考库本版未变更，两个二进制均内置 `COD-Inorg-20261020.xinDB`（重建版，78,035 相）。
+`.xinm` 导出需与 **XinRefinement 1.1.0** 配套使用。
 更大的外挂库（`PCOD` / `TCOD` / `Full` / Materials Project）在姊妹仓库
 [XinMatch-DataBase Releases](https://github.com/PolyXRD/XinMatch-DataBase/releases) 分发：
 下载 `*.xinDB.zip` → 解压 → **「设置 → 参考数据库…」** 或
 `XinMatch.exe libraries --add <path>` 挂载，可多库并存；详见
-`docs/RELEASE-NOTES-v3.3.0.md` §七。
+`docs/RELEASE-NOTES-v3.4.0.md` §七。
 
 正式版未注册时，每次启动弹出提示：
 

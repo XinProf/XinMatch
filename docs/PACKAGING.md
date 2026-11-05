@@ -31,10 +31,10 @@ The script:
 2. Runs `pyinstaller --noconfirm --clean xinmatch.spec`.
 3. Relocates the bundled DB from `_internal/data/` to `data/` next to the exe.
 
-Output: **`dist/xinmatch-1.3.1/`**
+Output: **`dist/xinmatch-3.4.0/`**
 
 ```
-dist/xinmatch-1.3.1/
+dist/xinmatch-3.4.0/
   XinMatch.exe                 single dispatcher executable (console subsystem)
   data/cod_inorganics.db       reference DB (point Open-DB / --db at this)
   _internal/                   Python runtime, Qt, PySide6, pyqtgraph, gems, ...
@@ -62,7 +62,7 @@ were missing from an earlier hard-coded list, which made
 CLI (pure-compute, no DB needed):
 
 ```powershell
-cd dist\xinmatch-1.3.1
+cd dist\xinmatch-3.4.0
 .\XinMatch.exe quantify --phases "{\"Al2O3\":100.0}"
 # expect: weight_fractions: 1 entry(ies)   (exit 0)
 ```
@@ -174,6 +174,6 @@ Base32(单位名 + `0x00` + HMAC-SHA256(内置密钥, 单位名)[:8])。密钥�
 
 | File | Purpose |
 |------|---------|
-| `xinmatch.spec` | PyInstaller build description (onedir, data files, icon, version resource 1.3.1) |
+| `xinmatch.spec` | PyInstaller build description (onedir, data files, icon, version resource 3.4.0) |
 | `tools/build_exe.ps1` | One-shot build driver (icon -> pyinstaller -> relocate DB) |
 | `tools/pyi_entry.py` | Dispatcher entry point (CLI vs GUI by argv) |

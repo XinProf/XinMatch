@@ -37,10 +37,10 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 3.3.0) ----
+# ---- Version (read-only mirror of pyproject [project] version = 3.4.0) ----
 APP_NAME = "XinMatch"
-APP_VERSION = "3.3.0"
-VERSION_TUPLE = (3, 3, 0, 0)
+APP_VERSION = "3.4.0"
+VERSION_TUPLE = (3, 4, 0, 0)
 
 # ---- Build variant (v1.7.0): release = 正式版（含注册机制） / internal = 内部评估版 ----
 # 由环境变量 XINMATCH_BUILD_VARIANT 指定（tools/build_exe.ps1 -Variant）。
@@ -67,6 +67,32 @@ def _resolve_variant() -> str:
 
 
 BUILD_VARIANT = _resolve_variant()
+
+# ---- Version consistency guard -------------------------------------------
+# 冻结包没有 pyproject.toml，``xinmatch.__version__`` 冻结态直接返回
+# ``xinmatch/__init__.py`` 里的 _FALLBACK_VERSION（见该常量注释：site-packages
+# 残留 dist-info 会给出旧版本）。若两者不同步，About 对话框与 .xinm manifest
+# 会写出错误的版本号，所以在这里直接构建失败，而不是打出一个版本号骗人的包。
+def _source_fallback_version() -> str:
+    import re
+
+    src = (_SPEC_DIR / "xinmatch" / "__init__.py").read_text(encoding="utf-8")
+    m = re.search(r'^_FALLBACK_VERSION\s*=\s*"([^"]+)"', src, re.MULTILINE)
+    if not m:
+        raise SystemExit(
+            "xinmatch/__init__.py 缺少 _FALLBACK_VERSION —— 无法校验冻结版版本号"
+        )
+    return m.group(1)
+
+
+_FALLBACK_VERSION = _source_fallback_version()
+if _FALLBACK_VERSION != APP_VERSION:
+    raise SystemExit(
+        f"版本号不同步：xinmatch/__init__.py _FALLBACK_VERSION="
+        f"{_FALLBACK_VERSION!r}，本 spec APP_VERSION={APP_VERSION!r}。"
+        "两处（以及 pyproject.toml）必须一起改。"
+    )
+print(f"==> Version OK : {APP_VERSION} (spec == __init__._FALLBACK_VERSION)")
 
 VARIANT_MARKER = _SPEC_DIR / "build" / "variant.txt"
 VARIANT_MARKER.parent.mkdir(parents=True, exist_ok=True)
@@ -162,7 +188,7 @@ datas += [
 if _BUNDLED_XINDB is not None:
     datas.append((str(_BUNDLED_XINDB), "data"))
 
-# ---- Windows version resource (FileVersion / ProductVersion = 3.3.0) ----
+# ---- Windows version resource (FileVersion / ProductVersion = 3.4.0) ----
 version_info = vi.VSVersionInfo(
     ffi=vi.FixedFileInfo(
         filevers=VERSION_TUPLE,

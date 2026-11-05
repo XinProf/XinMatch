@@ -680,6 +680,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    # --- global --version（v3.4.0 联合计划 X-5：`--version` 必须直接报版本号） ---
+    # 冻结包尤其需要它：没有 pyproject.toml 时，唯一可靠的版本来源就是
+    # xinmatch.__version__（冻结态取 __init__._FALLBACK_VERSION）。
+    def _version_string() -> str:
+        from xinmatch import __version__
+
+        return f"xinmatch {__version__}"
+
+    parser.add_argument(
+        "--version", "-V", action="version", version=_version_string(),
+        help="Print the XinMatch version and exit.",
+    )
+
     # --- import ---
     p_import = sub.add_parser("import", help="Import a diffraction pattern file.")
     p_import.add_argument("pattern_file", help="Path to the pattern file.")

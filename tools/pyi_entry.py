@@ -37,7 +37,7 @@ FALLBACK_CLI_COMMANDS = {
 }
 
 #: Flags that should reach the CLI parser instead of opening the GUI.
-CLI_FLAGS = {"-h", "--help"}
+CLI_FLAGS = {"-h", "--help", "--version", "-V"}
 
 
 def cli_commands() -> set[str]:

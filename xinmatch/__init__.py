@@ -16,6 +16,7 @@ convenience functions that chain the core pipeline steps:
 from __future__ import annotations
 
 import importlib.metadata
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -48,16 +49,32 @@ from xinmatch.core.search import CandidateResult
 from xinmatch.core.search import search_match as _search_match
 
 
+#: 冻结（PyInstaller）构建下使用的版本号，也是源码态的兜底值。
+#:
+#: 为什么冻结态必须认这个常量：冻结包里没有 ``pyproject.toml``，而开发机的
+#: ``site-packages`` 里可能残留旧 editable 安装的 ``xinmatch-<old>.dist-info``
+#: （本机实测 1.7.1）——``importlib.metadata.version()`` 会把它当成真版本，
+#: 于是 About 对话框与 ``.xinm`` manifest 里都写成 1.7.1。发布包的版本号只能
+#: 由打包脚本决定，不能让开发机的残留元数据决定。``xinmatch.spec`` 在构建时
+#: 断言本常量与 ``APP_VERSION`` 一致，忘记同步会直接构建失败。
+_FALLBACK_VERSION = "3.4.0"
+
+
 def _resolve_version() -> str:
     """Package version, source tree first.
 
-    ``importlib.metadata`` is authoritative for an installed/frozen build, but a
+    ``importlib.metadata`` is authoritative for an installed build, but a
     *source checkout* can carry a stale ``xinmatch.egg-info`` (ours said 3.0.0
     while ``pyproject.toml`` said 3.2.0), and that stale metadata shadows the
     real value everywhere the GUI shows a version.  So: when a sibling
     ``pyproject.toml`` exists, believe it; otherwise fall back to the installed
     metadata, then to the literal below.
+
+    冻结构建**直接**返回 :data:`_FALLBACK_VERSION`：包里没有 pyproject，
+    而 ``site-packages`` 的残留 dist-info 会给出一个旧版本号（见该常量注释）。
     """
+    if getattr(sys, "frozen", False):  # pragma: no cover - frozen builds
+        return _FALLBACK_VERSION
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     if pyproject.is_file():
         try:
@@ -82,7 +99,7 @@ def _resolve_version() -> str:
     try:
         return importlib.metadata.version("xinmatch")
     except importlib.metadata.PackageNotFoundError:  # pragma: no cover - frozen
-        return "3.4.0"
+        return _FALLBACK_VERSION
 
 
 __version__ = _resolve_version()

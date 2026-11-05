@@ -883,3 +883,29 @@ _peaks<=1 均为 0。
 - **基准终态（默认口径与 v3.2.0 逐项相同）**：合成谱相位级 T1 11/13、T5 12/13、序贯 10/13、
   相召回 19/24；真实谱 T1 10/12、T5 12/12、卡级 24/43、族级 27/43、序贯 5/12。
   开启 `promote_anchored=True`：合成 11/13 · 21/24，真实 4/12（故默认关闭）。
+
+## v3.4.0 发布产物（2026-11-05，二进制已验收；GitHub Release 待批准）
+
+**范围**：与 **XinRefinement 1.1.0** 打通「检索 → 精修」家族链路。新增
+`文件 → 导出物相分析（.xinm）…`：谱图（CSV `%.10g`）+ 已选物相 COD CIF + 峰表
+装进自包含 zip；CIF 回取靠 `core/refine/cif_store.resolve_entry_cif` 的多根探测链
+（`XINMATCH_COD_ROOT` → 当前档案根 → 历史根）。参考库格式、FoM 权重、排序、命令行
+**全部不变**。详见 `docs/RELEASE-NOTES-v3.4.0.md`、格式契约 `docs/JOINT_PLAN_xinm_xinr.md` §8。
+
+| 附件 | 字节 | SHA-256（前 16 位） |
+|---|---:|---|
+| `XinMatch-Setup-3.4.0.exe` | 254,139,154 | `4962defa7d0e4cf7…` |
+| `XinMatch-Internal-3.4.0.zip` | 368,486,794 | `fb82ce897bf4227a…` |
+| `SHA256SUMS.txt` | — | — |
+
+- **二进制稳健性 5 轮全通过**（`tools/verify_binary.py`，报告 `.scratch/binary_verify_340.json`，
+  `all_pass=true`）：哈希清单回读一致；便携解包 variant=internal、内置库 118,640,640 B / 78,035 相、
+  随包 logo 逐字节一致；冻结 GUI 三钩子（REG / LIBS=10 / ABOUT）+ 冷启动 exit 0；
+  `/VERYSILENT /CURRENTUSER` 静默安装 variant=release；安装后真实谱 `5-1.txt` 118 峰 → 5 候选、
+  榜首 `96-210-0189`（与 v3.3.0 逐位一致）。
+- **顺带修掉的版本号缺陷**：冻结包无 `pyproject.toml`，`site-packages` 残留
+  `xinmatch-1.7.1.dist-info` 会让 `importlib.metadata` 报 1.7.1，污染 About 与 `.xinm`
+  的 `app.version`。现在冻结态取 `__init__._FALLBACK_VERSION`，`xinmatch.spec` 构建时断言
+  它等于 `APP_VERSION`（不同步直接失败）；CLI 补 `--version` / `-V`（此前会误开 GUI）。
+- **环境修正**：`XINMATCH_XINDB_DIR` 由已不存在的 `PolyXRD-DataBase\xindb` 改为
+  `XinMatch-DataBase\data`（库实际位置），消除启动时"目录下没有 .xinDB"告警。

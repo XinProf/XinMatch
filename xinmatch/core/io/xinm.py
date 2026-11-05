@@ -170,6 +170,18 @@ def build_manifest(
         for e, _fom in project.candidates[:20]
     ]
 
+    # 扫描范围 / 步长：导出侧做一次规范化，别把 None 或 0.019999999999999574
+    # 这类浮点尾巴丢给下游（XinRefinement 会把它写进画布与报告头）。
+    if p is not None and p.two_theta.size:
+        tmin = meta.get("tmin")
+        tmax = meta.get("tmax")
+        tmin = round(float(p.two_theta[0]), 6) if tmin is None else round(float(tmin), 6)
+        tmax = (round(float(p.two_theta[-1]), 6) if tmax is None
+                else round(float(tmax), 6))
+        step = round(float(p.step), 6) if p.step else None
+    else:  # pragma: no cover - patterns 非空已在上游保证
+        tmin = tmax = step = None
+
     return {
         "format": XINM_FORMAT,
         "version": XINM_VERSION,
@@ -180,9 +192,9 @@ def build_manifest(
             "source_path": meta.get("source_path") or meta.get("path") or "",
             "wavelength": float(p.wavelength) if p is not None else 1.5406,
             "anode": meta.get("anode", "Cu"),
-            "tmin": meta.get("tmin"),
-            "tmax": meta.get("tmax"),
-            "step": p.step if p is not None else None,
+            "tmin": tmin,
+            "tmax": tmax,
+            "step": step,
             "metadata": meta,
         },
         "peaks": [pk.to_dict() for pk in project.peaks],
