@@ -7,13 +7,13 @@
 
     sample.xinm
     ├── manifest.json          # 结构见 docs/JOINT_PLAN_xinm_xinr.md §2.1
-    ├── pattern/pattern.csv    # two_theta,intensity 两列（%.6g）
+    ├── pattern/pattern.csv    # two_theta,intensity 两列（%.10g）
     └── cifs/*.cif             # 仅 source=cod 且回取成功的相
 
-版权边界：**不打包任何 ICDD/PDF2 衍生数据文件**；PDF2 类条目只写
-id / 元数据（``structural=false``）。当前 XinMatch 数据库全部为 COD
-家族 xinDB（``96-XXX-XXXX`` ref_id），``pdf2`` / ``user_cif`` 作为
-保留枚举值，供未来接入 PDF2 / 用户库时启用。
+版权边界：**不打包任何 ICDD/PDF-2 衍生数据文件**。PDF-2 条目只写 id 与元数据、
+``structural=false``，``source="pdf2"``（峰表也不导出 —— 那本身就是 ICDD 的
+商品数据）。COD 家族用 ``96-XXX-XXXX`` ref_id；PDF-2 用 ``PDF2-<6 位卡片号>``，
+由 :func:`_classify_entry` 与 ``unresolved`` 区分开。
 
 CIF 回取复用 :mod:`xinmatch.core.refine.cif_store`（含档案根探测）。
 """
@@ -109,7 +109,7 @@ def _write_pattern_csv(zf: zipfile.ZipFile, project: Project) -> int:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(["two_theta", "intensity"])
-    writer.writerows(zip(tt, ii))
+    writer.writerows(zip(tt, ii, strict=True))
     zf.writestr(_PATTERN_MEMBER, buf.getvalue())
     return n
 
@@ -120,6 +120,37 @@ def _write_pattern_csv(zf: zipfile.ZipFile, project: Project) -> int:
 def _entry_shape_is_ref_id(entry_id: str) -> bool:
     parts = entry_id.strip().split("-")
     return len(parts) == 3 and bool(parts[0]) and (parts[1] + parts[2]).isdigit()
+
+
+def _is_pdf2_entry(entry_id: str) -> bool:
+    """``PDF2-010837`` → 这是 ICDD PDF-2 卡片。
+
+    PDF-2 没有 CIF，也不在 COD 归档里，所以它既不是 ``cod`` 也不该被当成
+    「回取失败」的 ``unresolved``：下游（XinRefinement）对 ``pdf2`` 这个枚举值
+    的处理是「不注入结构、只画参考线」，与 ``unresolved`` 的「本该有结构但没
+    找到」是两回事，混在一起会让报告里的缺结构原因写错。
+    """
+    head, _, tail = entry_id.strip().partition("-")
+    return head.upper() == "PDF2" and bool(tail)
+
+
+def _classify_entry(
+    entry_id: str, cif_member: str | None
+) -> tuple[str, bool, str]:
+    """判定一个物相的结构来源 → ``(source, structural, reason)``。
+
+    ``source`` 的四个取值与 XinRefinement 侧 ``XinmPhase.source`` 的枚举一致：
+    ``cod`` 有结构 / ``pdf2`` 无结构但来源明确 / ``user_cif`` 用户自带 /
+    ``unresolved`` 本该有结构却没回取到。区分 ``pdf2`` 与 ``unresolved`` 不是
+    文字游戏：下游据此决定「不注入结构」还是「报告结构缺失」。
+    """
+    if cif_member is not None:
+        return "cod", True, ""
+    if _entry_shape_is_ref_id(entry_id):
+        return "cod", False, "COD 归档未命中该条目的 CIF"
+    if _is_pdf2_entry(entry_id):
+        return "pdf2", False, "ICDD PDF-2 卡片无 CIF，仅提供参考峰表"
+    return "unresolved", False, "条目 id 不是 COD ref_id 形态，无法回取 CIF"
 
 
 def build_manifest(
@@ -137,12 +168,7 @@ def build_manifest(
     for i, ph in enumerate(project.selected_phases):
         eid = ph.entry.entry_id
         member = cif_members.get(eid)
-        if member is not None:
-            source, structural, reason = "cod", True, ""
-        elif _entry_shape_is_ref_id(eid):
-            source, structural, reason = "cod", False, "COD 归档未命中该条目的 CIF"
-        else:
-            source, structural, reason = "unresolved", False, "条目 id 不是 COD ref_id 形态，无法回取 CIF"
+        source, structural, reason = _classify_entry(eid, member)
         phases.append({
             "name": ph.entry.mineral_name or ph.entry.formula or f"phase_{i + 1}",
             "source": source,
@@ -164,7 +190,7 @@ def build_manifest(
         {
             "name": e.mineral_name or e.formula or eid,
             "entry_id": eid,
-            "source": "cod" if _entry_shape_is_ref_id(eid) else "unresolved",
+            "source": _classify_entry(eid, None)[0],
             "cif_file": None,
         }
         for e, _fom in project.candidates[:20]
@@ -253,12 +279,8 @@ def export_xinm(
             cif_sources[eid] = src
             infos.append(XinmPhaseInfo(name, eid, "cod", True, member))
         else:
-            shape = _entry_shape_is_ref_id(eid)
-            infos.append(XinmPhaseInfo(
-                name, eid, "cod" if shape else "unresolved", False, None,
-                "COD 归档未命中该条目的 CIF" if shape
-                else "条目 id 不是 COD ref_id 形态，无法回取 CIF",
-            ))
+            source, _structural, reason = _classify_entry(eid, None)
+            infos.append(XinmPhaseInfo(name, eid, source, False, None, reason))
 
     manifest = build_manifest(
         project, cif_members=cif_members, app_version=app_version)

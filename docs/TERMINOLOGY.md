@@ -91,7 +91,7 @@
 |---|---|---|---|
 | Reference Database | 参考数据库（`library_dialog`；COD 全库）[x] | 参考数据库（相库） | XinMatch 用 COD（CC0）；参考软件用 COD+PDF |
 | User Database | 用户库（规划）[规划] | 用户数据库 | XinMatch 目前单一 COD 库 + 多库挂载 |
-| COD / RefDB | COD 库（`data/cod_inorganics.db`）[x] | COD 晶体学开放数据库 | 71,203 条目；hkl 回填 73% |
+| COD / RefDB | COD 库（`.xinDB` 外部库，如 `COD-Inorg-20261020.xinDB`）[x] | COD 晶体学开放数据库（CC0） | 无机子库 78,036 条目；全库 532,038 条目 |
 
 ## 9. 通用 / 界面
 

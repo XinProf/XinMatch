@@ -4,6 +4,13 @@ Phase 15 builds a **onedir** Windows distribution of XinMatch with PyInstaller.
 This document describes how to build it, where the output lands, how to smoke-test
 it, and the known limitations / common pitfalls.
 
+> ⚠️ **v3.0.0 update**: Since v3.0.0, all legacy database formats and their
+> compatibility code were removed — the bundled `cod_inorganics.db`, the PDF-2
+> sidecar index (`pdf2_index.py`), the `pdf2_source_dir` GUI config, and every
+> old-format reader. The reference library is now a `.xinDB` v3 columnar file
+> mounted externally (no conversion, no sidecar). The "External reference
+> databases" section below reflects the current (v3.0.0+) mechanism.
+
 ## Prerequisites
 
 * Python 3.10.11 at `D:\Project\XRD\python310\python.exe`
@@ -17,7 +24,7 @@ it, and the known limitations / common pitfalls.
   & D:\Project\XRD\python310\python.exe -m pip install pyinstaller
   ```
 
-* `data/cod_inorganics.db` (~512 MB, 71,199 COD entries) present in the repo.
+* Reference library: a `.xinDB` v3 file mounted externally (see "External reference databases" below). It is **not** bundled in the repo or installer.
 
 ## Build
 
@@ -36,7 +43,7 @@ Output: **`dist/xinmatch-3.4.0/`**
 ```
 dist/xinmatch-3.4.0/
   XinMatch.exe                 single dispatcher executable (console subsystem)
-  data/cod_inorganics.db       reference DB (point Open-DB / --db at this)
+  data/                        (no reference DB bundled; mount a .xinDB via 参考数据库… → 添加外部库…)
   _internal/                   Python runtime, Qt, PySide6, pyqtgraph, gems, ...
     xinmatch/core/db/schema.sql   (required; read at import time)
 ```
@@ -80,44 +87,33 @@ Stop-Process -Id $p.Id -Force
 Verify the bundled DB is intact:
 
 ```powershell
-.\XinMatch.exe search <pattern-file> --db .\data\cod_inorganics.db
+.\XinMatch.exe search <pattern-file> --db .\data\COD-Inorg-20261020.xinDB
 ```
 
-## External reference databases (v2.0.0)
+## External reference databases (v3.0.0+)
 
-Databases no longer have to be copied into `data/`.  The user mounts any
-`*.sqlite` / `*.db` file from any folder:
+> ⚠️ The **v2.0.0** mechanism described previously — mounting a PolyXRD `*.sqlite` / `*.db`
+> dump and converting it into a XinMatch sidecar index (the *建立/重建索引* button,
+> `libraries --build`, and `<user-data>/indexes/external/*.db`) — was **removed in
+> v3.0.0**. There is no conversion step and no sidecar index anymore.
+
+All reference libraries are now **`.xinDB` v3 columnar files**. To add one:
 
 ```powershell
-.\XinMatch.exe libraries --add "D:\XRD-Data\PolyXRD\COD_inorganics.sqlite"
+.\XinMatch.exe libraries --add "D:\Project\XRD\XinMatch-DataBase\data\COD-Inorg-20261020.xinDB"
 .\XinMatch.exe libraries --list          # or --json for scripting
-.\XinMatch.exe libraries --build <id> --force   # rebuild after the source changes
 ```
 
-In the GUI: 设置 → 参考数据库… → 添加外部库… (the picker and the *建立/重建索引*
-button live in the same dialog).
-
-Behaviour worth knowing for support:
-
-* the mount is recorded in `<user-data>/libraries.json`
+* the registration is persisted in `<user-data>/libraries.json`
   (`%USERPROFILE%\.xinmatch\` by default, override with `XINMATCH_USER_DATA`);
-  the selected library still lives in the GUI YAML under
-  `reference_db.selected_library_id`;
-* a PolyXRD dump (`phases` table with `peaks_d`/`peaks_i`) is converted **once**
-  into a XinMatch-schema sidecar at
-  `<user-data>/indexes/external/<name>_<hash>.db` (~3–4 min and ~650 MB for the
-  163 k-row PDF-2 file; the 1.2 GB COD dump is similar).  The conversion is
-  cancellable and the source file is only ever opened read-only;
-* the sidecar records the source `mtime`/`size`, so replacing or rebuilding the
-  PolyXRD database automatically triggers a rebuild on the next search (or
-  immediately with *建立/重建索引*);
-* `*.sqlite` is accepted wherever a `*.db` path is expected
-  (`data/cod_inorganics.sqlite`, `cod_full.sqlite`, …), matching PolyXRD's
-  switch to the `.sqlite` extension;
-* PolyXRD structure-only dumps (`cod_index.sqlite` / `cod_entries`, no peak
-  table) are rejected with an explanation instead of being mounted empty —
-  use `COD_inorganics.sqlite`, `PDF2_2004.sqlite`, or export a `phases`-style
-  database.
+  there is no GUI YAML `selected_library_id` and no `--build` step;
+* the COD *-Full libraries (`COD-Full-*.xinDB`, `PCOD-Full-*.xinDB`, `TCOD-Full-*.xinDB`)
+  are auto-discovered by filename from the data directory and need no registration;
+* the GUI path is 设置 → 参考数据库… → 添加外部库…; the Open-DB dialog / `--db` flag
+  take a `.xinDB` path directly
+  (example: `.\XinMatch.exe search <pattern-file> --db .\data\COD-Inorg-20261020.xinDB`);
+* PDF-2 2004 is mounted the same way as `PDF2-20240317.xinDB` (a reference library,
+  **not** bundled — ICDD commercial data); see `docs/COD多库挂载说明.md` §3.
 
 ## Known limitations
 
@@ -126,7 +122,7 @@ Behaviour worth knowing for support:
   app detects it via `GSAS2_AVAILABLE` and degrades gracefully; Rietveld /
   quantitative refinement against GSAS-II only activates on machines where
   GSAS-II is installed externally.
-* **Large DB.**  `cod_inorganics.db` is ~512 MB; the full bundle is ~1.1–1.2 GB.
+* **Large DB.**  The reference `.xinDB` ranges from ~120 MB (COD-Inorg) to ~900 MB (PCOD-Inorg); the full bundle is ~1.1–1.2 GB.
   This is why we use **onedir** (onefile would re-extract ~700 MB to `%TEMP%`
   on every launch).
 * **QtWebEngine / QML bloat.**  The PySide6 hook pulls in QtWebEngine, QtQml,
@@ -149,7 +145,7 @@ Behaviour worth knowing for support:
   built wheel.  If it is missing, the whole package fails to import on startup.
 * **The DB path is not auto-resolved.**  Neither the GUI nor the CLI guesses the
   DB location; users point the Open-DB dialog / `--db` flag at
-  `data/cod_inorganics.db`.
+  a `.xinDB` file (e.g. `data/COD-Inorg-20261020.xinDB`).
 * **JSON arguments need escaped quotes** when passed through a shell / .NET
   `ProcessStartInfo` (`"{\"Al2O3\":100.0}"`); unescaped quotes vanish and you
   get a `json` parse error.

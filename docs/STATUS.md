@@ -909,3 +909,37 @@ _peaks<=1 均为 0。
   它等于 `APP_VERSION`（不同步直接失败）；CLI 补 `--version` / `-V`（此前会误开 GUI）。
 - **环境修正**：`XINMATCH_XINDB_DIR` 由已不存在的 `PolyXRD-DataBase\xindb` 改为
   `XinMatch-DataBase\data`（库实际位置），消除启动时"目录下没有 .xinDB"告警。
+
+## PDF-2 参考库迁到 `.xinDB`（2026-11-05）
+
+**背景**：v3.0.0 删掉了全部旧格式读取路径（含 PDF2 dump + 侧车索引），此后 ICDD PDF-2
+在 XinMatch 里没有可挂载的形态。本次按 `.xinDB` v3 外挂库规范重新打包，读取侧零改动。
+
+| 项 | 值 |
+|---|---|
+| 源 | `C:\pdf2\pdf2.dat`（587,999,120 B，80 字符定宽流，7,349,989 行） |
+| 产物 | `D:\Project\XRD\XinMatch-DataBase\data\PDF2-20040317.xinDB`（172,302,336 B / 164.3 MiB） |
+| 规模 | **163,834 相 / 10,445,852 反射 / 40 chunk**，建库 **41 s** |
+| 对比旧格式 | `PDF2_2004.sqlite` 214,454,272 B → **小 19.7%** |
+| meta | `library_kind=PDF2`、`data_date=20040317`、`tier_default=0`、**`peak_origin=observed`** |
+| 验收 | `validate_xindb` **30 项 0 FAIL / 2 WARN**；自召回 120 相 **119 top-1 + 1 top-5 + 0 漏** |
+
+**关键设计决定：PDF-2 不是计算库。** 峰是几十年文献实测的相对强度，不是由 CIF 算的。
+照抄 `peak_convention` 的冻结串就是对文件撒谎，所以新增 `meta.peak_origin`
+（`computed` 缺省 / `observed`）；实测库自报 `observed-ICDD-PDF2-2004-norm1000`，
+强度仍归一 1000（两类库共用一把尺子，否则打分权重不可比）。验收器据此切换三条判据
+（口径、NULL 晶胞、峰数上限），缺省 `computed` 让三个既有库的结论一字不变。
+
+**兼容格式清理**（本仓）：
+
+- `ui/icons.py`：删掉 `"pdf2"` 图标 —— 全仓无引用，是 v2 时代的残留。
+- `core/io/xinm.py`：`source` 现在把 `PDF2-<卡片号>` 判为 **`pdf2`** 而非 `unresolved`。
+  两者对精修端含义不同（「本来就没结构」vs「本该有结构却没找到」），混用会让缺结构原因写错。
+  分类收拢到一个 `_classify_entry()`，三处调用点不再各写一遍。
+- `core/db/multi_db.py` / `ui/dialogs/library_dialog.py`：错误提示与 tooltip 补一句
+  「PDF-2 请用 `tools.build_pdf2_xindb` 打成 `PDF2-<日期>.xinDB` 再挂载」。
+
+**版权边界**：产物不入 git、不进 Release。`PolyXRD/.gitignore` 补 `**/PDF2*.xinDB` 与
+`cod_data/*.xinDB`（此前 165 MB 的 ICDD 派生文件在 `git status` 里是未跟踪状态，`git add -A`
+会收进去）；`XinMatch-DataBase/tools/package_release.py` 的默认 glob 现在主动跳过 `PDF2*`。
+构建/验收细节见 XinMatch-DataBase `docs/PDF2-库构建与验收.md`。

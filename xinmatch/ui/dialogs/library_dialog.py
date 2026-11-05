@@ -88,7 +88,8 @@ class LibraryDialog(QtWidgets.QDialog):
         self._add_btn = QtWidgets.QPushButton("挂载 .xinDB…")
         self._add_btn.setToolTip(
             "挂载任意文件夹下的 .xinDB 参考库（只登记路径，不复制文件）。\n"
-            "v3.0.0 起只支持 .xinDB；旧的 cod_inorganics.db / PDF2 dump 已不再支持。"
+            "v3.0.0 起只支持 .xinDB；旧的 cod_inorganics.db / PDF2 dump 已不再支持。\n"
+            "PDF-2 用打包好的 PDF2-<日期>.xinDB 挂载（需自备 ICDD 授权数据）。"
         )
         self._add_btn.clicked.connect(self._add_external_library)
         self._remove_btn = QtWidgets.QPushButton("移除挂载")

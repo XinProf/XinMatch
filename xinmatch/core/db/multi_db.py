@@ -35,6 +35,14 @@ id               file
 Any other ``.xinDB`` anywhere on disk can be mounted with
 :func:`add_external_library` (persisted in ``<user-data>/libraries.json``).
 
+ICDD PDF-2 也走这条路
+---------------------
+PDF-2 是实测峰表而不是「CIF → 算峰」的库，所以不在这里登记为内置库（它
+不能随程序分发）。用数据库仓库的 ``tools.build_pdf2_xindb`` 把它打成
+``PDF2-<YYYYMMDD>.xinDB`` 之后，用 :func:`add_external_library` 挂上即可，
+检索链路与 COD 家族完全一致 —— 区别只写在 ``meta`` 里（``peak_origin=observed``
+与实测峰口径），读取侧不需要第二个 reader。
+
 Public API
 ----------
 * :func:`list_libraries` — all known libraries with availability + reasons.
@@ -372,7 +380,8 @@ def add_external_library(path: str | Path, label: str | None = None) -> External
     if not _is_xindb(p):
         raise ValueError(
             f"仅支持 .xinDB 库（v3 列存格式）：{p}。"
-            "旧格式（cod_inorganics.db / PDF2 dump / COD sqlite）已在 v3.0.0 移除。"
+            "旧格式（cod_inorganics.db / PDF2 dump / COD sqlite）已在 v3.0.0 移除；"
+            "PDF-2 请先用 tools.build_pdf2_xindb 打包成 PDF2-<日期>.xinDB 再挂载。"
         )
     ok, reason = _probe_xindb(p)
     if not ok:

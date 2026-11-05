@@ -1,85 +1,74 @@
-# XinMatch 参考数据库多库挂载说明（v1.0.0）
+# XinMatch 参考数据库多库挂载说明（v3.0+）
 
-> 落地范围：`xinmatch/core/db/multi_db.py`（注册表/只读打开）+ `xinmatch/core/db/pdf2_index.py`
-> （PDF-2 侧车索引构建器）+ `tools/build_cod_full_xinmatch.py`（COD 全库构建入口）
-> + `xinmatch/ui/dialogs/library_dialog.py`（GUI 库选择）+ 配置键 `reference_db.selected_library_id`。
+> ⚠️ **本文档已按 v3.0.0 重构。** v3.0.0 移除了全部旧版本兼容代码：
+> - PDF-2 的 `pdf2_index.py` 侧车索引（旧「参考数据库 → 建立/重建索引」按钮一并删除）；
+> - 随包默认库 `data/cod_inorganics.db`；
+> - 内置注册 id `pdf2_2004` / `cod_inorganics` / `cod_full`；
+> - `pdf2_source_dir` GUI 配置键（`config.yaml`）与所有旧格式读取路径（PDF2 dump / COD sqlite dump）。
+>
+> **现行只支持 `.xinDB` v3 列存库**，通过外部库注册挂载。下文描述 v3.0+ 的现行机制；
+> v1.0.0 时代的旧流程仅作为本仓库历史记录保留在 `docs/打包交付说明-v1.0.0.md` 与
+> 各版本 `RELEASE-NOTES` 中，不再适用。
 
-## 1. 结论先行
+## 1. 现行机制
 
-- **参考软件 打包库（`D:\Project\XRD\Match-COD\`）无法直接挂载**：每个库（COD_20260602、
-  COD-Inorganics_20260602、Cements_20201127、Minerals_AMCSD_20260602）仅有 48 个
-  参考软件 专有二进制索引文件（`.mti/.mqn/.mqs/.mtb/.mtn/.mtu`），**不含 CIF、不含 SQLite**；
-  净室约束禁止逆向其私有格式，故不进注册表、不实现任何 参考软件 读取。
-- **等效替代**：参考软件 库与 PolyXRD 的 COD dump 同源（同一 COD 归档导出），
-  XinMatch 直接使用 PolyXRD 的 SQLite dump（只读挂载），数据覆盖面一致且格式开放。
-
-## 2. 三库现状与规模（实测）
-
-| 库 | 源文件 | 条目数 | 峰来源 | 状态 |
-|---|---|---|---|---|
-| COD 全库 | `PolyXRD\cod_data\cod_index.sqlite`（452 MB） | 113,223 | 无峰表，需 CIF 计算（gemmi） | 已提供构建入口 |
-| COD 无机物 | `data/cod_inorganics.db`（默认随包，537 MB） | **71,199** | 已建峰索引 | 随包可用 |
-| PDF-2 2004 | `PolyXRD\cod_data\PDF2_2004.sqlite`（214 MB） | **163,834** | 内嵌 `peaks_d/peaks_i` | 侧车索引已建 |
-
-COD 全库 CIF 归档：`D:\Project\XRD\PolyXRD\cod\cif`（522,545 个 CIF）。
-
-## 3. 挂载机制
-
-- **注册表**：`multi_db.list_libraries()` 返回 `cod_inorganics`（默认）/ `pdf2_2004` / `cod_full`
-  三条 `LibraryRecord`（id、显示名、kind、路径、条目数（惰性）、可用性 + 不可用原因、note）。
-- **只读打开**：`multi_db.open_library(id)` 返回只读（`mode=ro` + `query_only=ON`）的
-  XinMatch-schema 连接，可直接喂 `search_match` / `fetch_entries_by_ids`；
+- **库形态**：所有参考库均为 `.xinDB` v3 列存（schema v3，`schema_version = 3`）。
+  `reader_v3` 只校验 `REQUIRED_TABLES` + `schema_version`，所以任何按 v3 落盘的库天然可挂载。
+- **两类挂载**：
+  - **内置（按文件名自动发现）**：`multi_db` 从数据目录 glob 出
+    `COD-Full-*.xinDB` / `PCOD-Full-*.xinDB` / `TCOD-Full-*.xinDB`，无需注册。
+  - **外部（注册表持久化）**：其余库（无机子库、MP、PDF-2 等）通过
+    `multi_db.add_external_library(path)` 登记到
+    `~/.xinmatch/libraries.json`（`XINMATCH_USER_DATA` 可覆盖），跨会话保留。
+- **默认检索库**：COD-Inorg（`COD-Inorg-20261020.xinDB`），GUI / CLI 缺省即检索它。
+- **只读打开**：`multi_db.open_library(id)` 或 `open_external(path)` 返回只读连接
+  （`mode=ro` + `query_only=ON`），可直接喂 `search_match` / `fetch_entries_by_ids`；
   不可用抛 `LibraryNotAvailableError`（消息即友好原因）。
-- **路径解析**：开发态 `parents[3]/data/`；冻结态 `sys.executable` 同级 `data/`（与 dist 布局一致）。
-- **GUI**：菜单「设置 → 参考数据库…」表格列出三库（名称/条目数/路径/状态，不可用置灰显示原因），
-  单选切换并持久化到 YAML 配置 `reference_db.selected_library_id`；
-  `MainWindow.open_search_library()` 在所选库不可用时弹警告并回退默认库，保证检索始终可用。
+- **GUI**：菜单「设置 → 参考数据库…」列出全部库（名称 / 条目数 / 路径 / 状态，不可用置灰显示原因），
+  支持「添加外部库…」浏览 `.xinDB` 文件并注册；单选切换持久化到 `libraries.json`。
 
-## 4. PDF-2 2004 直接挂载（已打通并验证）
+## 2. 当前库清单（实测）
 
-- 源库只读（`mode=ro`，带 `-wal/-shm` 侧车时绝不写源）；构建**侧车搜索索引**到
-  `%USERPROFILE%\.xinmatch\indexes\pdf2_2004_xinmatch.db`（可用 `XINMATCH_USER_DATA` 覆盖），
-  不入源目录。
-- 决策：`entry_id = ref_id`（163,834 行零 NULL 且唯一，与 `display_id` 等价）；
-  `mineral_name = mineral` 非空否则 `name`；峰为 `peaks_d/peaks_i` 逗号串，取最强 100、按强度降序。
-- 实测：**163,834/163,834 条（0 跳过）、7,921,637 峰、构建 173.8 s、产物 693 MB**；
-  真实条目核验：石英 `PDF2-010649` 最强峰 3.35 Å、方解石 3.04 Å、刚玉 2.55 Å，均正确；
-  `open_library("pdf2_2004")` + 检索链路可用。
-- 重建：`python -m xinmatch.core.db.pdf2_index`（一次性，约 3 分钟）。
+| 库 | 文件 | 条目数 | 形态 | 状态 |
+|---|---|---|---|---|
+| COD 无机物（默认） | `XinMatch-DataBase/data/COD-Inorg-20261020.xinDB` | **78,036** | 外部库 | 可用 |
+| COD 全库 | `XinMatch-DataBase/data/COD-Full-20261020.xinDB` | **532,038** | 内置（glob） | 可用 |
+| TCOD 无机物 | `XinMatch-DataBase/data/TCOD-Inorg-20261020.xinDB` | **46,846** | 外部库 | 可用 |
+| TCOD 全库 | `XinMatch-DataBase/data/TCOD-Full-20261020.xinDB` | **361,701** | 内置（glob） | 可用 |
+| PCOD 无机物 | `XinMatch-DataBase/data/PCOD-Inorg-20261020.xinDB` | **1,061,953** | 外部库 | 可用 |
+| PCOD 全库 | `XinMatch-DataBase/data/PCOD-Full-20261020.xinDB` | — | 内置（glob） | 待构建（缺失时置灰） |
+| Materials Project | `XinMatch-DataBase/data/MP-20261031.xinDB` | **155,201** | 外部库 | 可用 |
+| ICDD PDF-2 2004 | `XinMatch-DataBase/data/PDF2-20040317.xinDB` | **163,834** | 外部库（实测卡片） | 可用 |
 
-## 5. COD 全库构建（已全量完成）
+> 数据目录 `XinMatch-DataBase/data/` 已被仓库 `.gitignore` 的 `/data/` 屏蔽——
+> 这些库不入库、不随 Release 分发，用户本地挂载即可。
 
-- `tools/build_cod_full_xinmatch.py`：CIF 归档 → XinMatch-schema DB（entries+peaks），
-  支持 `--out / --start / --limit / --resume`、增量写入、进度日志、条/min 与 ETA
-  （断点续跑水位表 `build_progress`）。
-- **全量实测（2026-10-09 已入库，commit 7a88494）**：`data/cod_full.db`（941.8 MB）
-  **entries=112,734 / peaks=10,979,059 / elements=527,398**，schema 与默认库一致
-  （entries/peaks/elements/element_combo/build_progress），可直接被 search 查询与挂载。
-- 300 条切片吞吐 ≈1,472 条/min；全量约 2 小时内完成（含大胞相反射较多的耗时）。
-- **检索质量结论（2026-10-10 核验）**：用全库 112,734 条重跑 L3 黄金基线，Top-1 一致率
-  反降至 1/13（无机库为 9/13）——全库含大量重复/低质量卡片（同一物相多卡片、实验与
-  理论条目并存）稀释 FoM 排序。**默认检索保持精选无机库 `data/cod_inorganics.db`
-  （71,199），全库仅作覆盖性挂载/人工查阅**，不作为默认搜索库。
-- 用法示例：
+## 3. PDF-2 2004（实测卡片库，v3.0+ 现行形态）
 
-```powershell
-# 后台全量（断点续跑）
-python -m tools.build_cod_full_xinmatch --out data\cod_full.db
-# 先跑一小段验证
-python -m tools.build_cod_full_xinmatch --limit 500 --out data\cod_full.db
-```
+PDF-2 在 v3.0 之前是「PolyXRD dump → `pdf2_index.py` 侧车索引」的挂载方式，v3.0.0 已删除。
+现按 `.xinDB` v3 外挂库规范重新打包为 `PDF2-20040317.xinDB`，与 COD 家族走同一条检索链路，
+差异全部写在 `meta` 里：
 
-## 6. 许可提示
+- `library_kind = PDF2`、`data_date = 20040317`（文件名与 meta 一致，`M3.identity` 通过）；
+- `meta.peak_origin = observed`（峰是几十年文献实测的相对强度，**不是**由 CIF 算的）；
+- 强度归一 `norm1000`，与计算库共用一把尺子，打分权重可比；
+- 晶胞缺失写 NULL（老 Hanawalt 卡片本就无晶胞，属数据事实，不填哨兵值）；
+- 峰不截断（最多 199 条原样保留）。
 
-- **PDF-2 2004 为 ICDD 商业授权数据**：侧车索引与检索结果仅供本地使用，不得随 XinMatch
-  再分发；`PDF2_2004.sqlite` 来自用户自有授权的 PolyXRD dump。
-- COD 数据遵循其公开许可（CIF 归档来源不变）。
-- 参考软件 专有库（`.mti` 等）不复制、不逆向、不随包。
+**版权边界**：产物不入库、不进 Release（ICDD 商品数据）。构建与验收细节见
+`XinMatch-DataBase/docs/PDF2-库构建与验收.md`；旧 `PDF2_2004.sqlite`（v2 遗留）已无任何代码读取。
 
-## 7. 后续建议（不在本版本范围）
+## 4. COD 全库构建（历史 → 现行）
 
-1. ~~GUI 提供 PDF-2 源路径 / 侧车索引重建按钮~~ ✅ 已完成（2026-10-09，体验修订轮）：参考数据库对话框「PDF-2 源路径…」，持久化 `config.yaml` 的 `pdf2_source_dir`。
-2. ~~COD 全库一键后台构建任务（带进度条与断点续跑，产物自动注册）~~ ✅ 已完成：对话框「构建 COD 全库…」后台线程 + 进度条/日志 + 可取消，全量产物已注册（见第 5 节）。
-3. 将 `COD_inorganics.sqlite`（与默认库同源）注册为可选挂载，供不随包分发的部署场景。
-4. 全库检索质量治理（去重/优选卡片）以让 COD 全库也可作为搜索库——当前结论是保持无机库为默认搜索库。
-4. 检索前可选库的连接复用与预热（首次打开 71k/163k 条库的索引加载耗时优化）。
+- **v1.x 旧入口**：`tools/build_cod_full_xinmatch.py` 生成 `data/cod_full.db`（XinMatch-schema 行式），
+  属旧格式，**v3.0.0 起不再作为挂载形态**。
+- **现行**：COD 全库由 `tools/build_cod_xindb.py` 等 xinDB 建库工具链生成
+  `COD-Full-*.xinDB`（列存），按文件名被 `multi_db` 自动发现，无需注册。
+- 检索质量结论不变：默认检索保持精选无机库（COD-Inorg），全库仅作覆盖性挂载 / 人工查阅，
+  不作为默认搜索库（全库含大量重复 / 低质量卡片，会稀释 FoM 排序）。
+
+## 5. 许可提示
+
+- **PDF-2 2004 为 ICDD 商业授权数据**：检索结果仅供本地使用，参考库不随 XinMatch 再分发。
+- COD 数据遵循其公开许可（CC0）；MP 数据遵循 Materials Project 许可。
+- 旧「参考软件 专有库」（`.mti` 等）不复制、不逆向、不随包（净室约束）。

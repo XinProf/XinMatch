@@ -19,9 +19,9 @@ from xinmatch.core.io.xinm import (
     export_xinm,
     pattern_to_csv_rows,
 )
-from xinmatch.core.model.entry import Entry, CellParams
-from xinmatch.core.model.peak import Peak
+from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.model.pattern import Pattern
+from xinmatch.core.model.peak import Peak
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.model.project import Project
 
@@ -144,6 +144,29 @@ def test_export_unresolved_id_only(cod_root: Path, tmp_path: Path) -> None:
     assert report.n_structural == 0
     with zipfile.ZipFile(out) as zf:
         assert not any(n.startswith("cifs/") for n in zf.namelist())
+
+
+def test_export_pdf2_entry_is_pdf2_source(cod_root: Path, tmp_path: Path) -> None:
+    """PDF-2 卡片的 ``source`` 必须是 ``pdf2``，不能是 ``unresolved``。
+
+    两者对下游含义不同：``pdf2`` 是「本来就没有结构」，``unresolved`` 是
+    「本该有结构却没回取到」。混用会让精修端的缺结构原因写错。
+    """
+    e = _make_entry("PDF2-010837", name="calcite")
+    project = Project(
+        patterns=[_make_pattern()],
+        peaks=[Peak(two_theta=29.4, intensity=100.0, d=3.04, hkl=(1, 0, 4))],
+        candidates=[(e, 0.91)],
+        selected_phases=[Phase(entry=e, scale_factor=1.0)],
+    )
+    out = tmp_path / "pdf2.xinm"
+    report = export_xinm(project, out, cod_root=cod_root)
+    assert report.phases[0].source == "pdf2"
+    assert report.phases[0].structural is False
+    assert report.n_structural == 0
+    with zipfile.ZipFile(out) as zf:
+        manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+    assert manifest["candidates_summary"][0]["source"] == "pdf2"
 
 
 def test_export_without_pattern_raises(cod_root: Path, tmp_path: Path) -> None:

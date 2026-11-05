@@ -48,7 +48,6 @@ from xinmatch.core.report.report_model import (
 from xinmatch.core.search import CandidateResult
 from xinmatch.core.search import search_match as _search_match
 
-
 #: 冻结（PyInstaller）构建下使用的版本号，也是源码态的兜底值。
 #:
 #: 为什么冻结态必须认这个常量：冻结包里没有 ``pyproject.toml``，而开发机的

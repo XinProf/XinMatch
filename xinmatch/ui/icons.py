@@ -244,15 +244,6 @@ _BODIES: dict[str, str] = {
         '<path d="M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3L17 7M7 17l-1.7 1.7"/>'
         '</g>'
     ),
-    "pdf2": (
-        '<path fill="{fg}" stroke="{fg}" stroke-width="1" '
-        'd="M6 3.5h8.5L19 8v12.5H6z"/>'
-        '<path fill="{accent}" stroke="{accent}" stroke-width="1" '
-        'd="M14.5 3.5L19 8h-4.5z"/>'
-        '<path d="M9.2 16.8l2.8-5.6 2.8 5.6" fill="none" '
-        'stroke="{accent}" stroke-width="2"/>'
-        '<path d="M10.2 15.2h3.6" fill="none" stroke="{accent}" stroke-width="1.6"/>'
-    ),
     "colors": (
         '<circle cx="8.5" cy="9" r="3.4" fill="{accent}" stroke="{accent}"/>'
         '<circle cx="15.5" cy="9" r="3.4" fill="{fg}" stroke="{fg}"/>'
