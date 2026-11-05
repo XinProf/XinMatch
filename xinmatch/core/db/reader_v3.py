@@ -108,6 +108,50 @@ def _diverse_slots(limit: int, override: int | None) -> int:
         return max(0, min(int(override), limit))
     return max(0, min(int(round(limit * _DIVERSIFY_SHARE)), limit))
 
+
+#: Maximum number of prescreen slots one **phase family** may occupy.
+#:
+#: ``None`` (the default) keeps the pre-3.5.0 behaviour — no family cap.  A
+#: family is approximated by the card's **three strongest reflections**
+#: quantised to the d-window (:func:`_family_keys`): it needs no metadata lookup
+#: (the prescreen already holds the ``top_d`` matrix) and it separates
+#: polymorphs, whose strongest lines differ.
+#:
+#: Measured 2026-11-05 on the 25 benchmark samples (pool recall at 1000 slots,
+#: i.e. the upper bound every downstream metric is limited by): cap ``1`` lifts
+#: 45/67 → **48/67**, cap 2/8/16 leave it unchanged.  But it does **not** rescue
+#: the ``3-1`` minor phases: Al₂O₃'s first same-phase card sits at pool position
+#: **2071** and CaF₂'s at **4262**, while the top-1000 already spans ~550
+#: distinct families (largest one 44–67 cards) — the crowding is diffuse, not a
+#: single family flooding the pool.
+#:
+#: End-to-end the cap is **harmful**, so it stays off: capping keeps the card
+#: that is *first by the legacy order* within a family, not the one the FoM would
+#: rank highest, and it drops the sibling cards a phase needs when its strongest
+#: card is a poor scorer.  Measured (same day, both benchmarks): synthetic
+#: phase-level Top-1 **11/13 → 6/13** (cap 1 and 2), sequential 10/13 → 7/13,
+#: recall 19/24 → 15/24; real-samples card recall 19/43 → 18–19/43.  Turning it
+#: on is only meaningful together with a better family definition *and* a
+#: per-family ordering by score — see ``docs/基准报告-物相检索-v3.md`` §14.
+DEFAULT_FAMILY_SLOTS: int | None = None
+
+
+def _family_keys(top_d: np.ndarray, tol: float) -> np.ndarray:
+    """Quantised ``(d1, d2, d3)`` fingerprint of each card, as an ``int64`` key.
+
+    Cards of the same phase carry nearly identical strongest reflections, so
+    rounding those d-spacings to the prescreen window collapses sibling cards
+    onto one key while leaving polymorphs (whose strongest lines differ by far
+    more than the window) distinct.  Missing / non-positive entries map to
+    ``-1`` so a 2-line card never shares a key with a 3-line one.
+    """
+    t = max(float(tol), 1e-6)
+    k = top_d[:, :3]
+    valid = np.isfinite(k) & (k > 0.0)
+    q = np.where(valid, np.rint(np.where(valid, k, 0.0) / t), -1.0).astype(np.int64)
+    base = np.int64(100_003)  # d/0.02 ≤ ~2500 for any realistic cell
+    return ((q[:, 0] + 1) * base + (q[:, 1] + 1)) * base + (q[:, 2] + 1)
+
 #: Number of decoded chunks kept in memory.  A chunk holds
 #: ``CHUNK_SIZE`` phases, so four chunks cover ~16 k phases; the prescreen
 #: needs the whole matrix though, which is cached separately (see below).
@@ -211,6 +255,8 @@ class XinDBReader:
     Args:
         db_path: Path to the ``.xinDB`` file.
         rank_limit: Default candidate cap for :meth:`prescreen`.
+        family_slots: Default per-family slot cap for :meth:`prescreen`
+            (``None`` = no cap, see :data:`DEFAULT_FAMILY_SLOTS`).
     """
 
     def __init__(
@@ -218,9 +264,11 @@ class XinDBReader:
         db_path: str | Path,
         *,
         rank_limit: int = DEFAULT_RANK_LIMIT,
+        family_slots: int | None = DEFAULT_FAMILY_SLOTS,
     ) -> None:
         self.path = Path(db_path)
         self.rank_limit = int(rank_limit)
+        self.family_slots = None if family_slots is None else max(1, int(family_slots))
         self._conn: sqlite3.Connection | None = None
         self._conn_lock = threading.Lock()
         self._lock = threading.Lock()
@@ -901,7 +949,15 @@ class XinDBReader:
         truncated = sel.size > limit
 
         n_diverse = _diverse_slots(limit, diversify_slots)
-        if n_diverse > 0 and legacy.size > 1:
+        if self.family_slots is not None and legacy.size > 1:
+            # Family-capped allocation (opt-in, see DEFAULT_FAMILY_SLOTS): walk
+            # the legacy order and keep at most ``family_slots`` cards per
+            # three-strongest-line fingerprint.  The legacy leader stays first,
+            # so the head of the pool never moves; the tail reaches further into
+            # the family duplicates that the legacy order would have spent every
+            # remaining slot on.
+            order = self._family_capped(legacy, limit, int(self.family_slots), tol_abs)
+        elif n_diverse > 0 and legacy.size > 1:
             # The legacy order asks "is my **strongest** reflection one of the
             # strong measured peaks?" — in a multi-phase mixture that question
             # is really "am I the dominant phase?", so every minor phase loses
@@ -926,6 +982,41 @@ class XinDBReader:
             truncated=truncated,
             n_hits=int(sel.size),
         )
+
+    def _family_capped(
+        self,
+        legacy: np.ndarray,
+        limit: int,
+        cap: int,
+        tol: float,
+    ) -> np.ndarray:
+        """Walk *legacy* in order, keeping at most *cap* cards per family.
+
+        The candidate prefix is grown until *limit* slots are filled, so a pool
+        that is short of distinct families still ends up full — the cap changes
+        **which** cards get slots, never how many.
+        """
+        matrix = self._matrix()
+        if matrix is None:  # pragma: no cover - prescreen already checked
+            return legacy[:limit]
+        top_d = matrix["top_d"]
+        take = min(legacy.size, max(limit * max(cap, 1) * 2, 2048))
+        while True:
+            head = legacy[:take]
+            keys = _family_keys(top_d[head], tol)
+            used: dict[int, int] = {}
+            picked: list[int] = []
+            for pos in range(head.size):
+                key = int(keys[pos])
+                if used.get(key, 0) >= cap:
+                    continue
+                used[key] = used.get(key, 0) + 1
+                picked.append(pos)
+                if len(picked) >= limit:
+                    return head[np.asarray(picked, dtype=np.int64)]
+            if take >= legacy.size:
+                return head[np.asarray(picked, dtype=np.int64)]
+            take = min(legacy.size, take * 2)
 
     def element_index(self, element: str) -> np.ndarray | None:
         """Entry indices of every phase that contains *element*.

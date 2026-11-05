@@ -105,9 +105,9 @@ def main() -> int:
             t = Entry(entry_id="truth", formula=formula,
                       d_spacings=np.zeros(0, dtype=float),
                       intensities=np.zeros(0, dtype=float))
-            # 排除 NULL 式卡：same_phase 的组成回退会把「无化学式证据」当不反对
-            hits = [(i, c) for i, c in enumerate(pool)
-                    if c.entry.formula and same_phase(c.entry, t)]
+            # 3.4.1 起 ``same_phase`` 自己就拒绝「一侧无化学式」的假匹配，
+            # 这里不再需要额外的 NULL 式卡过滤（曾用于绕开该缺陷）。
+            hits = [(i, c) for i, c in enumerate(pool) if same_phase(c.entry, t)]
             ri = next((i for i, c in enumerate(pool)
                        if c.entry.entry_id == real_id), None)
             rec = report["truths"].setdefault(
@@ -116,7 +116,7 @@ def main() -> int:
             if hits:
                 i, best = min(hits, key=lambda x: x[0])
                 fr = fam_of[i] + 1
-                print(f"  同相卡(有式) {len(hits)} 张；最佳 {best.entry.entry_id}  "
+                print(f"  同相卡 {len(hits)} 张；最佳 {best.entry.entry_id}  "
                       f"entry_rank={i + 1}  family_rank={fr}/{len(groups)}  "
                       f"fom={best.fom:.4f}")
                 pb = _penalties(best.p_values, w)
@@ -132,7 +132,7 @@ def main() -> int:
                             "fom": best.fom, "p": dict(best.p_values),
                             "worst_criterion": worst})
             else:
-                print("  ✗ 无有式同相卡在池内")
+                print("  ✗ 无同相卡在池内（预筛未召回）")
                 rec["n_cards"] = 0
             if ri is not None:
                 c = pool[ri]

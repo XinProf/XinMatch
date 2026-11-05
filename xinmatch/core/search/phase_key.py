@@ -31,6 +31,15 @@ Identity rule (all must hold):
 Anything missing on either side is treated as "no evidence" and skipped, never
 as a mismatch — libraries legitimately lack a cell or a space group for a few
 entries.
+
+**Exception (v3.4.1)**: a missing *composition* is **not** skipped when it is the
+only evidence available.  When neither side carries a cell, composition is the
+sole basis for the judgement, and a card with a NULL/empty formula cannot be
+asserted to be the same phase as anything — "no evidence" is not "no
+disagreement".  COD-Inorg holds 416/78,035 such cards; letting them match
+anything inflated benchmark truth matching and folded them into arbitrary phase
+families (``docs/检索基准-31-次相诊断-20261105.md``).  A null-formula card that
+*does* carry a cell is still matched on the cell — that is positive evidence.
 """
 
 from __future__ import annotations
@@ -127,8 +136,15 @@ def _normalized_composition(comp: dict[str, float]) -> dict[str, float]:
 def _composition_agrees(
     a: dict[str, float], b: dict[str, float], tol: float
 ) -> bool:
+    """Ratio-level composition agreement — **requires positive evidence**.
+
+    Called only when a cell is missing on at least one side, i.e. composition is
+    the only evidence left.  ``True`` therefore demands that **both** sides carry
+    a parseable composition: a NULL/empty formula proves nothing, and answering
+    ``True`` for it would let that card match every phase in the library.
+    """
     if not a or not b:
-        return True  # no evidence, not a mismatch
+        return False
     if set(a) != set(b):
         return False
     norm_a, norm_b = _normalized_composition(a), _normalized_composition(b)

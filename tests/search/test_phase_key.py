@@ -133,6 +133,51 @@ def test_missing_cell_compares_formula_ratios_not_counts():
 
 
 # ---------------------------------------------------------------------------
+# NULL 式卡：没有化学式就不能断言「同相」（v3.4.1 修复）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("null_formula", ["", "   ", "\n"])
+def test_null_formula_card_never_matches_a_known_phase(null_formula):
+    """一侧有可解析组成、另一侧解析为空 → 不能判同相。
+
+    COD-Inorg 里 416/78,035 条 ``formula`` 为 NULL/空（库读出时归一成 ``""``）。
+    旧实现把「无证据」当成「不反对」，于是这些卡能假匹配**任何**真值相：基准的
+    真值匹配被虚高，候选折叠时它们还会被折进任意相位族
+    （``docs/检索基准-31-次相诊断-20261105.md``）。
+    """
+    known = _entry("96-230-0448", "Al2 O3")
+    blank = _entry("96-999-0001", null_formula, space_group=None)
+    known.cell = blank.cell = None
+    assert not same_phase(known, blank)
+    assert not same_phase(blank, known)
+
+
+def test_two_formulaless_entries_are_not_asserted_same_phase():
+    """两侧都无化学式、又都无晶胞 → 没有任何正向证据，不得判同（保守：各自成族）。"""
+    a = _entry("96-999-0002", "", space_group=None)
+    b = _entry("96-999-0003", "", space_group=None)
+    a.cell = b.cell = None
+    assert not same_phase(a, b)
+
+
+def test_formulaless_card_with_matching_cell_still_matches():
+    """晶胞是更强的证据：式为空但晶胞吻合时仍判同相（修复只收紧「组成回退」这条路）。"""
+    a = _entry("96-230-0448", "Al2 O3", a=4.759, c=12.99)
+    b = _entry("96-999-0004", "", a=4.762, c=13.00, space_group=None)
+    assert same_phase(a, b)
+
+
+def test_null_formula_card_forms_its_own_family():
+    """折叠候选时，NULL 式卡不能并进第一个族——否则会把真族的代表位置顶掉。"""
+    calcite = _entry("96-210-0992", "C Ca O3", a=4.99, c=17.06)
+    blank = _entry("96-999-0005", "", space_group=None)
+    blank.cell = None
+    groups = group_same_phase([calcite, blank])
+    assert groups == [[0], [1]]
+
+
+# ---------------------------------------------------------------------------
 # grouping
 # ---------------------------------------------------------------------------
 

@@ -110,12 +110,14 @@ def main() -> None:
     ap.add_argument("--top-n", type=int, default=20)
     ap.add_argument("--rounds", type=int, default=3,
                     help="序贯确认轮数（0 = 只跑整谱检索）")
+    ap.add_argument("--family-slots", type=int, default=None,
+                    help="预筛每族名额上限（默认不设限；1 = 每族只留最强一张卡）")
     ap.add_argument("--raw-peaks", action="store_true",
                     help="不做自动预处理，直接在原始谱上寻峰（用于对照）")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    reader = XinDBReader(args.library)
+    reader = XinDBReader(args.library, family_slots=args.family_slots)
     rows: list[dict] = []
     n = n_top1 = n_top5 = n_all5 = n_full = 0
     hit_phases = hit_phases_fam = n_phases = 0

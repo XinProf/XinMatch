@@ -86,10 +86,12 @@ def main() -> None:
     ap.add_argument("--library", type=Path, required=True)
     ap.add_argument("--rounds", type=int, default=3)
     ap.add_argument("--top-n", type=int, default=20)
+    ap.add_argument("--family-slots", type=int, default=None,
+                    help="预筛每族名额上限（默认不设限；1 = 每族只留最强一张卡）")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    reader = XinDBReader(args.library)
+    reader = XinDBReader(args.library, family_slots=args.family_slots)
     rows: list[dict] = []
     n_top1 = n_top5 = n_full = n_phases_hit = n_phases = 0
     n_top1_phase = n_top5_phase = 0
