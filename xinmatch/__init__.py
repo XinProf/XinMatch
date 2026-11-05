@@ -82,7 +82,7 @@ def _resolve_version() -> str:
     try:
         return importlib.metadata.version("xinmatch")
     except importlib.metadata.PackageNotFoundError:  # pragma: no cover - frozen
-        return "3.3.0"
+        return "3.4.0"
 
 
 __version__ = _resolve_version()

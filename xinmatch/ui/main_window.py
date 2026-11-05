@@ -403,8 +403,15 @@ class MainWindow(QtWidgets.QMainWindow):
         exit_action = QtGui.QAction("退出(&Q)", self)
         exit_action.setShortcut(QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Quit))
         exit_action.triggered.connect(self.close)
-        menus["文件(&F)"].addSeparator()
+        tail_sep = menus["文件(&F)"].addSeparator()
         menus["文件(&F)"].addAction(exit_action)
+        # v3.4.0 联合计划 X-3：导出物相分析状态（.xinm，供 XinRefinement 导入）。
+        self.export_xinm_action = QtGui.QAction("导出物相分析（.xinm）…", self)
+        self.export_xinm_action.setStatusTip(
+            "打包谱图 + 已选物相 CIF 为 .xinm 文件，供 XinRefinement 导入做全谱精修"
+        )
+        self.export_xinm_action.triggered.connect(self._export_xinm)
+        menus["文件(&F)"].insertAction(tail_sep, self.export_xinm_action)
 
         # T13.5 / T13.7 集成：颜色线型设置与主题切换入口（设置菜单）。
         colors_action = QtGui.QAction("颜色与线型设置…", self)
@@ -904,6 +911,50 @@ class MainWindow(QtWidgets.QMainWindow):
             + "\n".join(f"• {name}" for name in exported)
             + note,
         )
+
+    def _export_xinm(self) -> None:
+        """v3.4.0 联合计划 X-3：导出物相分析状态（.xinm）。
+
+        打包锚点谱图 + 已选候选相（回取 COD CIF）+ 峰列表，供
+        XinRefinement「导入 XinMatch 物相分析」一键装载。
+        个别相 CIF 回取失败不阻断导出（manifest 里标记 structural=false）。
+        """
+        from xinmatch.core.io.xinm import export_xinm
+        from xinmatch.core.model.phase import Phase
+        from xinmatch.core.model.project import Project
+
+        if self._current_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self, "无实验衍射谱",
+                "尚未载入实验衍射谱。\n请先导入衍射数据，再导出 .xinm。",
+            )
+            return
+        candidates = self._selected_candidate_results()
+        if not candidates:
+            QtWidgets.QMessageBox.information(
+                self, "无已鉴定相",
+                "当前没有候选物相。\n请先运行 Search-Match 并选择相，再导出 .xinm。",
+            )
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "导出物相分析状态",
+            "analysis.xinm",
+            "XinMatch 物相分析 (*.xinm);;所有文件 (*)",
+        )
+        if not path:
+            return
+        project = Project(
+            patterns=[self._current_pattern],
+            peaks=list(getattr(self, "_exp_peaks", []) or []),
+            candidates=[(c.entry, float(c.fom)) for c in self._candidates],
+            selected_phases=[
+                Phase(entry=c.entry, scale_factor=float(c.i_scale))
+                for c in candidates
+            ],
+        )
+        from xinmatch import __version__ as app_version
+        report = export_xinm(project, path, app_version=app_version)
+        QtWidgets.QMessageBox.information(self, "导出完成", report.summary)
 
     def _open_about(self) -> None:
         """Show the About box; version read dynamically from xinmatch.__version__."""

@@ -47,14 +47,39 @@ __all__ = [
 
 #: Local COD CIF archive root (read-only; 522 K files).  Overridable via the
 #: ``XINMATCH_COD_ROOT`` environment variable or a function argument.
-DEFAULT_COD_ROOT = Path(r"D:\Project\XRD\PolyXRD\cod\cif")
+#: 历史位置为 ``PolyXRD\\cod\\cif``（见 _FALLBACK_ROOTS）；机器迁移后档案现居
+#: ``sync-COD\\COD``，探测时按"环境变量 → 默认 → 回退"取第一个存在的目录。
+DEFAULT_COD_ROOT = Path(r"D:\Project\XRD\sync-COD\COD")
+
+#: 旧档案位置（只读回退）。
+_FALLBACK_ROOTS: tuple[Path, ...] = (
+    Path(r"D:\Project\XRD\PolyXRD\cod\cif"),
+)
 
 
 def _cod_root(root: str | Path | None) -> Path:
     if root is not None:
         return Path(root)
     env = __import__("os").environ.get("XINMATCH_COD_ROOT")
-    return Path(env) if env else DEFAULT_COD_ROOT
+    if env:
+        return Path(env)
+    if DEFAULT_COD_ROOT.is_dir():
+        return DEFAULT_COD_ROOT
+    for cand in _FALLBACK_ROOTS:
+        if cand.is_dir():
+            return cand
+    return DEFAULT_COD_ROOT
+
+
+def _known_roots(root: str | Path | None) -> list[Path]:
+    """按优先级返回所有**存在**的档案根（显式参数只返回它自己）。"""
+    if root is not None:
+        return [Path(root)]
+    env = __import__("os").environ.get("XINMATCH_COD_ROOT")
+    if env:
+        return [Path(env)]
+    out = [p for p in (DEFAULT_COD_ROOT, *_FALLBACK_ROOTS) if p.is_dir()]
+    return out or [DEFAULT_COD_ROOT]
 
 
 # ---------------------------------------------------------------------------
@@ -89,12 +114,19 @@ def cod_cif_path(cod_id: int, root: str | Path | None = None) -> Path:
 def resolve_entry_cif(
     entry_id: str, root: str | Path | None = None
 ) -> Path | None:
-    """Resolve a XinMatch entry id to an existing COD CIF, or ``None``."""
-    try:
-        path = cod_cif_path(ref_id_to_cod_id(entry_id), root)
-    except ValueError:
-        return None
-    return path if path.is_file() else None
+    """Resolve a XinMatch entry id to an existing COD CIF, or ``None``.
+
+    未显式指定 *root* 时按优先级探测所有已知档案根（见 :func:`_known_roots`）。
+    """
+    roots = _known_roots(root)
+    for r in roots:
+        try:
+            path = cod_cif_path(ref_id_to_cod_id(entry_id), r)
+        except ValueError:
+            return None
+        if path.is_file():
+            return path
+    return None
 
 
 # ---------------------------------------------------------------------------
