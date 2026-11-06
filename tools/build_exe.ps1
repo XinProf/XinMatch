@@ -106,9 +106,27 @@ Write-Host "==> Output       : $outDir"
 # (1.6.1 + contact sshztx@outlook.com) is embedded by xinmatch.spec.
 
 # ---- 2. Run PyInstaller ---------------------------------------------------
+# 先收集到一次性暂存目录，再覆盖镜像到 dist\<bundle>。
+# 为什么不直接打到 dist：PyInstaller 的 COLLECT 会先**删掉**目标目录，而
+# dist\xinmatch-<ver>\ 有 3500+ 个文件 —— 批量删除会撞上本机安全策略
+# （实测 3577 个文件被拦，PyInstaller exit 1，前面两分钟的打包白跑）。
+# 暂存目录每次唯一，因此永远不需要「先删再写」；镜像用 Copy-Item -Force
+# 覆盖，同名文件直接替换，也不触发删除。
 Write-Host "==> Running PyInstaller (clean build)"
-& $pyExe -m PyInstaller --noconfirm --clean (Join-Path $root "xinmatch.spec")
+$stageRoot = Join-Path $buildDir "stage"
+New-Item -ItemType Directory -Force -Path $stageRoot | Out-Null
+$stage = Join-Path $stageRoot ("$Variant-" + $Version + "-" + (Get-Date -Format "HHmmss"))
+& $pyExe -m PyInstaller --noconfirm --clean --distpath $stage (Join-Path $root "xinmatch.spec")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed (exit $LASTEXITCODE)." }
+
+$bundleLeaf = Split-Path -Leaf $outDir
+$staged = Join-Path $stage $bundleLeaf
+if (-not (Test-Path $staged)) {
+    throw "PyInstaller 暂存产物缺失：$staged（BUNDLE_NAME 与 -Version 是否一致？）"
+}
+New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+Copy-Item -Path (Join-Path $staged "*") -Destination $outDir -Recurse -Force
+Write-Host "==> Mirrored $staged -> $outDir"
 
 # ---- 2b. Variant marker sanity check --------------------------------------
 # 漏放/错放 variant.txt 会让内部版退化成强制注册版（或反之），构建即校验。

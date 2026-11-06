@@ -95,6 +95,24 @@
 | 合成基准（默认口径） | 相位级 Top-1 11/13、Top-5 12/13、序贯 10/13、相召回 19/24 —— 与 3.4.x 逐项相同 |
 | 元素约束（真实 13 组，理想 XRF 设定） | Top-1 10/12 → 12/12；逐相名次 21 升 / 17 平 / 4 降 / 1 挤出 |
 | 版本一致性 | 5 项测试全过；XinMatch 与 XinRefinement 两侧都补了同样的闸 |
+| 二进制 · 版本 | 三个产物 `--version` 均报 `3.5.0`；exe 的 `FileVersion` 资源 = 3.5.0 |
+| 二进制 · 内置库 | `libraries --json` 列出 `xindb_cod_inorg`、`available:true`、`entries:78035` |
+| 二进制 · 检索 | 冻结 exe 跑真实样本 `3-1.txt`（207 峰 / 78k 相库）36 s 出榜，榜首 zincite(ZnO) 正确 |
+| 二进制 · 新功能 | `--restraints '{"elements":{"Zn":"red"}}'` 后 ZnO 全部消失 —— 约束在冻结产物上真的生效 |
+| 二进制 · GUI | release / internal / 安装版三种形态 offscreen 启动均存活 12 s 无崩溃（stderr 只剩 offscreen 平台的字体与 `titleBarShown` 警告） |
+| 安装包 | `/VERYSILENT` 退出码 0，落地 3562 文件、`variant.txt=release`、内置库就位；卸载退出码 0 |
+| 便携 zip | `7z t` 全量 CRC 通过（3560 文件 / 822,198,605 → 353,751,503 B），条目无 `-shm`/`-wal` 运行态文件 |
+
+发布产物（`dist/`）：
+
+| 文件 | 体积 | SHA-256 |
+|---|---|---|
+| `XinMatch-Setup-3.5.0.exe` | 254,107,247 B（242.3 MiB） | `e81ab39f97ec9322db8bf68de18831bb02ce14b3f77e6b8eb23d460d159f9ba7` |
+| `XinMatch-Internal-3.5.0.zip` | 353,751,503 B（337.4 MiB） | `41ac3005ea17af5f4af2538ea285a5bbc69932ae9c456985cd5e63cce295b40b` |
+
+> 便携 zip 内以 `XinMatch.exe` / `_internal/` / `data/` 为根（无外层目录），与 3.3/3.4 一致；
+> 打包时显式排除 `*.xinDB-shm` / `*.xinDB-wal` —— 那是运行期 SQLite 的临时件，
+> 一旦随包发出，用户首次打开会先看到「库正在被占用」这类无意义告警。
 
 ### 六、升级注意
 

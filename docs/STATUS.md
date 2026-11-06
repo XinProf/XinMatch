@@ -1171,3 +1171,46 @@ v3.4.0 发布 + PDF-2 接入本仓后，按「先自洽基准、再动引擎」�
 同样的问题在 XinRefinement 侧更严重：`__version__` 1.4.0 而 iss 仍写 1.1.0，导致
 `build_installer()` 打完包按 1.4.0 找产物、必然报「安装包未生成」。已修（iss 默认值 1.4.0 +
 `ISCC /DAppVersion=` + `tests/test_version_consistency.py`）。
+
+## v3.5.0 二进制构建与稳健性验收（2026-11-06）✅
+
+三种形态全部产出并逐一验过，`dist/` 下旧版 3.3.0/3.4.0 产物未动。
+
+| 产物 | 体积 | 说明 |
+|---|---|---|
+| `XinMatch-Setup-3.5.0.exe` | 242.3 MiB | Inno Setup 安装包，唯一对外发布物 |
+| `XinMatch-Internal-3.5.0.zip` | 337.4 MiB | 便携包，根层直接是 `XinMatch.exe` / `_internal/` / `data/` |
+| `dist/xinmatch-3.5.0`、`dist/xinmatch-internal-3.5.0` | 各 791 MB | onedir 树，本地调试用，不发布 |
+
+SHA-256 已写入 `dist/SHA256SUMS.txt` 并用 `sha256sum -c` 回验通过（Setup
+`e81ab39f…9ba7`、zip `41ac3005…b40b`）。
+
+### 验收 5 轮
+
+| 轮次 | 动作 | 结果 |
+|---|---|---|
+| 1 版本一致性 | 三个形态 `--version` + exe `FileVersion` 资源 | 全部 `3.5.0` |
+| 2 库注册 | `libraries --json` | `xindb_cod_inorg` / `available:true` / `entries:78035`；把 `XINMATCH_XINDB_DIR` 指到 `XinMatch-DataBase\data` 后 7 个库全部识别（COD-Inorg 78,035 / COD-Full 532,038 / PCOD-Inorg 1,061,953 / TCOD-Inorg 46,846 / TCOD-Full 361,701 / MP 155,201 / PDF2 163,834），仅 PCOD-Full 未建 |
+| 3 冻结检索 | 真实样本 `3-1.txt`（207 峰）对 78k 相库 | 36 s 出榜，榜首 `zincite`(ZnO) 正确 |
+| 4 新功能穿透 | `--restraints '{"elements":{"Zn":"red"}}'` | ZnO 全数消失、榜首跌到 `Mo Ni`（FoM 0.773→0.685）—— 约束在冻结产物上真的生效，不是只在源码里 |
+| 5 安装 / 启动 / 便携 | `/VERYSILENT` 安装 → GUI offscreen 启动 → 卸载；zip `7z t` | 安装退出 0、3562 文件、`variant.txt=release`、GUI 存活 12 s 无崩溃；卸载退出 0；zip CRC 全过 |
+
+### 两处构建修复（都进了本轮提交）
+
+1. **PyInstaller 不能直接打到 `dist\`。** COLLECT 会先**删**目标目录，而 `dist\xinmatch-3.5.0`
+   有 3577 个文件，撞上本机批量删除保护后 exit 1，前两分钟打包白跑。改为先进
+   `build\stage\<variant>-<ver>-<hhmmss>`（每次唯一，永不需先删）再 `Copy-Item -Force`
+   覆盖镜像。`build_exe.ps1` 里已注明原因，避免后来者改回去。
+2. **便携 zip 必须排除 `*.xinDB-shm` / `*.xinDB-wal`。** 只要跑过一次 GUI 或 CLI，
+   `data\` 下就会长出这两个运行态文件；第一版 zip 里带了它们（`-shm` 32 KB 全零、
+   `-wal` 0 B），打包命令改加 `-x!*.xinDB-shm -x!*.xinDB-wal` 后重打，条目数 3562→3560。
+
+### 尚未做
+
+- **推送**：`0534fc0`（XinMatch/master）、`ff1f3e4`（XinRefinement）、XinMatch-DataBase
+  的 `.gitignore`（`.scratch/`）三项仍只在本地，等显式批准。
+- **GitHub Release**：按惯例只上传 Setup，便携 zip 不上传。
+- **`prescreen_order` 默认值**：仍是 `"intensity"`，等产品裁定（见上一节）。
+- XinRefinement 工作树有上一会话遗留的 EWIMV 织构试验改动（`tools/bench_v14.py`、
+  `core/refine/recipe.py` 把 micro 步提到 B 步之前），**未提交**，与本轮无关。
+
