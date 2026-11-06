@@ -1528,3 +1528,32 @@ v3.5.0 二进制验收里「`3-1.txt` 打 78k 相库 36 s」一直被当成库�
 **1595 passed / 4 skipped / 1 xfailed / 0 failed，15 min 54 s**（+8 项即本批新增单测）。
 `exit=1` 是安全钩子拦截 pytest 临时目录清理（879 项 > 50 阈值），按 §4.1 判绿；
 本轮启动后未并发重任务，墙钟阈值测试未再假失败。全文 `docs/基准报告-物相检索-v3.md` §24。
+
+## 元素约束补到 CLI：`--sample-elements`（2026-11-06）✅
+
+GUI 的「样品元素」一行输入（§20.7 / §24）在 CLI 侧还停留在手写 113 个
+`EXCLUDE` 键值的 `--restraints` JSON。本轮把语义搬到命令行，并让两边共用实现：
+
+- 新增 `xinmatch/core/model/element_symbols.py`：118 元素表 + 解析 + 补集，
+  **零 PySide6 依赖**；`xinmatch/ui/periodic_table.py` 删掉本地重复实现改为
+  re-export，`apply_detected_elements()` 直接调 `complement_restraints()`。
+  GUI / CLI 的「检出元素保持 OPTIONAL、其余 EXCLUDE」只有一个来源。
+- `search` / `run` 新增 `--sample-elements "Zn Al Ca O F"`，与 `--restraints`
+  **互斥**（argparse exit 2）；FPFM 模式下明确报错而不是静默忽略；未知符号 /
+  化学式 / 空输入给中文可操作错误；结果 JSON 只在显式给出时回显
+  `sample_elements`，默认输出逐项不变。
+- **元素表口径核过**：`cif_meta.IUPAC_ELEMENTS`（权威位表，原子序数序）、
+  core 共享表、GUI 按钮网格三者都是 118 项且集合完全相同，只是排列约定不同；
+  `element_exclude_filter` 对库里不存在的元素天然安全，118 项补集不会误杀。
+  基准脚本的 `ALL_ELEMENTS`（91 项）是另一套上界口径，不参与 CLI。
+- **真实大库冒烟**（`3-1` / COD-Full 532k 相 / `--top-n 20`）：Top-20 含禁元素
+  的卡 **11/20 → 0/20**，真值 Zincite 仍 #1 且 FoM 0.773 不变，CLI 墙钟
+  **3.06 s → 2.53 s（0.83×）**。证明约束进了预筛，不是只加了个回显字段。
+
+**验收**：新增 29 项单测（core 18 + CLI 11），`tests/model` + `tests/cli` +
+`tests/ui` 子目录全绿，既有 14 项 GUI 元素测试与 8 项大库提示测试仍全绿；
+`ruff check .` 与 `mypy xinmatch/core` 干净；全仓回归
+**1624 passed / 4 skipped / 1 xfailed / 0 failed，21 min 25 s**（+29 项即本批新增
+单测，1595 → 1624）。counts 行未落盘，按 §4.1 进度行统计 `F`/`E` 均为 0；
+`exit=1` 是安全钩子拦截 879 个临时项。启动前后未并发重任务，墙钟测试未假失败。
+不改默认值、不改 FoM、不重建库。全文 `docs/基准报告-物相检索-v3.md` §25。

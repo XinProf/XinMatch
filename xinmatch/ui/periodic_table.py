@@ -20,11 +20,15 @@ the whole three-state filter without losing the chosen states.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from PySide6 import QtCore, QtWidgets
 
+from xinmatch.core.model.element_symbols import (
+    ELEMENT_SYMBOLS,
+    complement_restraints,
+    parse_element_symbols,
+)
 from xinmatch.core.model.restraints import ElementState
 
 __all__ = [
@@ -71,39 +75,12 @@ _ELEMENTS: tuple[tuple[str, int, int], ...] = (
     ("Fm", 9, 13), ("Md", 9, 14), ("No", 9, 15), ("Lr", 9, 16),
 )
 
-#: Canonical element symbols, in periodic-table order.  Kept next to the
-#: grid definition so the quick-entry parser can never disagree with the
-#: buttons (and so the "everything else is excluded" complement is exact).
-ELEMENT_SYMBOLS: tuple[str, ...] = tuple(sym for sym, _row, _col in _ELEMENTS)
-
-_SPLIT_RE = re.compile(r"[,;\s、，/]+")
-_SYMBOL_LOOKUP: dict[str, str] = {sym.lower(): sym for sym in ELEMENT_SYMBOLS}
-
-
-def parse_element_symbols(text: str) -> tuple[list[str], list[str]]:
-    """Parse a free-form "detected elements" string into canonical symbols.
-
-    Returns ``(known, unknown)``.  Case is forgiving (``zn`` → ``Zn``),
-    duplicates are dropped, and *known* is returned in periodic-table order
-    so the UI summary is stable.  Numbers are **not** interpreted: paste
-    symbols (``Zn Al Ca O F``), not a formula (``Al2O3``).
-
-    >>> parse_element_symbols("zn, O o F")
-    (['O', 'F', 'Zn'], [])
-    """
-    tokens = [t for t in _SPLIT_RE.split(text.strip()) if t]
-    known: list[str] = []
-    unknown: list[str] = []
-    for token in tokens:
-        canon = _SYMBOL_LOOKUP.get(token.lower())
-        if canon is None:
-            if token not in unknown:
-                unknown.append(token)
-        elif canon not in known:
-            known.append(canon)
-    order = {sym: i for i, sym in enumerate(ELEMENT_SYMBOLS)}
-    known.sort(key=order.__getitem__)
-    return known, unknown
+# 符号表 / 解析函数已下沉到 core.model.element_symbols —— CLI 也要用，
+# 不能让命令行进程依赖 PySide6。这里 re-export 同名接口保持既有 import 不破，
+# 并校验按钮网格与 core 的 118 元素表没有漂移：补集约束必须精确覆盖每个
+# 按钮，否则某个元素会既不在允许集、也没被排除。
+if tuple(sym for sym, _row, _col in _ELEMENTS) != ELEMENT_SYMBOLS:
+    raise RuntimeError("周期表按钮与 core 元素符号表不一致，补集约束不可用")
 
 
 # Cycle order on click: default -> required -> excluded -> default.
@@ -417,12 +394,9 @@ class PeriodicTablePanel(QtWidgets.QWidget):
         detected, unknown = parse_element_symbols(text)
         if unknown or not detected:
             return detected, unknown
-        allowed = set(detected)
-        self._table.set_states({
-            sym: ElementState.EXCLUDE
-            for sym in ELEMENT_SYMBOLS
-            if sym not in allowed
-        })
+        # 与 CLI --sample-elements 共用同一个补集实现：语义只有一个来源，
+        # 将来改「检出元素该不该 REQUIRED」时两边不会各走各的。
+        self._table.set_states(complement_restraints(detected).elements)
         self._detected = tuple(detected)
         self._quick_mode = True
         if not self.is_enabled():

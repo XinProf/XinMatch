@@ -41,6 +41,7 @@ from xinmatch.core.db.multi_db import (
 from xinmatch.core.instrument.collector import DataPoint  # no serial import
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Peak, Restraints
+from xinmatch.core.model.element_symbols import restraints_from_sample_elements
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.quant.rir import rir_quantify
 from xinmatch.core.report import (
@@ -137,7 +138,18 @@ def cmd_process(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def _load_restraints(raw: str | None) -> Restraints | None:
+def _load_restraints(
+    raw: str | None, sample_elements: str | None = None,
+) -> Restraints | None:
+    """构造检索约束：快捷「样品元素」与完整 Restraints JSON 二选一。
+
+    两者由 argparse 互斥组保证不会同时给出（同时给出直接 usage error）。
+    快捷参数走 core 的补集语义（检出元素保持 OPTIONAL、其余全部 EXCLUDE），
+    见基准报告 §20.5 / §24 / §25；把检出元素标成 REQUIRED 是错的 ——
+    ``elements_allowed`` 是「必须全含」。
+    """
+    if sample_elements:
+        return restraints_from_sample_elements(sample_elements)
     if not raw:
         return None
     return Restraints.from_dict(json.loads(raw))
@@ -162,11 +174,20 @@ def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
         # Pre-v1.6.1 legacy mode name (SMPF → FPFM rename); silently accepted.
         args.mode = "fpfm"
     fpfm = args.mode == "fpfm"
+    # getattr 兼容直接构造 Namespace 调用 cmd_search 的场景（parser 一定带
+    # 该属性，但库内调用/单测未必）。
+    sample_elements = getattr(args, "sample_elements", None)
+    if fpfm and sample_elements:
+        # 不继承 --restraints 的历史静默忽略：填了约束却没生效是更糟的失败。
+        raise ValueError(
+            "--sample-elements 只在 peaks 模式（默认）生效：FPFM 全谱拟合"
+            "目前不接元素约束。请去掉 --mode fpfm 再试。"
+        )
     peaks: list[Peak] = []
     if not fpfm:
         # FPFM 直接拟合原始谱，不做（也不该做）自动预处理。
         _processed, peaks = auto_process(pattern)
-    restraints = _load_restraints(args.restraints)
+    restraints = _load_restraints(args.restraints, sample_elements)
 
     # ``--db`` 只接受 ``.xinDB``（v3.0.0 起旧格式已移除）。
     conn = open_search_database(args.db)
@@ -222,6 +243,9 @@ def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
             "kalpha1": ka1,
             "kalpha2": ka2,
         }
+    if sample_elements:
+        # 只在显式给出时回显，默认输出逐项不变（便于脚本比对基线）。
+        result["sample_elements"] = sample_elements
     return result
 
 
@@ -317,7 +341,8 @@ def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
     if args.wavelength is not None:
         pattern.wavelength = float(args.wavelength)
     _processed, peaks = auto_process(pattern)
-    restraints = _load_restraints(args.restraints)
+    sample_elements = getattr(args, "sample_elements", None)
+    restraints = _load_restraints(args.restraints, sample_elements)
 
     conn = open_search_database(args.db)
     try:
@@ -379,7 +404,7 @@ def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(content, encoding="utf-8")
 
-    return {
+    result: dict[str, Any] = {
         "file": str(args.pattern_file),
         "db": str(args.db),
         "n_peaks": len(peaks),
@@ -390,6 +415,10 @@ def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
         "weight_fractions": {k: float(v) for k, v in weight_fractions.items()},
         "report": str(out_path),
     }
+    if sample_elements:
+        # 与 cmd_search 保持一致：只在显式给出时回显，默认输出零变化。
+        result["sample_elements"] = sample_elements
+    return result
 
 
 def cmd_batch(args: argparse.Namespace) -> dict[str, Any]:
@@ -752,9 +781,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--wavelength", type=float, default=None,
         help="Override radiation wavelength (Å).",
     )
-    p_search.add_argument(
+    # 元素约束两种写法互斥：完整 JSON（表达力强但要手写 113 个 EXCLUDE 键）
+    # vs 「样品元素」快捷参数（一行文本，走 core 的补集语义）。同时给出时
+    # argparse 直接报 usage error，不靠 _load_restraints 里的静默优先级。
+    p_search_chem = p_search.add_mutually_exclusive_group()
+    p_search_chem.add_argument(
         "--restraints", default=None,
         help="JSON string of Restraints (see Restraints.to_dict).",
+    )
+    p_search_chem.add_argument(
+        "--sample-elements", default=None, metavar="SYMBOLS",
+        help="XRF/EDS 检出的元素符号（如 'Zn Al Ca O F'，空格/逗号/顿号分隔）；"
+             "其余元素自动标为排除（EXCLUDE），检出元素保持可选。与 --restraints"
+             " 互斥；只在 peaks 模式生效（--mode fpfm 下会明确报错）。大库"
+             "（>=20 万相）建议填写，见基准报告 §23 / §24。",
     )
     p_search.add_argument(
         "--top-n", type=int, default=20,
@@ -841,9 +881,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--wavelength", type=float, default=None,
         help="Override radiation wavelength (Å).",
     )
-    p_run.add_argument(
+    p_run_chem = p_run.add_mutually_exclusive_group()
+    p_run_chem.add_argument(
         "--restraints", default=None,
         help="JSON string of Restraints.",
+    )
+    p_run_chem.add_argument(
+        "--sample-elements", default=None, metavar="SYMBOLS",
+        help="XRF/EDS 检出的元素符号（如 'Zn Al Ca O F'）；其余元素自动排除。"
+             "与 --restraints 互斥，语义同 search --sample-elements。",
     )
     p_run.add_argument(
         "--top-n", type=int, default=20,
