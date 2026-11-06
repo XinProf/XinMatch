@@ -1508,3 +1508,23 @@ v3.5.0 二进制验收里「`3-1.txt` 打 78k 相库 36 s」一直被当成库�
 1 xfailed，唯一 `FAILED` 是 `test_pre_filter_hanawalt_perf_10k_under_half_second`
 墙钟抖动（0.531 s > 0.5 s，起因是回归启动后并发跑了静态检查），单独无并发复跑
 3 次全绿，判定环境性假失败，未改测试阈值。
+
+## 大库元素约束引导落地 GUI（2026-11-06）✅
+
+§23 说「挂覆盖性大库时元素约束是前提」，把它变成不打断操作的一行提示：
+
+- `xinmatch/ui/main_window.py` 新增纯函数 `is_large_library()` 与阈值
+  `LARGE_LIBRARY_PHASE_THRESHOLD=200_000`（按 `entry_count`；COD-Full 532k /
+  PCOD 1.06M 触发，COD-Inorg 78k 不触发，读不到时保守不提示）。
+- 工具栏在「大库 + 未设约束」时常显「样品元素：大库建议填写」；已有约束就
+  让位回原状态文案。选库确认后给**非模态**状态栏提示（库名 / 相数 / 原因 /
+  `7/13 → 12/13`），已设约束的用户不重复打扰。
+- 两个同步时机：选库对话框确认后、`open_search_library()` 打开库后（覆盖
+  「配置直接写了大库」）；注册表损坏静默降级。启动时刻意不读用户配置。
+- 不弹模态框、不强制填写、不改默认值、不改 FoM、不重建库。
+
+**验收**：`tests/ui/test_large_library_hint.py` 8 项 + 既有 3 个 UI 测试文件共
+**37 项全绿**；`ruff check .` 与 `mypy xinmatch/core` 干净；全仓回归
+**1595 passed / 4 skipped / 1 xfailed / 0 failed，15 min 54 s**（+8 项即本批新增单测）。
+`exit=1` 是安全钩子拦截 pytest 临时目录清理（879 项 > 50 阈值），按 §4.1 判绿；
+本轮启动后未并发重任务，墙钟阈值测试未再假失败。全文 `docs/基准报告-物相检索-v3.md` §24。

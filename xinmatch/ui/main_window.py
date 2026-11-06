@@ -167,6 +167,24 @@ _SEARCH_MODE_ITEMS: tuple[tuple[str, str], ...] = (
     ("FPFM 全谱拟合（不寻峰）", SEARCH_MODE_FPFM_FULL),
 )
 
+# ---------------------------------------------------------------------------
+# 覆盖性大库的元素约束提示（基准报告 §23）
+# ---------------------------------------------------------------------------
+#: 相数阈值：COD-Full 532k / PCOD-Inorg 1.06M 属覆盖性大库；
+#: 精选无机库 COD-Inorg 78k 不触发。
+LARGE_LIBRARY_PHASE_THRESHOLD = 200_000
+
+
+def is_large_library(record: object | None) -> bool:
+    """纯函数：按 ``entry_count`` 判断是否为「覆盖性大库」。
+
+    §23 实测：大库里大量有机 / 无关相会稀释候选池；给足元素约束后
+    COD-Full 与 COD-Inorg 收敛到同一组数字（12/13·13/13·12/13·23/24）。
+    ``entry_count`` 读不到时保守返回 ``False``，不打扰用户。
+    """
+    count = getattr(record, "entry_count", None)
+    return isinstance(count, int) and count >= LARGE_LIBRARY_PHASE_THRESHOLD
+
 
 # 工具栏悬停详细说明（v1.3.1）：比单行状态栏提示更完整的"是什么+怎么用"。
 _MODULE_TIPS: dict[str, str] = {
@@ -231,6 +249,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._last_outcome = None
         # Multi-DB mount: registry id of the library last opened for search.
         self._active_library_id: str | None = None
+        # 当前库是否覆盖性大库（≥20 万相）：大库需要显式元素约束，见 §23。
+        # 初值 False，由选库 / 打开检索两个时机同步；启动时不去读用户配置，
+        # 避免测试与真实环境配置串味。
+        self._active_library_is_large = False
         # 当前已打开数据文件的显示名（文件名），用于状态栏 / 报告。
         self._current_filename: str = ""
         # 打开时的原始谱（「重置」回到这里；预处理只改 _current_pattern）。
@@ -718,10 +740,25 @@ class MainWindow(QtWidgets.QMainWindow):
         current = (config.get("reference_db") or {}).get("selected_library_id")
         dialog = LibraryDialog(current_id=current, parent=self)
         if dialog.exec():
+            selected = dialog.selected_id()
             config.setdefault("reference_db", {})[
                 "selected_library_id"
-            ] = dialog.selected_id()
+            ] = selected
             save_config(config)
+            rec = self._set_active_library_scale(selected)
+            if self._active_library_is_large:
+                panel = getattr(self, "periodic_panel", None)
+                if panel is None or not (panel.quick_elements() or panel.states()):
+                    # 非阻塞引导：只写状态栏，不弹模态框、不强制用户填写。
+                    # 已经设了元素约束的用户不再打扰。
+                    name = getattr(rec, "display_name", None) or selected
+                    count = getattr(rec, "entry_count", 0) or 0
+                    self.statusBar().showMessage(
+                        f"已挂载大库「{name}」（{count:,} 相）：大量无关相会稀释候选池，"
+                        "建议先点工具栏「样品元素」填检出元素"
+                        "（全库合成谱 Top-1 7/13 → 12/13，见基准报告 §23）。",
+                        15000,
+                    )
 
     def _open_library_with_index(self, library_id: str):
         """Open *library_id* and return its :class:`XinDBReader`.
@@ -770,11 +807,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
                 raise
             self._active_library_id = default.id
+            self._set_active_library_scale(default.id)
             self.statusBar().showMessage(
                 f"已回退到默认参考数据库：{default.display_name}", 8000
             )
             return conn
         self._active_library_id = selected
+        # 配置里可能直接写了大库而用户没走过选库对话框：检索时再同步一次。
+        self._set_active_library_scale(selected)
         return conn
 
     def _toggle_theme(self) -> None:
@@ -1274,6 +1314,23 @@ class MainWindow(QtWidgets.QMainWindow):
             # so nobody will close the connection we just opened.
             conn.close()
 
+    def _set_active_library_scale(self, library_id: str | None) -> object | None:
+        """按当前库规模同步大库提示（GUI 线程，静默，不弹状态栏）。
+
+        两个调用时机：选库对话框确认后、``open_search_library`` 打开库后。
+        后者覆盖「配置里直接写了大库、没走对话框」的情况；每次检索多一次
+        注册表查询，开销可忽略。注册表损坏时保守当作小库，不打断检索。
+        """
+        rec = None
+        if library_id and library_by_id is not None:
+            try:
+                rec = library_by_id(library_id)
+            except Exception:  # noqa: BLE001 — 注册表损坏不该打断检索
+                rec = None
+        self._active_library_is_large = is_large_library(rec)
+        self._refresh_sample_elements_action()
+        return rec
+
     def _refresh_sample_elements_action(self) -> None:
         """工具栏按钮常显当前元素约束状态（GUI 线程，由面板信号驱动）。"""
         panel = getattr(self, "periodic_panel", None)
@@ -1288,6 +1345,10 @@ class MainWindow(QtWidgets.QMainWindow):
             text = f"样品元素：仅 {shown}"
         elif panel.states():
             text = f"样品元素：自定义 {len(panel.states())} 项"
+        elif self._active_library_is_large:
+            # §23：大库没有化学先验，候选池被有机/无关相稀释。只在「尚未
+            # 设任何约束」时提醒；已有约束或过滤已关闭时保持原状态文案。
+            text = "样品元素：大库建议填写"
         else:
             text = "样品元素：未设置"
         action.setText(text)
