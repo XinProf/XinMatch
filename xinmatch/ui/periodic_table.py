@@ -20,13 +20,19 @@ the whole three-state filter without losing the chosen states.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from PySide6 import QtCore, QtWidgets
 
 from xinmatch.core.model.restraints import ElementState
 
-__all__ = ["PeriodicTableWidget", "PeriodicTablePanel"]
+__all__ = [
+    "ELEMENT_SYMBOLS",
+    "PeriodicTablePanel",
+    "PeriodicTableWidget",
+    "parse_element_symbols",
+]
 
 # ---------------------------------------------------------------------------
 # Element grid: (symbol, grid_row, grid_col) in an 18-column table.
@@ -64,6 +70,41 @@ _ELEMENTS: tuple[tuple[str, int, int], ...] = (
     ("Am", 9, 8), ("Cm", 9, 9), ("Bk", 9, 10), ("Cf", 9, 11), ("Es", 9, 12),
     ("Fm", 9, 13), ("Md", 9, 14), ("No", 9, 15), ("Lr", 9, 16),
 )
+
+#: Canonical element symbols, in periodic-table order.  Kept next to the
+#: grid definition so the quick-entry parser can never disagree with the
+#: buttons (and so the "everything else is excluded" complement is exact).
+ELEMENT_SYMBOLS: tuple[str, ...] = tuple(sym for sym, _row, _col in _ELEMENTS)
+
+_SPLIT_RE = re.compile(r"[,;\s、，/]+")
+_SYMBOL_LOOKUP: dict[str, str] = {sym.lower(): sym for sym in ELEMENT_SYMBOLS}
+
+
+def parse_element_symbols(text: str) -> tuple[list[str], list[str]]:
+    """Parse a free-form "detected elements" string into canonical symbols.
+
+    Returns ``(known, unknown)``.  Case is forgiving (``zn`` → ``Zn``),
+    duplicates are dropped, and *known* is returned in periodic-table order
+    so the UI summary is stable.  Numbers are **not** interpreted: paste
+    symbols (``Zn Al Ca O F``), not a formula (``Al2O3``).
+
+    >>> parse_element_symbols("zn, O o F")
+    (['O', 'F', 'Zn'], [])
+    """
+    tokens = [t for t in _SPLIT_RE.split(text.strip()) if t]
+    known: list[str] = []
+    unknown: list[str] = []
+    for token in tokens:
+        canon = _SYMBOL_LOOKUP.get(token.lower())
+        if canon is None:
+            if token not in unknown:
+                unknown.append(token)
+        elif canon not in known:
+            known.append(canon)
+    order = {sym: i for i, sym in enumerate(ELEMENT_SYMBOLS)}
+    known.sort(key=order.__getitem__)
+    return known, unknown
+
 
 # Cycle order on click: default -> required -> excluded -> default.
 _CYCLE: tuple[ElementState, ...] = (
@@ -259,6 +300,47 @@ class PeriodicTablePanel(QtWidgets.QWidget):
         self._clear_button.setToolTip("清除全部已选元素状态")
         self._clear_button.clicked.connect(self._clear_all)
 
+        # ── 样品元素快速录入（2026-11-06）─────────────────────────────
+        # 基准报告 §20：给足化学信息时真实谱相召回 20/43 → 30/43，
+        # 3-1 的 Al2O3 / CaF2 由 MISS 变成 Top-20 第 13 / 11 位。但"只允许
+        # 这几个元素"在预筛层只能表达成「其余 113 个元素全部标红」，
+        # 让用户在 118 个按钮上逐个点是不现实的 —— 所以给一行文本框 + 一个按钮。
+        self._detected_edit = QtWidgets.QLineEdit()
+        self._detected_edit.setObjectName("sampleElementsEdit")
+        self._detected_edit.setPlaceholderText("样品检出元素，空格分隔，如：Zn Al Ca O F")
+        self._detected_edit.setToolTip(
+            "来自 XRF/EDS 或配方的元素符号；不区分大小写，可用空格 / 逗号 / 分号分隔。\n"
+            "右侧按钮会把**其余元素全部标为排除**。\n"
+            "注意：轻元素（O/F/C/N）常常测不到，漏填会把氧化物 / 氟化物整类排除。"
+        )
+        self._detected_edit.returnPressed.connect(self._on_exclude_rest_clicked)
+
+        self._exclude_rest_button = QtWidgets.QPushButton("其余元素排除")
+        self._exclude_rest_button.setObjectName("excludeRestButton")
+        self._exclude_rest_button.setToolTip(
+            "把未列出的元素全部标为「必须不含」（走 element_inv 倒排硬过滤）。\n"
+            "已列出的元素保持「可选」—— 次相未必含每一个主相元素，"
+            "绝不能标成「必含」（prescreen.elements_allowed 是必须全含语义）。\n"
+            "实测：真实谱相召回 20/43 → 30/43，3-1 的次相 1/3 → 3/3。"
+        )
+        self._exclude_rest_button.clicked.connect(self._on_exclude_rest_clicked)
+
+        quick = QtWidgets.QHBoxLayout()
+        quick.setContentsMargins(0, 0, 0, 0)
+        quick.addWidget(QtWidgets.QLabel("样品元素："))
+        quick.addWidget(self._detected_edit, 1)
+        quick.addWidget(self._exclude_rest_button)
+
+        self._quick_hint = QtWidgets.QLabel(
+            "填 XRF/EDS 检出的元素，其余自动排除；实测多相样品相召回 "
+            "<b>20/43 → 30/43</b>。轻元素漏填会误杀氧化物。"
+        )
+        self._quick_hint.setTextFormat(QtCore.Qt.TextFormat.RichText)
+        self._quick_hint.setWordWrap(True)
+        self._quick_hint.setToolTip(
+            "30/43 是上界口径（元素由真值反推）；实际效果取决于外部元素测量是否完整。"
+        )
+
         row = QtWidgets.QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.addWidget(self._enabled_cb)
@@ -268,9 +350,13 @@ class PeriodicTablePanel(QtWidgets.QWidget):
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
+        layout.addLayout(quick)
+        layout.addWidget(self._quick_hint)
         layout.addWidget(self._summary)
         layout.addLayout(row)
 
+        self._quick_mode = False
+        self._detected: tuple[str, ...] = ()
         self._refresh_summary()
 
     # ------------------------------------------------------------------
@@ -281,9 +367,17 @@ class PeriodicTablePanel(QtWidgets.QWidget):
         return self._table.states()
 
     def set_states(self, states: dict[str, Any]) -> None:
-        """Set element states from a ``{symbol: ElementState | str}`` mapping."""
+        """Set element states from a ``{symbol: ElementState | str}`` mapping.
+
+        An explicit state map supersedes the quick-entry complement, so the
+        quick mode is dropped and listeners are notified (the toolbar button
+        must not keep advertising a stale "仅 O F …" constraint).
+        """
         self._table.set_states(states)
+        self._quick_mode = False
+        self._detected = ()
         self._refresh_summary()
+        self.selection_changed.emit()
 
     def set_enabled(self, enabled: bool) -> None:
         """Programmatically flip the enable switch (mirrors user click)."""
@@ -296,19 +390,82 @@ class PeriodicTablePanel(QtWidgets.QWidget):
     def reset(self) -> None:
         """Reset every element to OPTIONAL."""
         self._table.reset()
+        self._quick_mode = False
+        self._detected = ()
         self._refresh_summary()
+        self.selection_changed.emit()
+
+    def quick_elements(self) -> tuple[str, ...]:
+        """Elements supplied through the quick-entry box (empty = manual mode)."""
+        return self._detected
+
+    def focus_detected_input(self) -> None:
+        """Focus the quick-entry box (used by the toolbar jump action)."""
+        self._detected_edit.setFocus()
+        self._detected_edit.selectAll()
+
+    def apply_detected_elements(self, text: str) -> tuple[list[str], list[str]]:
+        """Turn "these elements were detected" into a complement restraint.
+
+        Detected elements stay **OPTIONAL**; every other element becomes
+        ``EXCLUDE``.  Marking them REQUIRED would be wrong twice over: a minor
+        phase need not contain the major phase's elements, and
+        ``prescreen(elements_allowed=...)`` means "must contain *all* of them"
+        (benchmark report §20.5).  Returns ``(detected, unknown)``; on unknown
+        tokens or empty input nothing is changed so the caller can warn.
+        """
+        detected, unknown = parse_element_symbols(text)
+        if unknown or not detected:
+            return detected, unknown
+        allowed = set(detected)
+        self._table.set_states({
+            sym: ElementState.EXCLUDE
+            for sym in ELEMENT_SYMBOLS
+            if sym not in allowed
+        })
+        self._detected = tuple(detected)
+        self._quick_mode = True
+        if not self.is_enabled():
+            self._enabled_cb.setChecked(True)
+        self._refresh_summary()
+        self.selection_changed.emit()
+        return detected, []
 
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+    def _on_exclude_rest_clicked(self) -> None:
+        """Quick-entry button: validate, then apply the complement restraint."""
+        detected, unknown = self.apply_detected_elements(self._detected_edit.text())
+        if unknown:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "样品元素无法识别",
+                "以下符号不是元素符号：\n  " + "、".join(unknown)
+                + "\n\n请填写元素符号（如 Zn Al Ca O F），不要填化学式。",
+            )
+            self.focus_detected_input()
+            return
+        if not detected:
+            QtWidgets.QMessageBox.information(
+                self, "样品元素", "请先填写样品中检出的元素符号，例如：Zn Al Ca O F"
+            )
+            self.focus_detected_input()
+
     def _clear_all(self) -> None:
         """清除全部已选状态并发出 ``selection_changed``。"""
         self._table.reset()
+        self._quick_mode = False
+        self._detected = ()
+        self._detected_edit.clear()
         self._refresh_summary()
         self.selection_changed.emit()
 
     def _on_table_state_changed(self, symbol: str, state: ElementState) -> None:
         """弹窗内元素状态变化 → 刷新摘要并转发信号。"""
+        # 手工改过任何一个按钮，就不再是"其余元素排除"的补集口径。
+        self._quick_mode = False
+        self._detected = ()
         self._refresh_summary()
         self.selection_changed.emit()
 
@@ -323,7 +480,12 @@ class PeriodicTablePanel(QtWidgets.QWidget):
         states = self._table.states()
         required = [s for s, st in states.items() if st == ElementState.REQUIRED]
         excluded = [s for s, st in states.items() if st == ElementState.EXCLUDE]
-        if not states:
+        if self._quick_mode and self._detected:
+            body = (
+                "仅允许：<b>" + "、".join(self._detected) + "</b>"
+                f"（其余 {len(excluded)} 个元素标为排除）"
+            )
+        elif not states:
             body = "未选择元素"
         else:
             parts: list[str] = []

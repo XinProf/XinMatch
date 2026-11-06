@@ -1390,3 +1390,26 @@ v3.5.0 二进制验收里「`3-1.txt` 打 78k 相库 36 s」一直被当成库�
 `elements_excluded = 全元素表 − 允许集合`。已写进 HANDOVER §6.3⑦。
 
 全文：`docs/基准报告-物相检索-v3.md` §20；复现探针 `_probe_31_deep_rank.py`、`_probe_31_sequential.py`。
+
+## 元素约束产品化：一行输入框替代 113 次点击（2026-11-06）✅
+
+§20 的结论是「多相次相缺的是化学信息」。落地时发现真正的障碍不是位置而是**表达成本**：
+「只允许 Zn/Al/Ca/O/F」在预筛层只能写成「其余 113 个元素全部标红」，原来要在 118 个
+周期表按钮上逐个点，没人会这么做。
+
+| 位置 | 改动 |
+|---|---|
+| `xinmatch/ui/periodic_table.py` | 新增纯函数 `parse_element_symbols()`（大小写不敏感、去重、拒绝非元素符号、返回 `(known, unknown)`）+ `ELEMENT_SYMBOLS`（118，与按钮同源）；`PeriodicTablePanel` 顶部加「样品元素」输入框 + 「其余元素排除」按钮；补集模式下摘要改显示「仅允许：…（其余 113 个元素标为排除）」；手工改任一按钮或点「清除」即退出补集模式 |
+| `xinmatch/ui/main_window.py` | 主工具栏 Search-Match 旁新增常显状态按钮「样品元素：未设置 / 仅 … / 自定义 N 项 / 已关闭」；点击 raise 右侧坞、翻到「限制条件」页、聚焦输入框；`_MODULE_TIPS["restraints"]` 补实测数字 |
+| 提示文案 | 明写 `20/43 → 30/43` 并标注「上界（元素由真值反推）」；提醒「轻元素 O/F/C/N 漏填会误杀氧化物/氟化物」 |
+
+**语义护栏**：检出元素一律保持 `OPTIONAL`，绝不标 `REQUIRED` —— 次相未必含主相的每个元素，
+且 `elements_allowed` 是「必须全部含有」。生成的 `Restraints.elements` 全为 `EXCLUDE`，
+共 `118 − len(detected)` 项，可直接进 `_current_restraints()` → `search_match` → 预筛倒排。
+
+**验收**：`tests/ui/test_sample_elements.py` 14 项 + 既有 `test_periodic_table.py` /
+`test_element_restraints.py` 共 **27 项全绿**；`ruff check .` 干净、
+`mypy xinmatch/core` 97 文件 Success；离屏截图确认面板无重叠/截断。
+全仓回归 **1587 passed / 4 skipped / 1 xfailed / 0 failed，15 min 22 s，exit=0**
+（比上一轮 1573 多出的 14 项正是本批新增单测；收尾 counts 行照例未落盘，按进度行字符统计）。
+全文 `docs/基准报告-物相检索-v3.md` §20.7。

@@ -180,6 +180,8 @@ _MODULE_TIPS: dict[str, str] = {
     "峰列表 FoM（先寻峰再匹配）或 FPFM 全谱拟合（不寻峰）。\n"
     "检索前请先打开数据并挂载参考数据库（设置→参考数据库…）。",
     "restraints": "限制条件检索：按元素三态（必含/排除/可选）、晶系等条件过滤候选。\n"
+    "推荐先填「样品元素」（XRF/EDS 或配方），其余元素自动标为排除——\n"
+    "实测多相样品相召回 20/43 → 30/43（上界口径）。\n"
     "元素选择在右侧「检索与数据」坞的「限制条件」页。",
     "reference_db": "参考数据库：挂载 / 切换参考库（COD 无机库、全库、优选库…）。",
     "user_db": "用户数据库：管理自建参考条目（导入 CIF / 导出）。",
@@ -319,6 +321,22 @@ class MainWindow(QtWidgets.QMainWindow):
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
                 )
             self.module_actions[mod_id] = action
+
+        # 「样品元素」快捷入口（2026-11-06）。基准报告 §20 实测：元素信息是
+        # 多相次相召回的决定性条件，而原来它藏在右侧坞的第二个页签里。
+        # 工具栏按钮常显当前状态，点击直接跳到快速录入框。
+        self.sample_elements_action = QtGui.QAction("样品元素：未设置", self)
+        self.sample_elements_action.setObjectName("sampleElementsAction")
+        self.sample_elements_action.setStatusTip(
+            "填样品检出元素并把其余元素标为排除；实测相召回 20/43 → 30/43"
+        )
+        self.sample_elements_action.setToolTip(
+            "样品元素约束（推荐多相样品填写）\n"
+            "来源：XRF/EDS 或配方；点击后跳到「限制条件」页的快速录入框。\n"
+            "实测：真实谱相召回 20/43 → 30/43、3-1 次相 1/3 → 3/3（上界口径）。\n"
+            "注意：30/43 是元素由真值反推的上界，实际值取决于元素测量是否完整。"
+        )
+        self.sample_elements_action.triggered.connect(self.focus_sample_elements)
 
         # 文件→打开数据（Ctrl+O）：真实导入动作，放在文件菜单顶部。
         self.open_action = QtGui.QAction("打开数据…", self)
@@ -503,6 +521,7 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar.addAction(self.peakdetect_action)
         toolbar.addSeparator()
         toolbar.addAction(self.module_actions["search_match"])
+        toolbar.addAction(self.sample_elements_action)
         # 检索模式切换下拉框：峰列表 FoM（寻峰）/ FPFM 全谱拟合（不寻峰）。
         # 切换只更新内部状态，不自动触发检索；下次点击 Search-Match 执行新模式。
         self._search_mode_combo = QtWidgets.QComboBox()
@@ -597,6 +616,13 @@ class MainWindow(QtWidgets.QMainWindow):
         right.setObjectName("rightDock")
         right.setWidget(tabs)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, right)
+        # 「样品元素」工具栏按钮需要能把这个页签翻到最前面。
+        self._restraints_tabs = tabs
+        self._restraints_dock = right
+        self.periodic_panel.selection_changed.connect(
+            self._refresh_sample_elements_action
+        )
+        self._refresh_sample_elements_action()
 
         # Lower-right: match list, tabified with the right dock.  T13.3 匹配表挂载。
         self.match_table = MatchListTable()
@@ -1247,6 +1273,42 @@ class MainWindow(QtWidgets.QMainWindow):
             # Re-entrant call rejected by the busy guard: the worker never ran,
             # so nobody will close the connection we just opened.
             conn.close()
+
+    def _refresh_sample_elements_action(self) -> None:
+        """工具栏按钮常显当前元素约束状态（GUI 线程，由面板信号驱动）。"""
+        panel = getattr(self, "periodic_panel", None)
+        action = getattr(self, "sample_elements_action", None)
+        if panel is None or action is None:
+            return
+        if not panel.is_enabled():
+            text = "样品元素：已关闭"
+        elif panel.quick_elements():
+            syms = panel.quick_elements()
+            shown = " ".join(syms[:5]) + ("…" if len(syms) > 5 else "")
+            text = f"样品元素：仅 {shown}"
+        elif panel.states():
+            text = f"样品元素：自定义 {len(panel.states())} 项"
+        else:
+            text = "样品元素：未设置"
+        action.setText(text)
+
+    def focus_sample_elements(self) -> None:
+        """把「限制条件」页翻到最前并聚焦快速录入框。"""
+        dock = getattr(self, "_restraints_dock", None)
+        tabs = getattr(self, "_restraints_tabs", None)
+        if dock is not None:
+            dock.show()
+            dock.raise_()
+        if tabs is not None:
+            tabs.setCurrentIndex(0)
+        panel = getattr(self, "periodic_panel", None)
+        if panel is not None:
+            panel.focus_detected_input()
+        self.statusBar().showMessage(
+            "填 XRF/EDS 检出的元素（如 Zn Al Ca O F），点「其余元素排除」；"
+            "实测相召回 20/43 → 30/43",
+            10000,
+        )
 
     def _current_restraints(self) -> Restraints | None:
         """把「限制条件」面板的元素三态转成 :class:`Restraints`（GUI 线程调用）。
