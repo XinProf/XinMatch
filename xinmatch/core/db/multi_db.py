@@ -27,7 +27,6 @@ id               file
 ``xindb_cod_inorg``  ``COD-Inorg-*.xinDB``   ← **默认库**
 ``xindb_cod_full``   ``COD-Full-*.xinDB``
 ``xindb_pcod_inorg`` ``PCOD-Inorg-*.xinDB``
-``xindb_pcod_full``  ``PCOD-Full-*.xinDB``
 ``xindb_tcod_inorg`` ``TCOD-Inorg-*.xinDB``
 ``xindb_tcod_full``  ``TCOD-Full-*.xinDB``
 ===============  ==============================================
@@ -81,7 +80,6 @@ _BUILTIN_PREFIXES: tuple[tuple[str, str], ...] = (
     (DEFAULT_LIBRARY_ID, "COD-Inorg"),
     ("xindb_cod_full", "COD-Full"),
     ("xindb_pcod_inorg", "PCOD-Inorg"),
-    ("xindb_pcod_full", "PCOD-Full"),
     ("xindb_tcod_inorg", "TCOD-Inorg"),
     ("xindb_tcod_full", "TCOD-Full"),
 )
@@ -223,13 +221,13 @@ def xindb_cod_full_path() -> Path:
 
 
 def xindb_pcod_inorg_path() -> Path:
-    """Default location of the v3 PCOD inorganic library."""
+    """Default location of the v3 PCOD inorganic library.
+
+    PCOD has no separate full library: every PCOD structure is inorganic
+    (manifest ``is_inorg=1`` for all 1,061,962 entries), so ``PCOD-Inorg``
+    **is** the full set and ``PCOD-Full`` is deliberately not built.
+    """
     return _latest_snapshot("PCOD-Inorg")
-
-
-def xindb_pcod_full_path() -> Path:
-    """Default location of the v3 full-PCOD library (newest snapshot)."""
-    return _latest_snapshot("PCOD-Full")
 
 
 def xindb_tcod_inorg_path() -> Path:
@@ -551,7 +549,6 @@ _BUILTIN_NAMES: dict[str, str] = {
     DEFAULT_LIBRARY_ID: "COD Inorganics（默认）",
     "xindb_cod_full": "COD Full",
     "xindb_pcod_inorg": "PCOD Inorganics",
-    "xindb_pcod_full": "PCOD Full",
     "xindb_tcod_inorg": "TCOD Inorganics",
     "xindb_tcod_full": "TCOD Full",
 }
@@ -705,7 +702,6 @@ __all__ = [
     "xindb_cod_full_path",
     "xindb_cod_inorg_path",
     "xindb_default_dir",
-    "xindb_pcod_full_path",
     "xindb_pcod_inorg_path",
     "xindb_tcod_full_path",
     "xindb_tcod_inorg_path",
