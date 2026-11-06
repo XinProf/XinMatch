@@ -108,8 +108,6 @@ def test_peak_list_search_forwards_restraints(qapp, monkeypatch):
 
 def test_fpfm_search_does_not_get_restraints(qapp, monkeypatch):
     """FPFM 检索链没有 restraints 形参 —— 不能半路塞进去，也不能假装生效。"""
-    import xinmatch.ui.main_window as mw
-
     monkeypatch.setattr(
         MainWindow, "_search_fpfm",
         lambda self, pattern, conn: ([], "FPFM"),

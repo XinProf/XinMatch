@@ -24,6 +24,10 @@ restraints_apply
     Apply :class:`~xinmatch.core.model.Restraints` to the reference database
     and to candidate lists (pre-search pruning, post-search pruning,
     candidate ranking by restraint satisfaction).
+mineral_name
+    Mineral-name → species-key normalisation, used as the **benchmark** ruler
+    for mineral-level ground truth (``Quartz high`` ≡ ``Quartz``,
+    ``Nitrocalcite`` ≢ ``Calcite``, ``hexagonal`` ≡ no name).
 """
 
 from .candidate_list import CandidateList
@@ -52,6 +56,7 @@ from .hanawalt_fink import (
     pre_filter_fink,
     pre_filter_hanawalt,
 )
+from .mineral_name import mineral_name_matches, mineral_species_key
 from .pfsm import (
     compute_reference_pattern,
     compute_rwp,
@@ -171,4 +176,7 @@ __all__ = [
     "same_phase",
     "group_same_phase",
     "families",
+    # Mineral-name normalisation (benchmark ruler, 2026-11-06)
+    "mineral_species_key",
+    "mineral_name_matches",
 ]
