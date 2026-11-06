@@ -13,6 +13,13 @@ Ground truth comes from :data:`TRUTH` (kept in sync with
 ``tools/generate_synthetic_patterns._MATERIALS``). Entry ids use the library
 convention ``96-<3 digits>-<4 digits>``.
 
+``--oracle-elements`` adds a parallel "sample elements are known" pass: the
+element set is derived from the *truth* entries and everything else is excluded.
+That is an **upper bound**, not a deliverable metric (the real input would come
+from XRF/EDS or a recipe).  It mirrors ``tools.bench_real_samples`` and is used
+to quantify how much candidate-pool dilution costs on large libraries (report
+§23).  Default output is unchanged when the flag is off.
+
 Usage::
 
     python -m tools.bench_pattern_set \
@@ -31,6 +38,7 @@ from xinmatch.core.db.reader_v3 import XinDBReader
 from xinmatch.core.db.search_v3 import _entry_from_meta
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Entry
+from xinmatch.core.model.restraints import Restraints
 from xinmatch.core.peak.peak_search import find_peaks
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.phase_key import same_phase
@@ -80,6 +88,28 @@ def _phase_hit(cand: CandidateResult, truth: list[Entry]) -> bool:
     return any(same_phase(cand.entry, t) for t in truth)
 
 
+def _oracle_restraints(truth_entries: list[Entry]) -> Restraints | None:
+    """「样品元素已知」上界口径：真值元素留下，其余全部标为必须不含。
+
+    元素由真值相在库内的 ``elements`` 反推，所以这是**上界**：衡量
+    「化学信息给足时引擎能做到什么」，不能当自动结果报。检出元素保持
+    OPTIONAL（绝不 REQUIRED）—— 次相未必含主相的每个元素，且
+    ``elements_allowed`` 是「必须全部含有」语义。
+    """
+    from tools.bench_real_samples import ALL_ELEMENTS
+
+    elems: set[str] = set()
+    for entry in truth_entries:
+        elems |= set(entry.elements)
+    if not elems:
+        return None
+    restraints = Restraints()
+    for el in ALL_ELEMENTS:
+        if el not in elems:
+            restraints.exclude(el)
+    return restraints
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--patterns", type=Path, required=True)
@@ -92,18 +122,24 @@ def main() -> None:
                     default="intensity",
                     help="预筛第二排序键（默认 intensity = 发布口径；hits 为待裁定口径）。"
                          "配置会写进结果 JSON —— 基线按配置认，不按文件名认")
+    ap.add_argument("--oracle-elements", action="store_true",
+                    help="额外跑一套「元素上界」口径：用真值相元素反推样品元素，把其余"
+                         "元素全部标为必须不含。这是**上界**，不是交付指标")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
     reader = XinDBReader(args.library, family_slots=args.family_slots,
                          prescreen_order=args.prescreen_order)
     print(f"[配置] prescreen_order={args.prescreen_order}  "
-          f"family_slots={args.family_slots}  top_n={args.top_n}  rounds={args.rounds}")
+          f"family_slots={args.family_slots}  top_n={args.top_n}  rounds={args.rounds}"
+          f"  oracle_elements={args.oracle_elements}")
     rows: list[dict] = []
     n_top1 = n_top5 = n_full = n_phases_hit = n_phases = 0
     n_top1_phase = n_top5_phase = 0
     n_phases_hit_entry = 0
     n_full_phase = 0
+    # 元素上界口径（与默认两套并列，相位级）
+    e_top1 = e_top5 = e_full = e_phases_hit = 0
 
     for name, phases in sorted(TRUTH.items()):
         path = args.patterns / f"{name}.txt"
@@ -149,7 +185,7 @@ def main() -> None:
         n_full += truth_set <= set(found)
         n_full_phase += len(got_phase) == len(truth_entries) and bool(truth_entries)
 
-        rows.append({
+        row = {
             "sample": name,
             "n_peaks": len(peaks),
             "truth": truth_ids,
@@ -166,7 +202,42 @@ def main() -> None:
             "coverage": round(cover, 4),
             "all_recovered": truth_set <= set(found),
             "all_recovered_phase": len(got_phase) == len(truth_entries) and bool(truth_entries),
-        })
+        }
+
+        if args.oracle_elements:
+            restraints = _oracle_restraints(truth_entries)
+            if restraints is not None:
+                whole_e = search_match(peaks, reader, pattern.wavelength,
+                                       top_n=args.top_n, restraints=restraints)
+                e_hit1 = bool(whole_e) and _phase_hit(whole_e[0], truth_entries)
+                e_hit5 = any(_phase_hit(c, truth_entries) for c in whole_e[:5])
+                seq_e = SequentialIdentifier(peaks, wavelength=pattern.wavelength)
+                found_e: list[Entry] = []
+                for _ in range(args.rounds):
+                    res_e = search_residual(seq_e, reader, top_n=args.top_n,
+                                            restraints=restraints)
+                    if not res_e.candidates:
+                        break
+                    seq_e.select(res_e.candidates[0])
+                    found_e.append(res_e.candidates[0].entry)
+                got_phase_e = [
+                    t for t in truth_entries
+                    if any(same_phase(fe, t) for fe in found_e)
+                ]
+                e_full_one = (
+                    len(got_phase_e) == len(truth_entries) and bool(truth_entries)
+                )
+                e_top1 += e_hit1
+                e_top5 += e_hit5
+                e_phases_hit += len(got_phase_e)
+                e_full += e_full_one
+                row.update({
+                    "oracle_hit_top1_phase": e_hit1,
+                    "oracle_hit_top5_phase": e_hit5,
+                    "oracle_sequential_hit_phase": len(got_phase_e),
+                    "oracle_all_recovered_phase": e_full_one,
+                })
+        rows.append(row)
 
     print(f"{'sample':<10}{'npk':>5}  {'top1':<15}{'T1':>3}{'T5':>3}  "
           f"{'sequential':<40}{'hit':>6}{'cover':>8}")
@@ -182,6 +253,10 @@ def main() -> None:
           f"序贯完整回收 {n_full}/{n}　相召回 {n_phases_hit_entry}/{n_phases}")
     print(f"相位级（同相异卡算命中）：Top-1 {n_top1_phase}/{n}　Top-5 {n_top5_phase}/{n}　"
           f"序贯完整回收 {n_full_phase}/{n}　相召回 {n_phases_hit}/{n_phases}")
+    if args.oracle_elements:
+        print(f"[元素上界] 相位级 Top-1 {e_top1}/{n}　Top-5 {e_top5}/{n}　"
+              f"序贯完整回收 {e_full}/{n}　相召回 {e_phases_hit}/{n_phases}")
+        print("[元素上界] 这是**上界**：元素由真值相在库内反推，现实中来自 XRF/EDS 或配方")
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(
@@ -192,6 +267,7 @@ def main() -> None:
                     "config": {
                         "prescreen_order": args.prescreen_order,
                         "family_slots": args.family_slots,
+                        "oracle_elements": args.oracle_elements,
                     },
                     "n_samples": n,
                     "top1": n_top1,
@@ -206,6 +282,13 @@ def main() -> None:
                         "full_recovery": n_full_phase, "phase_recall": n_phases_hit,
                     },
                     "phase_recall": [n_phases_hit, n_phases],
+                    **({
+                        "totals_oracle": {
+                            "top1": e_top1, "top5": e_top5,
+                            "full_recovery": e_full,
+                            "phase_recall": [e_phases_hit, n_phases],
+                        },
+                    } if args.oracle_elements else {}),
                     "rows": rows,
                 },
                 ensure_ascii=False,
