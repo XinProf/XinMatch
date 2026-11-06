@@ -15,8 +15,11 @@ exposes them via :class:`FomWeights`.
 
 The five agreement criteria (the *P* values and *I_scale*) are computed
 as follows (this is the **working** definition; the precise definition
-used internally by the reference software is not documented and is to be reverse-
-engineered in T0.8 / T6.10):
+used internally by the reference software is not documented).  T0.8 has been
+closed as an *evidence-driven no-change decision* — the published weights and
+these P definitions stay frozen (see ``docs/基准报告-物相检索-v3.md`` §26).
+Reverse-engineering the exact definitions needs more reference-software CSV
+exports and is an external dependency, not a current blocker:
 
 ``P_peakpos`` = exp(−mean(Δ2θ²) / σ_pos²)
     Gaussian penalty on the 2θ mismatch of correlated peak pairs;
@@ -52,7 +55,7 @@ engineered in T0.8 / T6.10):
     the LSQ denominator collapses to zero.  ``|ln(I_scale)|`` then
     gives the multiplicative mismatch (2× and ½× cost the same).
 
-.. todo:: T0.8 粗推（lab6 / LaB6, 1 行真实数据）
+.. note:: T0.8 粗推（lab6 / LaB6, 1 行真实数据；结论已收进基准报告 §26）
 
     参考软件 导出的 lab6 LaB6 Top1 行给出 ``I_scale = 1.0348``。
     用我们的 ``max=100`` LSQ 实现 + 完整 LaB6 参考表（14 个匹配峰），

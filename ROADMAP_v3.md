@@ -112,6 +112,12 @@ extmatch/
 | **T0.6** | 搭建项目骨架 + CI（pytest、ruff、mypy）+ `docs/STATUS.md` 进度表 | `pyproject.toml`、目录结构、空模块 | `pytest` 可运行（0 用例通过）、`ruff` 无错误 | 🔴 高 |
 | **T0.7** | 跨平台约定：路径用 `pathlib`、文本统一 UTF-8、换行符处理（注意 参考软件 不支持 CR-only 行尾） | `docs/CONVENTIONS.md` | Windows/Linux/macOS 三平台 `pytest` 均通过 | 🟡 中 |
 
+> **补注（2026-11-06）**：`T0.8`（FoM P 值深挖）是后续由 `docs/STATUS.md`
+> Phase 0 追加的任务，从未列入本路线图（上表止于 T0.7）。它已于 2026-11-06
+> 以「证据驱动的不动决策」结案：权重保持发布值、不做运行时全局 LP 修正、
+> 次相缺失归 recall 层；精确 P 定义反推列为外部数据依赖。结论见
+> `docs/基准报告-物相检索-v3.md` §26，进度状态以 `docs/STATUS.md` 为准。
+
 **Phase 0 验收**：`pytest tests/baseline --collect-only` → 标准样品集与基线齐备
 
 ---

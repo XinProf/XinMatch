@@ -15,7 +15,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T0.5 | Terminology mapping table | ✅ (2026-10-14：docs/TERMINOLOGY.md 九域三层映射：参考软件 4.3.360 IndexTable 3,514 词/166 主题 ↔ XinMatch UI 73 控件文本+8 CLI ↔ IUCr/ICDD 标准术语；高频词全覆盖，状态 [x]/[规划]/[—] 标注) |
 | T0.6 | Project skeleton + CI (pytest, ruff, mypy) | ✅ (2026-10-10：mypy 配置落地（pyproject [tool.mypy]，files=xinmatch + search/refine 基线豁免），26 源文件纯类型层修复，**109 错误 → 0（81 源文件）**，`python -m mypy` 与 `mypy xinmatch` 均 Success；豁免清单见 docs/mypy_baseline.md。pytest/ruff 此前已就绪) |
 | T0.7 | Cross-platform conventions | ✅ |
-| T0.8 | Reverse-engineer FoM P-value definitions from baseline CSV | 🟡 |
+| T0.8 | Reverse-engineer FoM P-value definitions from baseline CSV | ✅ (2026-11-06 文档收尾结案：以**证据驱动的不动决策**结案 —— 权重保持发布值、不做运行时全局 LP 修正、次相缺失归 recall 层；精确 P 定义反推需多组参考软件 CSV，列为外部依赖而非阻塞。结论正文见下方 §T0.8 与 `docs/基准报告-物相检索-v3.md` §26) |
 
 ## Phase 1 — Core data models (`core/model/`)
 
@@ -419,7 +419,12 @@ FoM 参数（DEFAULT_WEIGHTS、sigma_intensity=10、window=0.3°）**全程未�
 
 **任务**：从 `fom_criteria.py` 五分量入手，量化「密集 junk 卡片凭 `P_npeaks` 霸榜」的实际影响面并决定权重，同步处理 CIF 强度惯例 vs 实测强度差异。
 
-**方法**：`.scratch/` 五个只读探针（`probe_pnpeaks.py` / `probe_sylvite_intensity.py` / `probe_lp_intensity.py` / `probe_l3_weights.py` / `probe_minor_phase.py` / `probe_recall_topk.py`），真实无机库 71,203 条 + 教科书三相（真相 eid 已知）+ 13 组真实谱 + 组合成谱，检索后本地重算 P 值/权重，不重跑检索。
+**方法**：`.scratch/` 一组只读探针（`probe_pnpeaks.py` / `probe_sylvite_intensity.py` / `probe_lp_intensity.py` / `probe_l3_weights.py` / `probe_minor_phase.py` / `probe_recall_topk.py`），真实无机库 71,203 条 + 教科书三相（真相 eid 已知）+ 13 组真实谱 + 组合成谱，检索后本地重算 P 值/权重，不重跑检索。
+
+> **可复核链说明（2026-11-06 补）**：上述六个原始探针与当时的结果 JSON 已从
+> `.scratch/` 清理，本地不再可直接复跑。结论以本节正文 + `docs/基准报告-物相检索-v3.md`
+> §26 为准；后续相关的实测 P 值可查 `docs/检索基准-v3-诊断-20261104.md`、
+> `docs/检索基准-31-次相诊断-20261105.md` 与 `.scratch/probe_31_fom.json`。
 
 ### 结论 1：权重**保持发布值不动**（三条独立证据）
 
@@ -962,7 +967,7 @@ v3.4.0 发布 + PDF-2 接入本仓后，按「先自洽基准、再动引擎」�
 | ~~P1~~ | ~~`.xinDB` schema v3.1（d 值倒排 + chunk 边界表）~~ **已评估：不做（2026-11-06）** | 基准报告 §19：四库实测，默认库端到端 2.31 s 里导入 1.32 s、打分 0.37 s，检索本体 0.18 s；1.06M 库 5.68 s，三项全做也只到 ~3.8 s。且 chunk 边界表经分析无效（候选散满 260 chunk），真要动是调 chunk 粒度 → 需重建库 | 已关闭 |
 | ~~P1~~ | ~~`3-1` 类次相召回收尾~~ **已完成（2026-11-06）** | 基准报告 §20：名额假说（8000 席下 Al₂O₃ #581/CaF₂ #425）与残差排序假说（垃圾卡同为 3/3 命中）双双被否定；答案是**元素约束** —— 3-1 由 1/3 变 3/3、全量相召回 20/43 → 30/43、族级 → 33/43，无一样品变差。新增 `--oracle-elements` 上界口径 | 已关闭 |
 | **P2** | **COD 全库检索质量上游修复（峰抽取标定）** | 峰抽取口径标定，属上游数据质量 | 非引擎层 |
-| **P2** | **T0.8 FoM P 值深挖收尾** | 结论已沉淀（权重保持发布值、不做全局 LP 修正、次相缺失在 recall 层），主要剩文档收尾 | 已基本定性 |
+| ~~P2~~ | ~~T0.8 FoM P 值深挖收尾~~ **已完成（2026-11-06）** | 基准报告 §26：三条结论进基准体系、`FOM_MODEL.md` / `fom_criteria.py` 时态统一、LP 语义与 v2→v3 时间线澄清、代码注释里的 `I_scale` 结论搬进文档、Phase 0 状态 🟡→✅。精确 P 定义反推列为外部依赖 | 已关闭 |
 | **P3** | **Bruker RAW v1 / v4** | v1 无格式文档需真实样本逆向；v4 需 RAW4.00 样本真实验收 | 依赖真实样本 |
 | **P3** | **T14.4 GUI 串口采集面板** | 本机无真实仪器可验收 | 需硬件联调 |
 | **规划** | **3.5.0：反向 XinRefinement→XinMatch 回写精修结果** | 联合计划 §0「范围外，留到 3.5/1.2 评估」 | 等 3.4.0/1.1.0 配对稳定 |
@@ -1557,3 +1562,35 @@ GUI 的「样品元素」一行输入（§20.7 / §24）在 CLI 侧还停留在�
 单测，1595 → 1624）。counts 行未落盘，按 §4.1 进度行统计 `F`/`E` 均为 0；
 `exit=1` 是安全钩子拦截 879 个临时项。启动前后未并发重任务，墙钟测试未假失败。
 不改默认值、不改 FoM、不重建库。全文 `docs/基准报告-物相检索-v3.md` §25。
+
+## T0.8 FoM P 值深挖：文档收尾结案（2026-11-06）✅
+
+这是 §7.2 里最后一个不依赖外部数据/硬件的 P2。结论自 2026-10-13 就沉淀在
+本文 §T0.8，但没进检索基准报告，`FOM_MODEL.md` 与 `fom_criteria.py` 还停在
+「尚未解决 / 待 T0.8 反推」的时态。本轮只做文档与状态同步：
+
+- **基准报告 §26** 收进三条结论与关键数字、五分量/发布权重表、唯一的
+  lab6 ground truth、以及原本只在 `fom_criteria.py` 注释里的 `I_scale`
+  归一化结论。明确区分「**决策已结案**」与「**精确 P 定义反推未完成**」
+  —— 后者需要参考软件多组候选 CSV，是外部依赖，不是当前阻塞。
+- **澄清 LP 语义**：LP = Lorentz-Polarization（洛伦兹-偏振因子），不是线性规划；
+  权重标定用的是 NNLS + 网格坐标上升。并写清 v2 卡片库（T0.8 当时）→
+  v3 建库期改强度口径 → 11-04 发现合成谱仍按 v2 强度生成、补
+  `--peak-source v3` 的时间线，避免把「不做运行时全局 LP」读成与现状矛盾。
+- **状态统一**：本文 Phase 0 的 T0.8 🟡→✅、收尾待办表标已关闭；
+  `HANDOVER-20261106.md` §7.2 标完成并补齐原先漏写的结论 ③（次相缺失在
+  recall 层）；`FOM_MODEL.md` §4 加结案交叉引用；`fom_criteria.py` 的模块
+  docstring 与 `.. todo::` → `.. note::` 改为已结案措辞（纯文字）。
+- **索引与溯源**：`docs/README.md` 补 §26；`ROADMAP_v3.md` Phase 0 加一条注
+  （T0.8 是 STATUS.md 追加项，路线图原本止于 T0.7）。
+- **可复核链如实标注**：§T0.8 引用的六个 `.scratch` 原始探针已清理，不再声称
+  可直接复跑，改指向正文与后续诊断报告。
+
+**验收**：`ruff check .` 全通过、`mypy xinmatch/core` 98 文件 Success；
+`DEFAULT_WEIGHTS` 实测仍是 `0.2275 / 0.1112 / 0.2306 / 0.1152 / 0.0454`；
+全仓回归 **1624 passed / 4 skipped / 1 xfailed / 0 failed，16 min 15 s**
+（测试数与上轮相同，本批无新增用例）。counts 行未落盘，按 §4.1 进度行统计
+`.`1624 / `s`4 / `x`1 / `F`0 / `E`0；无 `FAILED` / `ERROR` 行；`exit=1` 是
+安全钩子拦截 pytest 临时目录清理（196 项 > 50 阈值）。启动前后未并发重任务。
+不改权重、不改 P 定义、不改强度惯例、不重建库。
+全文 `docs/基准报告-物相检索-v3.md` §26。
