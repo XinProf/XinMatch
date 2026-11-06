@@ -234,18 +234,25 @@ def _search_match_v3(
     """v3 分支：委托给 :func:`search_v3.search_match_v3`。
 
     只搬运 v2 签名里语义对得上的参数：``restraints`` 的**必需元素**转成
-    ``elements_allowed``；排除元素/晶系/年份这类谓词 v3 的预筛矩阵不表达，
+    ``elements_allowed``、**排除元素**转成 ``elements_excluded``（两者都在预筛
+    层用 ``element_inv`` 精确过滤）；晶系/年份这类谓词 v3 的预筛矩阵不表达，
     留给调用方在结果上二次过滤（GUI 目前不启用这些谓词）。
     """
     from xinmatch.core.db.search_v3 import search_match_v3
 
     allowed: set[str] | None = None
+    excluded: set[str] | None = None
     if restraints is not None:
         from xinmatch.core.model.restraints import ElementState
 
         required = {el for el, st in restraints.elements.items()
                     if st == ElementState.REQUIRED}
         allowed = required or None
+        # 「必须不含」：样品侧元素合理性（XRF/EDS 未检出的元素一律排除），
+        # 用来挡 Bi-Y-O 这类化学上不可能的假卡（基准报告 §11.5 的下一步）。
+        banned = {el for el, st in restraints.elements.items()
+                  if st == ElementState.EXCLUDE}
+        excluded = banned or None
 
     result = search_match_v3(
         exp_peaks,
@@ -255,6 +262,7 @@ def _search_match_v3(
         top_n=top_n,
         min_match=max(2, int(recall_min_matches)),
         elements_allowed=allowed,
+        elements_excluded=excluded,
     )
     return result.candidates
 

@@ -281,6 +281,9 @@ class _ReferenceDb:
         sel = np.flatnonzero(cand)
         if sel.size == 0:
             return [], False, 0
+        # Oracle for the **default** order (``prescreen_order="intensity"``):
+        # main-peak hit → intensity-weighted hits → hit count.  The alternative
+        # "hits" order is covered by test_prescreen_order.py.
         order = sel[np.lexsort((-hits[sel], -whits[sel], ~main_hit[sel]))]
         limit = int(rank_limit if rank_limit is not None else DEFAULT_RANK_LIMIT)
         limit = max(1, limit)

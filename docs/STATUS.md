@@ -953,8 +953,8 @@ v3.4.0 发布 + PDF-2 接入本仓后，按「先自洽基准、再动引擎」�
 | **P0** | **PDF2 真实链路验收（联合计划 S2）** | `source="pdf2"` 此前只由合成 manifest 覆盖，没有真实条目走通 `.xinm` 导出（`structural=false`、不打包 ICDD 文件）→ 导入端「仅参照」分支。本仓现已挂载 `PDF2-20040317.xinDB`（163,834 相），可补真实验收 | 需一条真实 PDF2 条目 + 配套谱 |
 | **P1** | **按 v3 库强度口径重建 13 组合成谱基准** | `docs/检索基准-v3-诊断-20261104.md`：合成谱用 v2 卡强度生成、v3 重建库强度口径已改（含 LP/结构因子），两者不同源 → synth_12 误判失败。诊断 §5 顺序：先重建自洽基准 → 重测 → 再决定是否动引擎 | 无 |
 | ~~P1~~ | ~~候选近重复聚簇 / 相位族去重后分配预筛名额~~ **已实测否决（2026-11-05）** | 基准报告 §14：族配额在 1000 席下救不回 `3-1`，且端到端把合成 T1 从 11/13 打到 6/13；池内霸榜是弥散稀释（~550 族/1000 席），不是单族洪水 | 已关闭 |
-| **P1** | **预筛排序函数改造（连续量取代「主峰是否命中」）** | §14.5：Al₂O₃/CaF₂ 排到 2071/4262 位 = 二值判据信息量不足；这是 §10.5 失败后真正的杠杆 | 需先定连续量口径，双基准回归 |
-| **P1** | **少线相召回收尾 + 样品侧元素合理性挡假卡** | 基准报告 §11.5「已落地一半」；§11.4「下一步尚未做」：Bi-Y-O 类假卡需 XRF/EDS 等元素约束 | 依赖样品侧元素输入 |
+| ~~P1~~ | ~~预筛排序函数改造（连续量取代「主峰是否命中」）~~ **已量到结论（2026-11-06）** | 基准报告 §16.2/§16.3：连续量口径（`2·main_hit+命中率` 50/67、`+0.3·whits` 49/67）**都不如**纯二值门控 + 命中数（51/67），§14.5 的方向被证伪；真正有效的是把 `whits` 与 `hits` 换位，但两把尺子结论相反（合成 T1 −3 / 真实相召回 +4）→ 落成开关 `prescreen_order`，默认不变 | 待用户裁定是否切默认 |
+| ~~P1~~ | ~~少线相召回收尾 + 样品侧元素合理性挡假卡~~ **已完成（2026-11-06）** | 基准报告 §16.1：`ElementState.EXCLUDE` 从死代码接通到预筛（`element_exclude_filter` + `prescreen(elements_excluded)` + 兼容层 + GUI 面板），真实谱 Top-1 10/12→12/12、21 升/4 降 | 已关闭 |
 | ~~P1~~ | ~~空白式卡补式（416 条，`elements_from_sites`）~~ **已完成（2026-11-06）** | 基准报告 §15：`formula_from_sites` 对称展开位点计数 → `parse_meta` 兜底 → 原地补丁 417 行；四步等价性证明全过 | 已关闭 |
 | ~~P1~~ | ~~COD-Full 436 条空式卡补式~~ **已完成（2026-11-06）** | §15.6：同工具 + `--cif-root DEFAULT_COD_ROOT`，写入 440 行，四步等价性证明全过 | 已关闭 |
 | **P2** | **真实谱真值口径加「矿物名级」补充列** | §13.6 第 2 条：掺杂卡（`Co0.03Fe0.97HO2` 矿物名 Goethite）语义正确但组成不精确相等 | 需定口径，勿与组成级混算 |
@@ -1105,3 +1105,69 @@ v3.4.0 发布 + PDF-2 接入本仓后，按「先自洽基准、再动引擎」�
 
 **结论**：36 条空式不可补，已定性关闭；顺带修复的 57 张截断式让元素筛选与组成判定重新可见。
 全文：`docs/基准报告-物相检索-v3.md` §15.7。
+
+## P1 元素「必须不含」约束落地（2026-11-06）✅
+
+`ElementState.EXCLUDE`（周期表红色）此前是**死代码**：面板能标红、摘要显示「排除：Bi」，
+但 `main_window._do_search` 调 `search_match` 时不传 `restraints`，预筛也没有这条通路，
+全仓对 `EXCLUDE` 的引用数为 0。于是「样品里没有 Bi」（XRF/EDS 已确认）进不了召回。
+
+| 层 | 改动 |
+|---|---|
+| 预筛 | `XinDBReader.element_exclude_filter()`（`element_inv` 倒排，与 63 位 `elem_mask` 无关）+ `prescreen(elements_excluded=)` |
+| 检索 | `search_match_v3(elements_excluded=)` 转发 |
+| 兼容层 | `search_match(restraints=)` 的 `EXCLUDE → elements_excluded`（此前静默丢弃） |
+| GUI | `MainWindow._current_restraints()`（GUI 线程读面板）+ `_do_search(restraints=)`；FPFM 模式给出「不参与」的状态栏提示 |
+| 测试 | `tests/db/test_prescreen_element_exclude.py`（12）+ `tests/ui/test_element_restraints.py`（6） |
+
+语义细节：**未知元素在排除方向上什么都不排除**（返回全 `True`）—— 与「必须含」相反，
+拼错符号不该把结果清空。
+
+真实谱量化（理想 XRF 设定，`top_n=60`）：Top-1（任一真值相口径）10/12 → **12/12**；
+逐相名次 21 升 / 17 平 / 4 降 / 1 挤出榜单。**非单调**要记住：过滤腾出名额后新进来的卡
+可能把某张真值卡挤出固定 Top-N（`5-2` Muscovite 46 → 掉出前 60）。详见基准报告 §16.1。
+
+## P1 预筛排序：连续化被证伪，换键做成开关（2026-11-06）⚠️ 待裁定
+
+§14.5 曾判断「二值主峰判据信息量不足，应改强度加权覆盖率」，实测**反了**：
+
+| 排序（800 席池内召回 / 67 真相位） | 召回 |
+|---|---:|
+| `main_hit → whits → hits`（3.4.x 默认） | 39/67 |
+| `main_hit → hits → whits` | **51/67** |
+| 去掉主峰门控（`hits → whits`） | 41/67 |
+| `2·main_hit + 命中率` / `+0.3·whits` | 50 / 49 |
+
+主峰门控是**载荷**（去掉掉 10 个真值相），连续化加权项一律不如二值门控 + 命中数。
+
+但把后两键换位的端到端结果是**两把尺子相反**（2×2 分离实验，见 §16.3）：
+
+| 口径 | 合成 T1/T5/序贯 | 真实 T1/T5 | 真实卡级/族级相召回 |
+|---|---|---|---|
+| 旧排序 + div0.2（现默认） | 11/13·12/13·10/13 | 10/12·12/12 | 19/43·19/43 |
+| 新排序 + div0 | 8/13·10/13·5/13 | **11/12·12/12** | **23/43·25/43** |
+
+根因是尺子：合成谱用库内同一批参考强度反演，强度形判据天然占优；真实谱没有这个关系。
+
+**处置**：机制落成 `XinDBReader(prescreen_order="intensity"|"hits")`，默认 `"intensity"`
+（3.4.x 逐项不变，合成基准复核 11/13·12/13·10/13·19/24）。切默认需要接受
+「合成 T1 −3 换真实相召回 +4」，属产品裁定 —— 未获裁定前不改默认。
+
+## 版本号落点统一（2026-11-06）✅
+
+同一版本号曾在四处各写一遍并漂移：`pyproject.toml` 3.4.1、`__init__._FALLBACK_VERSION`
+3.4.0、`xinmatch.spec` `APP_VERSION` 3.4.0、`xinmatch_setup.iss` 10 处 3.4.0。后果是
+冻结 exe 的 About 报 3.4.0、源码报 3.4.1，安装包名固定 3.4.0，与 tag 对不上。
+
+| 落点 | 处置 |
+|---|---|
+| `pyproject.toml` | **唯一真相源**，本轮 → 3.5.0 |
+| `xinmatch/__init__.py` | `_FALLBACK_VERSION = "3.5.0"`（冻结态返回值） |
+| `xinmatch.spec` | 改为从 pyproject 推导 `APP_VERSION` / `VERSION_TUPLE`，不再写字面量；原有 guard（spec ↔ `_FALLBACK_VERSION`）继续生效 |
+| `tools/xinmatch_setup.iss` | 只剩一处 `#ifndef AppVersion` 默认值，其余全部 `{#AppVersion}`；构建脚本用 `ISCC /DAppVersion=` 覆盖 |
+| `tools/build_exe.ps1` | `-Version` 默认空 → 从 `import xinmatch` 读；构建后校验 exe 的 FileVersion；新增 `-Installer` 走 ISCC |
+| `tests/test_version_consistency.py` | 5 项检查：pyproject 三段式、`_FALLBACK_VERSION`、iss 默认值、iss 无其他字面量、spec 不得写死 |
+
+同样的问题在 XinRefinement 侧更严重：`__version__` 1.4.0 而 iss 仍写 1.1.0，导致
+`build_installer()` 打完包按 1.4.0 找产物、必然报「安装包未生成」。已修（iss 默认值 1.4.0 +
+`ISCC /DAppVersion=` + `tests/test_version_consistency.py`）。

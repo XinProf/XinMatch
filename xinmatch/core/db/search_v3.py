@@ -173,6 +173,7 @@ def search_match_v3(
     tolerance: float = 0.02,
     tolerance_rel: float = 0.0,
     elements_allowed: set[str] | None = None,
+    elements_excluded: set[str] | None = None,
 ) -> SearchV3Result:
     """Run a peak-based search-match against a v3 ``.xinDB`` library.
 
@@ -193,7 +194,10 @@ def search_match_v3(
         top_n: Number of ranked results to return.
         tolerance: Absolute d-window half-width for the prescreen (Å).
         tolerance_rel: Relative d-window component.
-        elements_allowed: Optional element pool restriction.
+        elements_allowed: Optional element pool restriction ("must contain").
+        elements_excluded: Optional element pool restriction ("must not
+            contain") — the chemistry sanity filter that keeps phases built
+            from elements the sample does not show out of the pool.
 
     Returns:
         A :class:`SearchV3Result`.
@@ -227,6 +231,7 @@ def search_match_v3(
         min_match=min_match,
         rank_limit=candidate_limit,
         elements_allowed=elements_allowed,
+        elements_excluded=elements_excluded,
     )
     if not screen.candidate_ids:
         return SearchV3Result(

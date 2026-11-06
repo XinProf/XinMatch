@@ -87,14 +87,45 @@ DEFAULT_RANK_LIMIT = 1000
 #: Share of the prescreen slots reserved for the **hit-count** order instead of
 #: the legacy "main peak first" order.
 #:
-#: The legacy order ranks a card by (is my strongest reflection one of the strong
-#: measured peaks → intensity-weighted hits → hit count).  On a multi-phase
-#: mixture that is effectively "am I the dominant phase", so minor phases never
-#: make the 800-slot cut: in a ZnO + Al₂O₃ + CaF₂ pattern both Al₂O₃ and CaF₂
-#: were absent from an 800-candidate pool although they rank 197 with an
-#: 8000-slot pool (measured 2026-11-04).  Half the slots are therefore handed
-#: out by hit count alone, which is what a *minor* phase can still win.
+#: 3.2.0 引入这个配额是为了救次相：当时的 legacy 顺序是「主峰是否命中 →
+#: 强度加权命中 → 命中数」，在多相谱里等于「我是不是主相」，于是 ZnO+Al₂O₃+CaF₂
+#: 谱里的 Al₂O₃/CaF₂ 连 800 席池都进不去（8000 席时排 197 位）。
+#:
+#: **3.5.0 实测：这个配额只对旧排序有意义，必须与排序口径配套**。800 席池内
+#: 召回（67 个真相位，2026-11-06）：旧排序、无配额 39/67；新排序
+#: （``prescreen_order="hits"``）无配额 **51/67**、带 20% 配额 47/67。
+#: 配额补的是「强度形把次相挤出池子」这个洞；排序改成按命中数后洞已不存在，
+#: 再留 20% 名额等于挤掉主峰命中的卡。默认口径（``intensity``）下保持 0.2 不变；
+#: 若把默认切成 ``hits``，这里应一起归零。
 _DIVERSIFY_SHARE = 0.2
+
+#: 预筛排序的两种口径（``XinDBReader(prescreen_order=...)``）。
+#:
+#: 两者都以「主峰是否命中」为第一键（实测载荷：去掉它 51/67 → 41/67），
+#: 差别只在第二、三键：
+#:
+#: * ``"intensity"``（默认，3.4.x 及以前）—— 强度加权命中 → 命中数；
+#: * ``"hits"`` —— 命中数 → 强度加权命中。
+#:
+#: 两把尺子在这件事上**结论相反**（2026-11-06 实测，见报告 §16）。
+#: 端到端（``tools/bench_*``，同一库同一样品清单）：
+#:
+#: * 合成 13 组：T1 11/13 → 8/13，T5 12/13 → 10/13，序贯 10/13 → 5/13，
+#:   相召回 19/24 → 14/24；
+#: * 真实 12 组：T1 10/12 → **11/12**，T5 12/12 不变，相召回 19/43 → **23/43**
+#:   （族级 25/43），序贯 4/12 不变。
+#:
+#: 差异的根因不是巧合：合成谱是用**库内同一批参考强度**反演的，所以「参考相对
+#: 强度 ↔ 实测相对强度」在那里精确成立，任何强度形判据都会显得有效；真实谱没有
+#: 这个关系，少线相的最强线本来就是弱峰（见报告 §13 对同一现象的记录）。
+#:
+#: 默认仍保持 ``"intensity"``，因为「Top-1/Top-5 不退化」是硬验收口径，而两种
+#: 口径互有胜负 —— 切换属于产品裁定。改默认只需改 ``_DEFAULT_PRESCREEN_ORDER``
+#: 并把 :data:`_DIVERSIFY_SHARE` 归零。
+_ORDER_INTENSITY = "intensity"
+_ORDER_HITS = "hits"
+_ORDER_CHOICES = (_ORDER_INTENSITY, _ORDER_HITS)
+_DEFAULT_PRESCREEN_ORDER = _ORDER_INTENSITY
 
 
 def _diverse_slots(limit: int, override: int | None) -> int:
@@ -257,6 +288,11 @@ class XinDBReader:
         rank_limit: Default candidate cap for :meth:`prescreen`.
         family_slots: Default per-family slot cap for :meth:`prescreen`
             (``None`` = no cap, see :data:`DEFAULT_FAMILY_SLOTS`).
+        prescreen_order: Which key comes second in the prescreen order —
+            ``"intensity"`` (default, intensity-weighted hits) or ``"hits"``
+            (hit count).  Both keep "is my strongest line one of the strong
+            measured peaks" as the primary key; see :data:`_ORDER_HITS` for
+            the measured trade-off between the two.
     """
 
     def __init__(
@@ -265,10 +301,17 @@ class XinDBReader:
         *,
         rank_limit: int = DEFAULT_RANK_LIMIT,
         family_slots: int | None = DEFAULT_FAMILY_SLOTS,
+        prescreen_order: str = _DEFAULT_PRESCREEN_ORDER,
     ) -> None:
         self.path = Path(db_path)
         self.rank_limit = int(rank_limit)
         self.family_slots = None if family_slots is None else max(1, int(family_slots))
+        order = str(prescreen_order or _DEFAULT_PRESCREEN_ORDER)
+        if order not in _ORDER_CHOICES:
+            raise ValueError(
+                f"prescreen_order 只能是 {_ORDER_CHOICES}，收到 {prescreen_order!r}"
+            )
+        self.prescreen_order = order
         self._conn: sqlite3.Connection | None = None
         self._conn_lock = threading.Lock()
         self._lock = threading.Lock()
@@ -812,15 +855,17 @@ class XinDBReader:
         min_match: int = 3,
         rank_limit: int | None = None,
         elements_allowed: set[str] | None = None,
+        elements_excluded: set[str] | None = None,
         diversify_slots: int | None = None,
     ) -> PrescreenResult:
         """Vectorised candidate prescreen against the strong-peak matrix.
 
         For every measurement window the matrix rows whose strongest
         reflections fall inside it are counted; the candidates are then
-        ordered by *main-peak hit → intensity-weighted hits → hit count* —
-        the same ordering the v2 recall stage used, so the surviving set
-        matches the v2 behaviour.
+        ordered by *main-peak hit* first and then by either the
+        intensity-weighted hit score or the raw hit count — which one is
+        selected by the reader's ``prescreen_order`` (see
+        :data:`_ORDER_HITS` for the measured difference between the two).
 
         Args:
             measured_d: Measured d-spacings (Å).
@@ -836,6 +881,13 @@ class XinDBReader:
                 backed by the ``element_inv`` inverted index).  An element that
                 occurs in no phase yields zero candidates rather than being
                 ignored.
+            elements_excluded: When given, every phase that contains **any** of
+                these elements is dropped.  This is the "must be absent" half of
+                the three-state element restraint; together with
+                *elements_allowed* it expresses "only the elements I detected".
+                An element that occurs in no phase excludes nothing (it cannot
+                rule a phase out), which is the opposite of the ``required``
+                semantics above.
             diversify_slots: How many of the ``rank_limit`` slots are filled by
                 the hit-count order instead of the legacy main-peak order
                 (default: :data:`_DIVERSIFY_SHARE` of the limit; ``0`` keeps the
@@ -935,6 +987,10 @@ class XinDBReader:
             keep = self.element_filter(elements_allowed, n)
             if keep is not None:
                 cand &= keep
+        if elements_excluded:
+            keep = self.element_exclude_filter(elements_excluded, n)
+            if keep is not None:
+                cand &= keep
 
         sel = np.flatnonzero(cand)
         if sel.size == 0:
@@ -942,8 +998,21 @@ class XinDBReader:
 
         # lexsort's last key is the primary one and the sort is ascending;
         # negate the numeric keys and invert the boolean to emulate a
-        # descending order on (main_hit, whits, hits).
-        legacy = sel[np.lexsort((-hits[sel], -whits[sel], ~main_hit[sel]))]
+        # descending order on (main_hit, hits, whits).
+        #
+        # 2026-11-06: the second key is a **switch**, not a fixed choice.
+        # Measured on the 800-slot pool (13 synthetic + 12 real patterns,
+        # 67 truth phases): intensity-shape second recalls 39/67, hit count
+        # second recalls 51/67.  But end-to-end the two rulers disagree —
+        # hit count wins on real patterns (T1 10/12→11/12, phase recall
+        # 19/43→23/43) and loses on synthetic ones (T1 11/13→8/13), because
+        # synthetic patterns are rebuilt from the library's own intensities.
+        # Dropping the main-peak gate altogether collapses the pool to 41/67,
+        # so that gate stays primary in both modes.  See :data:`_ORDER_HITS`.
+        if self.prescreen_order == _ORDER_HITS:
+            legacy = sel[np.lexsort((-whits[sel], -hits[sel], ~main_hit[sel]))]
+        else:
+            legacy = sel[np.lexsort((-hits[sel], -whits[sel], ~main_hit[sel]))]
         limit = int(rank_limit if rank_limit is not None else self.rank_limit)
         limit = max(1, limit)
         truncated = sel.size > limit
@@ -1091,6 +1160,40 @@ class XinDBReader:
             if not keep.any():
                 return keep
         return keep
+
+    def element_exclude_filter(
+        self, elements: Iterable[str], n: int
+    ) -> np.ndarray | None:
+        """Boolean mask of the phases that contain **none** of *elements*.
+
+        The counterpart of :meth:`element_filter`: that one enforces "must be
+        present", this one "must be absent".  Together they express the
+        chemistry-side sanity constraint — a phase may only contain elements
+        the sample actually shows (XRF/EDS), so a Bi-Y-O card cannot be
+        confirmed in a ZnO + Al2O3 + CaF2 mixture.
+
+        An unknown element (one that occurs in no phase) excludes nothing:
+        unlike the ``required`` direction, where it must empty the result,
+        here it simply cannot rule any phase out.
+
+        Args:
+            elements: Element symbols to forbid.
+            n: Number of entries in the database.
+
+        Returns:
+            A boolean array of length *n*, or ``None`` when the request carries
+            no usable element (in which case no filtering should happen).
+        """
+        banned = [str(e).strip().title() for e in elements if str(e).strip()]
+        if not banned:
+            return None
+        drop = np.zeros(n, dtype=bool)
+        for element in banned:
+            idx = self.element_index(element)
+            if idx is None or idx.size == 0:
+                continue
+            drop[idx[idx < n]] = True
+        return ~drop
 
     # ── discovery ─────────────────────────────────────────
     def probe(self) -> tuple[bool, str]:

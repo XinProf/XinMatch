@@ -37,10 +37,34 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.win32 import versioninfo as vi
 
-# ---- Version (read-only mirror of pyproject [project] version = 3.4.0) ----
+# ---- Version: single source = pyproject.toml [project] version ------------
+# 这里曾经写死 "3.4.0"，与 pyproject 的 3.4.1 漂移 —— 冻结 exe 的 About、
+# .xinm manifest、安装包文件名于是各说一个版本。现在只从 pyproject 推导，
+# 再由下方 guard 比对 ``__init__._FALLBACK_VERSION``、由
+# ``tests/test_version_consistency.py`` 比对 iss 的 AppVersion，三处闭环。
 APP_NAME = "XinMatch"
-APP_VERSION = "3.4.0"
-VERSION_TUPLE = (3, 4, 0, 0)
+_SPEC_DIR = Path(globals().get("SPECPATH") or os.getcwd())
+
+
+def _pyproject_version() -> str:
+    """Read ``[project] version`` without requiring tomllib (Py 3.10)."""
+    import re
+
+    text = (_SPEC_DIR / "pyproject.toml").read_text(encoding="utf-8")
+    section = re.search(
+        r"^\[project\]\s*$(.*?)(?=^\[)", text, re.MULTILINE | re.DOTALL
+    )
+    if not section:
+        raise SystemExit("pyproject.toml 缺少 [project] 段，无法推导版本号")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', section.group(1), re.MULTILINE)
+    if not m:
+        raise SystemExit("pyproject.toml 的 [project] 段缺 version")
+    return m.group(1)
+
+
+APP_VERSION = _pyproject_version()
+_V_PARTS = [int(p) for p in APP_VERSION.split(".")]
+VERSION_TUPLE = tuple((_V_PARTS + [0, 0, 0, 0])[:4])
 
 # ---- Build variant (v1.7.0): release = 正式版（含注册机制） / internal = 内部评估版 ----
 # 由环境变量 XINMATCH_BUILD_VARIANT 指定（tools/build_exe.ps1 -Variant）。
@@ -53,7 +77,6 @@ VERSION_TUPLE = (3, 4, 0, 0)
 # dist/xinmatch-<Version>/（也就是另一个已建好的变体）再写新内容。
 # 环境变量在部分调用链上不保证传到子进程（实测过 -File 嵌套时丢失），
 # 文件是确定性的，所以让它说话。
-_SPEC_DIR = Path(globals().get("SPECPATH") or os.getcwd())
 _VARIANT_REQUEST = _SPEC_DIR / "build" / "variant.request"
 
 

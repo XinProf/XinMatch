@@ -30,7 +30,7 @@ from xinmatch.core.db.multi_db import (
     resolve_default,
 )
 from xinmatch.core.io import load_pattern
-from xinmatch.core.model import Entry, Peak
+from xinmatch.core.model import Entry, Peak, Restraints
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.peak.peak_search import find_peaks
@@ -1224,11 +1224,22 @@ class MainWindow(QtWidgets.QMainWindow):
             else "峰列表 FoM 检索"
         )
 
+        # 限制条件必须在这里（GUI 线程）读出来再带进工作线程：周期表面板是
+        # QWidget，从 worker 里碰它属于跨线程访问控件，Windows 上会随机崩。
+        restraints = self._current_restraints()
+        if restraints is not None and mode == SEARCH_MODE_FPFM_FULL:
+            # FPFM 的检索链（core/search/fpfm.py）没有 restraints 形参，元素
+            # 三态到不了预筛。宁可在这里明说，也不要让用户以为红色元素生效了。
+            self.statusBar().showMessage(
+                "提示：元素限制条件不参与 FPFM 全谱拟合检索（仅峰列表 FoM 生效）",
+                8000,
+            )
+
         started = run_with_busy(
             self,
             "Search-Match",
             f"正在执行{mode_desc}…\n对参考数据库逐条比对/拟合，请稍候。",
-            lambda: self._do_search(pattern, conn, mode),
+            lambda: self._do_search(pattern, conn, mode, restraints),
             on_success=self._apply_search_results,
             on_error=self._show_search_error,
         )
@@ -1237,11 +1248,31 @@ class MainWindow(QtWidgets.QMainWindow):
             # so nobody will close the connection we just opened.
             conn.close()
 
+    def _current_restraints(self) -> Restraints | None:
+        """把「限制条件」面板的元素三态转成 :class:`Restraints`（GUI 线程调用）。
+
+        面板关掉或没选任何元素时返回 ``None``，调用方据此走原来的无约束检索，
+        保证「不用这个面板」的用户行为逐位不变。
+
+        为什么需要这一步：三态里的「排除」长期没有任何下游消费者 —— 面板能标红、
+        摘要会显示「排除：Bi」，但检索链一路到预筛都没读过它。于是「样品里没有
+        Bi」这条化学上最硬的先验进不了召回，基准报告 §11.5 的 ``3-2``
+        ``Bi-Y-O`` 假卡只能靠肉眼剔。
+        """
+        panel = getattr(self, "periodic_panel", None)
+        if panel is None or not panel.is_enabled():
+            return None
+        states = panel.states()
+        if not states:
+            return None
+        return Restraints(elements=dict(states))
+
     def _do_search(
         self,
         pattern: Pattern,
         conn,
         mode: str,
+        restraints: Restraints | None = None,
     ) -> tuple[list[CandidateResult], str, list | None]:
         """检索工作体（运行在工作线程，禁止触碰 GUI）。
 
@@ -1258,7 +1289,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 results, mode_label = self._search_fpfm(pattern, conn)
             else:
                 peaks = find_peaks(pattern.two_theta, pattern.intensity)
-                results = search_match(peaks, conn, pattern.wavelength)
+                results = search_match(peaks, conn, pattern.wavelength,
+                                       restraints=restraints)
                 mode_label = "峰列表 FoM"
         finally:
             conn.close()

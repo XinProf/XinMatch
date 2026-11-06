@@ -7,8 +7,10 @@ weak measured peak, so it never makes the candidate cut (2026-11-04: Al₂O₃ a
 CaF₂ in a ZnO + Al₂O₃ + CaF₂ pattern were absent from an 800-slot pool although
 they rank 197 with an 8000-slot pool).
 
-These tests pin the fix: part of the quota is filled by hit count alone, and
-``diversify_slots=0`` reproduces the legacy behaviour exactly.
+3.2.0 的解法是「抽一部分名额改用命中数排序」。3.5.0 复核后**保留**这道配额：
+它仍然是次相进池的通道（默认口径下关掉它会同时损失合成 T1 与真实卡级相召回）。
+另一种口径（``prescreen_order="hits"``，命中数直接做次键）下配额才变成负收益，
+见 ``test_prescreen_order.py`` 与报告 §16。下面这些测试固定配额机制本身。
 """
 
 from __future__ import annotations
@@ -22,9 +24,16 @@ from xinmatch.core.model.entry import Entry
 # ---------------------------------------------------------------------------
 # slot arithmetic
 # ---------------------------------------------------------------------------
-def test_default_share_halves_the_pool():
-    assert _diverse_slots(800, None) == round(800 * _DIVERSIFY_SHARE)
-    assert _diverse_slots(1, None) == round(1 * _DIVERSIFY_SHARE)
+def test_default_share_is_twenty_percent():
+    """默认口径（``intensity``）下配额仍是 20%：它是次相进池的唯一通道。
+
+    3.5.0 实测：配额只对新排序（``prescreen_order="hits"``）有害；默认口径下
+    关掉它会同时损失合成 T1（11/13→9/13）与真实卡级相召回（19/43→18/43）。
+    """
+    assert _DIVERSIFY_SHARE == 0.2
+    assert _diverse_slots(800, None) == 160
+    assert _diverse_slots(800, 0) == 0          # 显式关闭
+    assert _diverse_slots(800, 200) == 200
 
 
 def test_override_is_clamped():

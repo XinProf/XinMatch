@@ -35,9 +35,14 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "3.4.0",
+    # 留空 = 从 pyproject.toml 读取（唯一真相源）。仅在需要打「版本号与源码
+    # 不符」的临时包时显式传入。
+    [string]$Version = "",
     [ValidateSet("release", "internal")]
-    [string]$Variant = "release"
+    [string]$Variant = "release",
+    # 便携树建完后顺带用 Inno Setup 打安装包（release 变体专用）。
+    # 版本号与源目录都用 /D 传给 iss，避免脚本与 .iss 各写一份而漂移。
+    [switch]$Installer
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,6 +56,17 @@ $pyExe = if ($env:XINMATCH_PYTHON) { $env:XINMATCH_PYTHON } else { "D:\Project\X
 if (-not (Test-Path $pyExe)) {
     throw "Python not found at $pyExe (set XINMATCH_PYTHON to override)."
 }
+
+# ---- Version: derived from pyproject.toml (single source of truth) --------
+# 以前这里是 `[string]$Version = "3.4.0"`，与 pyproject 的 3.4.1 漂移，于是
+# 产物目录叫 dist\xinmatch-3.4.0\、exe 版本资源却是另一个号。现在默认值不再
+# 写死：不带 -Version 时问包自己要（__version__ 读的就是 pyproject）。
+# 只有确实要打一个「版本号与源码不同」的包时才显式 -Version，正常发布不要用。
+if (-not $Version) {
+    $Version = (& $pyExe -c "import xinmatch; print(xinmatch.__version__)").Trim()
+    if (-not $Version) { throw "无法从 pyproject.toml 解析版本号" }
+}
+Write-Host "==> Version : $Version (source: pyproject.toml)"
 
 $buildDir = Join-Path $root "build"
 $distDir  = Join-Path $root "dist"
@@ -137,6 +153,14 @@ $guiExe = Join-Path $outDir "XinMatch.exe"
 if (Test-Path $guiExe) {
     $sz = [math]::Round((Get-Item $guiExe).Length / 1MB, 1)
     Write-Host ("    {0,8} MB  {1}" -f $sz, $guiExe)
+    # 版本资源必须与 pyproject 一致：曾经 exe 报 3.4.0、包报 3.4.1，
+    # 用户报 bug 时给的号对不上 tag。spec 里的 guard 只挡「spec ≠ __init__」，
+    # 这里从产物侧再核一遍（spec 已改为从 pyproject 推导）。
+    $exeVer = (Get-Item $guiExe).VersionInfo.FileVersion
+    if ($exeVer -ne $Version) {
+        throw "Version resource mismatch: exe FileVersion='$exeVer' != '$Version'."
+    }
+    Write-Host "==> Exe version resource OK : $exeVer"
 } else {
     Write-Warning "MISSING: $guiExe"
 }
@@ -148,4 +172,26 @@ if ($lib) {
     Write-Host "==> Default reference library: data\$($lib.Name) (解压即可检索)"
 } else {
     Write-Host "==> Remember: no .xinDB was bundled — mount one via 设置→参考数据库…"
+}
+
+# ---- 4. Optional installer (Inno Setup) -----------------------------------
+# 版本号只在这里传一次：`/DAppVersion` + `/DDistDir`，iss 里的默认值只是
+# 「没带参数时」的兜底（由 tests/test_version_consistency.py 保证它也不漂）。
+if ($Installer) {
+    if ($Variant -ne "release") { throw "-Installer 只对 release 变体有效。" }
+    $iscc = @(
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "C:\Program Files\Inno Setup 6\ISCC.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $iscc) { throw "未找到 Inno Setup 6 的 ISCC.exe，请先安装 Inno Setup 6。" }
+
+    $iss = Join-Path $root "tools\xinmatch_setup.iss"
+    Write-Host ""
+    Write-Host "==> Building installer ($iscc)"
+    & $iscc "/Qp" "/DAppVersion=$Version" "/DDistDir=$outDir" $iss
+    if ($LASTEXITCODE -ne 0) { throw "ISCC failed (exit $LASTEXITCODE)." }
+    $setup = Join-Path $distDir "XinMatch-Setup-$Version.exe"
+    if (-not (Test-Path $setup)) { throw "安装包未生成：$setup" }
+    $setupMB = [math]::Round((Get-Item $setup).Length / 1MB, 1)
+    Write-Host "==> Installer OK : $setup ($setupMB MB)"
 }

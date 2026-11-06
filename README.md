@@ -8,7 +8,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.4.0.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.5.0.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
 > multi-phase identification** (confirm a phase → re-search on the remaining
 > unexplained peaks → confirm the next) + true March-Dollase preferred
@@ -45,6 +45,15 @@ workflows, published algorithms and open reference data (COD).
 >   not deprecated;
 > * still mountable from any folder (设置→参考数据库…, or
 >   `xinmatch libraries --add <path>`), `.xinDB` only.
+>
+> **v3.5.0** 修的是「界面说有、实际没有」：三态元素约束里的**红色（必须不含）**
+> 此前全仓零引用 —— 面板能标红、摘要显示「排除：Bi」，但检索入口从不传
+> `restraints`，预筛也没有这条通路。现在红色元素在预筛层经 `element_inv` 倒排
+> 真正剔除含该元素的相，与绿色（必含）取交集；真实谱上（理想 XRF 设定）
+> Top-1 命中 10/12 → **12/12**，逐相名次 21 升 / 4 降。同时把版本号收成
+> **单一真相源**（此前 pyproject 3.4.1、`_FALLBACK_VERSION` 3.4.0、spec 3.4.0、
+> iss 10 处 3.4.0 → 冻结 exe 的 About 与安装包名各说一个版本）。检索默认行为
+> 逐项不变；详见 [docs/RELEASE-NOTES-v3.5.0.md](docs/RELEASE-NOTES-v3.5.0.md)。
 >
 > See [ROADMAP_v3.md](ROADMAP_v3.md) for the full implementation plan and
 > [docs/STATUS.md](docs/STATUS.md) for current progress.
