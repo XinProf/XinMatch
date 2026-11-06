@@ -53,6 +53,8 @@ import numpy as np
 from xinmatch.core.db.reader_v3 import XinDBReader
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Entry
+from xinmatch.core.model.entry import parse_formula
+from xinmatch.core.model.restraints import Restraints
 from xinmatch.core.peak.peak_search import find_peaks
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.search.fom import CandidateResult
@@ -60,6 +62,13 @@ from xinmatch.core.search.mineral_name import has_species_name, mineral_name_mat
 from xinmatch.core.search.phase_key import group_same_phase, same_phase
 from xinmatch.core.search.search_match import search_match
 from xinmatch.core.search.sequential import SequentialIdentifier, search_residual
+
+#: 元素符号全集，用于构造「其余元素一律排除」的排除集。
+#: 「必须不含」是预筛层唯一的"减法"约束（`elements_allowed` 是"必须全含"，
+#: 语义不同），所以"只允许这些元素"必须表达成补集。
+ALL_ELEMENTS: tuple[str, ...] = tuple(
+    ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn", "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Ho", "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn", "Ra", "Ac", "Th", "Pa", "U", "Np", "Pu"]
+)
 
 #: sample → [(label, formula-ratio string)]，真相来自 `物相结果+wt%.txt`
 TRUTH: dict[str, list[tuple[str, str]]] = {
@@ -211,6 +220,28 @@ FINE_NOTES = (
 )
 
 
+def _oracle_restraints(items, fine_truths) -> Restraints | None:
+    """「样品元素已知」口径的约束：真值元素留下，其余全部标为必须不含。
+
+    现实中样品元素来自 XRF/EDS 或工艺配方，不是从答案反推。这里用真值构造，
+    所以它是**上界**：衡量"化学信息给足时引擎能做到什么"，不能当自动结果报。
+    """
+    elems: set[str] = set()
+    for _label, formula in items:
+        elems |= set(parse_formula(formula))
+    for t in fine_truths:
+        elems |= set(t.family_required) | set(t.family_optional)
+        if t.formula:
+            elems |= set(parse_formula(t.formula))
+    if not elems:
+        return None
+    restraints = Restraints()
+    for el in ALL_ELEMENTS:
+        if el not in elems:
+            restraints.exclude(el)
+    return restraints
+
+
 def _truth_entry(label: str, formula: str) -> Entry:
     """Truth phase as an Entry carrying **only** a formula (no cell).
 
@@ -268,6 +299,10 @@ def main() -> None:
                     help="序贯确认轮数（0 = 只跑整谱检索）")
     ap.add_argument("--family-slots", type=int, default=None,
                     help="预筛每族名额上限（默认不设限；1 = 每族只留最强一张卡）")
+    ap.add_argument("--oracle-elements", action="store_true",
+                    help="额外跑一套「元素上界」口径：用真值化学式推出样品元素，"
+                         "把其余元素全部标为必须不含（现实中由 XRF/EDS 给出）。"
+                         "这是**上界**，不是可直接交付的自动结果")
     ap.add_argument("--raw-peaks", action="store_true",
                     help="不做自动预处理，直接在原始谱上寻峰（用于对照）")
     ap.add_argument("--out", type=Path, default=None)
@@ -281,6 +316,8 @@ def main() -> None:
     f_n = 0
     f_top1 = f_top5 = f_all5 = f_full = 0
     f_hit = f_hit_fam = f_n_phases = 0
+    # 元素上界口径（--oracle-elements）：与上面两套并列，分母相同
+    e_n = e_top1 = e_top5 = e_hit = e_hit_fam = e_n_phases = e_full = 0
 
     for sample, items in sorted(TRUTH.items()):
         path = args.patterns / f"{sample}.txt"
@@ -362,6 +399,45 @@ def main() -> None:
         f_n_phases += len(fine_truths)
         f_hit += sum(f_in_top)
         f_hit_fam += sum(f_in_fam)
+        e_top: list[bool] = []
+        e_top_fam: list[bool] = []
+        e_t1 = e_t5 = False
+        e_found = 0
+        if args.oracle_elements:
+            restraints = _oracle_restraints(items, fine_truths)
+            if restraints is not None:
+                whole_e = search_match(peaks, reader, pattern.wavelength,
+                                       top_n=deep_n, restraints=restraints)
+                cards_e = whole_e[:args.top_n]
+                fam_e = [whole_e[g[0]] for g in
+                         group_same_phase([c.entry for c in whole_e])][:args.top_n]
+                e_top = [any(_hit(c, [t]) for c in cards_e) for t in truths]
+                e_top_fam = [any(_hit(c, [t]) for c in fam_e) for t in truths]
+                e_t1 = bool(whole_e) and _hit(whole_e[0], truths)
+                e_t5 = any(_hit(c, truths) for c in whole_e[:5])
+                if items:
+                    e_n += 1
+                    e_n_phases += len(truths)
+                    e_top1 += e_t1
+                    e_top5 += e_t5
+                    e_hit += sum(e_top)
+                    e_hit_fam += sum(e_top_fam)
+                if args.rounds > 0:
+                    seq_e = SequentialIdentifier(peaks, wavelength=pattern.wavelength)
+                    confirmed_e: list[Entry] = []
+                    for _ in range(args.rounds):
+                        res_e = search_residual(seq_e, reader, top_n=args.top_n,
+                                                restraints=restraints)
+                        if not res_e.candidates:
+                            break
+                        seq_e.select(res_e.candidates[0])
+                        confirmed_e.append(res_e.candidates[0].entry)
+                    e_found = sum(
+                        any(same_phase(e, t) for e in confirmed_e) for t in truths
+                    )
+                    if items:
+                        e_full += e_found == len(truths)
+
         rows.append({
             "sample": sample,
             "n_peaks": len(peaks),
@@ -386,6 +462,12 @@ def main() -> None:
             "fine_hit_top5": f_t5,
             "fine_sequential_hit_phase": found_phases_fine,
             "fine_top1_mineral": (top1.entry.mineral_name or None) if top1 else None,
+            # ── 元素上界口径（--oracle-elements），同样独立，不与上面混算 ──
+            "oracle_phase_in_top": e_top,
+            "oracle_phase_in_top_family": e_top_fam,
+            "oracle_hit_top1": e_t1,
+            "oracle_hit_top5": e_t5,
+            "oracle_sequential_hit_phase": e_found,
         })
 
     print(f"{'sample':<8}{'npk':>5}  {'Top-1':<15}{'T1':>3}{'T5':>3}  "
@@ -433,6 +515,25 @@ def main() -> None:
           f"序贯完整回收 {f_full}/{f_n}")
     print(f"细口径定义：{FINE_NOTES}")
 
+    if args.oracle_elements:
+        print(f"\n[元素上界] 真值元素已知（其余必须不含），分母 {e_n_phases} 相")
+        print(f"{'sample':<8}{'npk':>5}  {'卡级':<14}{'族级':<14}{'序贯':>6}")
+        for r in rows:
+            if not r["truth"]:
+                continue
+            marks = "".join("Y" if h else "." for h in r["oracle_phase_in_top"])
+            marks_f = "".join("Y" if h else "." for h in r["oracle_phase_in_top_family"])
+            print(f"{r['sample']:<8}{r['n_peaks']:>5}  "
+                  f"{marks:<6}{sum(r['oracle_phase_in_top']):>2}/"
+                  f"{len(r['truth']):<5}"
+                  f"{marks_f:<6}{sum(r['oracle_phase_in_top_family']):>2}/"
+                  f"{len(r['truth']):<5}"
+                  f"{r['oracle_sequential_hit_phase']}/{len(r['truth'])}")
+        print(f"[元素上界] 整谱 Top-1 {e_top1}/{e_n}　Top-5 {e_top5}/{e_n}　"
+              f"相召回（Top-{args.top_n} 卡）{e_hit}/{e_n_phases}　"
+              f"（族）{e_hit_fam}/{e_n_phases}　序贯完整 {e_full}/{e_n}")
+        print("[元素上界] 这是**上界**：元素由真值反推，现实中来自 XRF/EDS 或配方")
+
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(
@@ -449,6 +550,12 @@ def main() -> None:
                     "top5_all_phases": n_all5,
                     "phase_recall": [hit_phases, n_phases],
                     "full_recovery": n_full,
+                },
+                "totals_oracle": {
+                    "samples": e_n, "top1": e_top1, "top5": e_top5,
+                    "phase_recall": [e_hit, e_n_phases],
+                    "phase_recall_family": [e_hit_fam, e_n_phases],
+                    "full_recovery": e_full,
                 },
                 "totals_fine": {
                     "samples": f_n, "top1": f_top1, "top5": f_top5,
