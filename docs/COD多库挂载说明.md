@@ -16,7 +16,9 @@
   `reader_v3` 只校验 `REQUIRED_TABLES` + `schema_version`，所以任何按 v3 落盘的库天然可挂载。
 - **两类挂载**：
   - **内置（按文件名自动发现）**：`multi_db` 从数据目录 glob 出
-    `COD-Full-*.xinDB` / `PCOD-Full-*.xinDB` / `TCOD-Full-*.xinDB`，无需注册。
+    `COD-Full-*.xinDB` / `TCOD-Full-*.xinDB`，无需注册。
+    （`PCOD-Full-*` 也在此 glob 模式内，但 PCOD 全为无机、与 PCOD-Inorg 等同，
+    按决定不再单独构建，因此实际不会出现该文件，缺失属预期而非遗漏。）
   - **外部（注册表持久化）**：其余库（无机子库、MP、PDF-2 等）通过
     `multi_db.add_external_library(path)` 登记到
     `~/.xinmatch/libraries.json`（`XINMATCH_USER_DATA` 可覆盖），跨会话保留。
@@ -36,7 +38,7 @@
 | TCOD 无机物 | `XinMatch-DataBase/data/TCOD-Inorg-20261020.xinDB` | **46,846** | 外部库 | 可用 |
 | TCOD 全库 | `XinMatch-DataBase/data/TCOD-Full-20261020.xinDB` | **361,701** | 内置（glob） | 可用 |
 | PCOD 无机物 | `XinMatch-DataBase/data/PCOD-Inorg-20261020.xinDB` | **1,061,953** | 外部库 | 可用 |
-| PCOD 全库 | `XinMatch-DataBase/data/PCOD-Full-20261020.xinDB` | — | 内置（glob） | 待构建（缺失时置灰） |
+| PCOD 全库 | `XinMatch-DataBase/data/PCOD-Full-20261020.xinDB` | 1,061,962（等同） | 内置（glob） | **按决定跳过**：PCOD 全为无机（manifest `is_inorg=1` 比例 100%），与 PCOD-Inorg 实质等同，不再单独构建 |
 | Materials Project | `XinMatch-DataBase/data/MP-20261031.xinDB` | **155,201** | 外部库 | 可用 |
 | ICDD PDF-2 2004 | `XinMatch-DataBase/data/PDF2-20040317.xinDB` | **163,834** | 外部库（实测卡片） | 可用 |
 

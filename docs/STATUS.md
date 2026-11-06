@@ -1190,7 +1190,7 @@ SHA-256 已写入 `dist/SHA256SUMS.txt` 并用 `sha256sum -c` 回验通过（Set
 | 轮次 | 动作 | 结果 |
 |---|---|---|
 | 1 版本一致性 | 三个形态 `--version` + exe `FileVersion` 资源 | 全部 `3.5.0` |
-| 2 库注册 | `libraries --json` | `xindb_cod_inorg` / `available:true` / `entries:78035`；把 `XINMATCH_XINDB_DIR` 指到 `XinMatch-DataBase\data` 后 7 个库全部识别（COD-Inorg 78,035 / COD-Full 532,038 / PCOD-Inorg 1,061,953 / TCOD-Inorg 46,846 / TCOD-Full 361,701 / MP 155,201 / PDF2 163,834），仅 PCOD-Full 未建 |
+| 2 库注册 | `libraries --json` | `xindb_cod_inorg` / `available:true` / `entries:78035`；把 `XINMATCH_XINDB_DIR` 指到 `XinMatch-DataBase\data` 后 7 个库全部识别（COD-Inorg 78,035 / COD-Full 532,038 / PCOD-Inorg 1,061,953 / TCOD-Inorg 46,846 / TCOD-Full 361,701 / MP 155,201 / PDF2 163,834），仅 PCOD-Full 按决定跳过（与 PCOD-Inorg 等同，非遗漏） |
 | 3 冻结检索 | 真实样本 `3-1.txt`（207 峰）对 78k 相库 | 36 s 出榜，榜首 `zincite`(ZnO) 正确 |
 | 4 新功能穿透 | `--restraints '{"elements":{"Zn":"red"}}'` | ZnO 全数消失、榜首跌到 `Mo Ni`（FoM 0.773→0.685）—— 约束在冻结产物上真的生效，不是只在源码里 |
 | 5 安装 / 启动 / 便携 | `/VERYSILENT` 安装 → GUI offscreen 启动 → 卸载；zip `7z t` | 安装退出 0、3562 文件、`variant.txt=release`、GUI 存活 12 s 无崩溃；卸载退出 0；zip CRC 全过 |
