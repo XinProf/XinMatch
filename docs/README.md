@@ -12,7 +12,9 @@
 | [`STATUS.md`](STATUS.md) | 路线图任务完成状态（按 Phase / T 编号，含每个版本的发布记录） |
 | [`../ROADMAP_v3.md`](../ROADMAP_v3.md) | **当前**路线图（v1/v2 为历史版本） |
 | [`../FUNCTION_MAP_v43.md`](../FUNCTION_MAP_v43.md) | **当前**功能映射（对齐参考软件 4.3） |
-| [`RELEASE-NOTES-v3.3.0.md`](RELEASE-NOTES-v3.3.0.md) | **当前版本**（v3.3.0）发布说明：少线相 ★ 强线锚定标记 |
+| [`RELEASE-NOTES-v3.5.0.md`](RELEASE-NOTES-v3.5.0.md) | **当前版本**（v3.5.0）发布说明：元素「必须不含」约束落地 + 版本号单一真相源 |
+| [`RELEASE-NOTES-v3.4.0.md`](RELEASE-NOTES-v3.4.0.md) | v3.4.0 发布说明（导出物相分析 `.xinm`） |
+| [`RELEASE-NOTES-v3.3.0.md`](RELEASE-NOTES-v3.3.0.md) | v3.3.0 发布说明：少线相 ★ 强线锚定标记 |
 | [`RELEASE-NOTES-v3.2.0.md`](RELEASE-NOTES-v3.2.0.md) | v3.2.0 发布说明（相位级身份 + 候选折叠） |
 | [`RELEASE-NOTES-v3.1.0.md`](RELEASE-NOTES-v3.1.0.md) | v3.1.0 发布说明（序贯物相鉴定） |
 
@@ -54,7 +56,8 @@
 | [`CODE-REVIEW-v3.0.0-20261024.md`](CODE-REVIEW-v3.0.0-20261024.md) | **当前**：v3.0.0 全面代码评估 + 缺陷修复 + 三库验收结论 + 下一步建议 |
 | [`v3.0.0-验收报告.md`](v3.0.0-验收报告.md) | v3.0.0 实现过程与建库/峰引擎/检索验收（2026-10-23） |
 | [`CODE_REVIEW-20261018.md`](CODE_REVIEW-20261018.md) | v2.0.0 前全量代码评审 + 分批改进方案（含实施状态） |
-| [`HANDOVER.md`](HANDOVER.md) | 交接总览 |
+| [`HANDOVER-20261106.md`](HANDOVER-20261106.md) | **当前交接记录**（2026-11-06）：目标 / 设计 / 拆分原则 / 验收方法 / 进展 / 坑与经验 / 下一步 / 备忘 |
+| [`HANDOVER.md`](HANDOVER.md) | 交接总览（2026-10-08，架构与任务拆分标准仍适用） |
 | [`HANDOVER-20261012.md`](HANDOVER-20261012.md) / [`HANDOVER-20261013.md`](HANDOVER-20261013.md) | 历次交接记录 |
 
 ## 验收记录
