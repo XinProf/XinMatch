@@ -305,10 +305,17 @@ def main() -> None:
                          "这是**上界**，不是可直接交付的自动结果")
     ap.add_argument("--raw-peaks", action="store_true",
                     help="不做自动预处理，直接在原始谱上寻峰（用于对照）")
+    ap.add_argument("--prescreen-order", choices=("intensity", "hits"),
+                    default="intensity",
+                    help="预筛第二排序键（默认 intensity = 发布口径；hits 为待裁定口径）。"
+                         "配置会写进结果 JSON —— 基线按配置认，不按文件名认")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    reader = XinDBReader(args.library, family_slots=args.family_slots)
+    reader = XinDBReader(args.library, family_slots=args.family_slots,
+                         prescreen_order=args.prescreen_order)
+    print(f"[配置] prescreen_order={args.prescreen_order}  "
+          f"family_slots={args.family_slots}  top_n={args.top_n}  rounds={args.rounds}")
     rows: list[dict] = []
     n = n_top1 = n_top5 = n_all5 = n_full = 0
     hit_phases = hit_phases_fam = n_phases = 0
@@ -542,6 +549,10 @@ def main() -> None:
                 "library": str(args.library),
                 "top_n": args.top_n,
                 "rounds": args.rounds,
+                "config": {
+                    "prescreen_order": args.prescreen_order,
+                    "family_slots": args.family_slots,
+                },
                 "notes": NOTES,
                 "notes_fine": FINE_NOTES,
                 "excluded": EXCLUDED,

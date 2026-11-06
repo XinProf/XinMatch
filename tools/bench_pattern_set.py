@@ -88,10 +88,17 @@ def main() -> None:
     ap.add_argument("--top-n", type=int, default=20)
     ap.add_argument("--family-slots", type=int, default=None,
                     help="预筛每族名额上限（默认不设限；1 = 每族只留最强一张卡）")
+    ap.add_argument("--prescreen-order", choices=("intensity", "hits"),
+                    default="intensity",
+                    help="预筛第二排序键（默认 intensity = 发布口径；hits 为待裁定口径）。"
+                         "配置会写进结果 JSON —— 基线按配置认，不按文件名认")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    reader = XinDBReader(args.library, family_slots=args.family_slots)
+    reader = XinDBReader(args.library, family_slots=args.family_slots,
+                         prescreen_order=args.prescreen_order)
+    print(f"[配置] prescreen_order={args.prescreen_order}  "
+          f"family_slots={args.family_slots}  top_n={args.top_n}  rounds={args.rounds}")
     rows: list[dict] = []
     n_top1 = n_top5 = n_full = n_phases_hit = n_phases = 0
     n_top1_phase = n_top5_phase = 0
@@ -182,6 +189,10 @@ def main() -> None:
                 {
                     "patterns": str(args.patterns),
                     "library": str(args.library),
+                    "config": {
+                        "prescreen_order": args.prescreen_order,
+                        "family_slots": args.family_slots,
+                    },
                     "n_samples": n,
                     "top1": n_top1,
                     "top5": n_top5,
