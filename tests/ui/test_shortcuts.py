@@ -56,10 +56,13 @@ def test_injected_callbacks_fire(qapp):
 def test_default_wiring_triggers_module_action(qapp):
     win = MainWindow()
     registered = install_shortcuts(win)
-    # Ctrl+A → raw_processing 模块占位动作 → 状态栏提示
+    # Ctrl+A → raw_processing：批次 1 接线后带聚合子菜单（背景/平滑/Kα2/重置），
+    # 不再走占位播报；快捷键触发动作本身无副作用（子菜单不弹起）。
     registered["auto_raw_data_processing"].trigger()
-    assert "原始数据处理" in win.statusBar().currentMessage()
-    # Ctrl+F5 等 profile_fitting 条目同样联动
+    menu = win.module_actions["raw_processing"].menu()
+    assert menu is not None
+    assert [a.text() for a in menu.actions()] == ["背景扣除", "平滑", "Kα2 剥离", "重置"]
+    # Ctrl+F5 等 profile_fitting 条目仍为占位联动
     registered["profile_fit"].trigger()
     assert "Profile Fitting" in win.statusBar().currentMessage()
 

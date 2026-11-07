@@ -1945,3 +1945,30 @@ Full 2 min 24 s），元素约束上界与 `--coarse` 对照均已跑通。
   `tools.bench_real_samples` 导入报 ModuleNotFoundError。
 
 全文 `docs/基准报告-物相检索-v3.md` §37（§31.5 加更正注）。
+
+## GUI 批次 1 接线：5 个占位模块动作接到既有能力（2026-11-07）✅ 已完成
+
+P2「GUI 剩余向导 / 主题」拆解后的第一批。盘点结论先行：T13.0–T13.8 其实全部 ✅
+（主题/精修向导早已落地），「剩余」的真实含义是 15 个功能模块里有 11 个
+菜单/工具栏动作仍是 `_placeholder` 占位。本批把其中 5 个接到既有能力，
+**零新逻辑、零 core 改动**：
+
+- `data_import` → `_open_data_file`（与工具栏「打开数据…」Ctrl+O 同槽）；
+- `raw_processing` → 聚合子菜单（背景扣除 / 平滑 / Kα2 剥离 / 重置，同一批
+  QAction 对象，工具栏与菜单永远同步；子菜单在四个动作创建之后挂载）；
+- `peak_list` → `_detect_peaks`（与工具栏「峰检测」同槽）；
+- `restraints` → 新增 `_focus_restraints`：右侧坞限制条件页翻到最前
+  （与 `focus_sample_elements` 的样品元素引导区分开，状态栏提示不同）；
+- `rietveld` → `_open_refinement_wizard`（与精修向导 Ctrl+Shift+W 同槽）。
+
+仍占位（批次 2+，各有 core 能力待封装）：`data_export`（导出聚合菜单）、
+`profile_fitting`（`core.peak.profile_fit`）、`quant_analysis`（`core.quant`
+RIR/内标）、`microstructure`（`core.micro` 晶粒尺寸/微应变）、`indexing`
+（`core.index` DicVol/Treor）、`user_db`（无 core 能力，需求待定）。
+
+- **测试**：新 `tests/ui/test_module_wiring.py` 7 用例（同槽断言 / 子菜单聚合 /
+  dock 翻页 / 占位模块仍播报）；同步更新 `test_main_window.py` 与
+  `test_shortcuts.py` 里两处以 `raw_processing` 为占位示例的旧断言。
+  `tests/ui` 全套 170 用例通过；ruff / mypy(99) 通过。
+- **实现注意**：模块动作循环先于四个预处理动作创建执行，子菜单必须挂到循环
+  外（`_build_actions` 末尾），否则 `AttributeError: background_action`。

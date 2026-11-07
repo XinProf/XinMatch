@@ -376,6 +376,25 @@ class MainWindow(QtWidgets.QMainWindow):
             elif mod_id == "report_print":
                 # 报告预览：基于当前候选与峰列表渲染文本报告。
                 action.triggered.connect(self._run_report_preview)
+            elif mod_id == "data_import":
+                # 批次 1 接线：与工具栏「打开数据…」（Ctrl+O）同一入口。
+                action.triggered.connect(self._open_data_file)
+            elif mod_id == "raw_processing":
+                # 批次 1 接线：预处理已拆成工具栏四个真实动作（背景 / 平滑 /
+                # Kα2 剥离 / 重置）。菜单动作聚合同一组 QAction（无新逻辑）；
+                # 子菜单在这四个动作创建之后挂载（见本方法末尾）。
+                pass
+            elif mod_id == "peak_list":
+                # 批次 1 接线：与工具栏「峰检测」同一入口。
+                action.triggered.connect(self._detect_peaks)
+            elif mod_id == "restraints":
+                # 批次 1 接线：限制条件页（周期表三态 + 样品元素）已挂在
+                # 右侧坞，菜单动作把它翻到最前。
+                action.triggered.connect(self._focus_restraints)
+            elif mod_id == "rietveld":
+                # 批次 1 接线：与「精修向导…」（Ctrl+Shift+W）同一入口，
+                # 计算全委托 core.refine。
+                action.triggered.connect(self._open_refinement_wizard)
             else:
                 action.triggered.connect(
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
@@ -449,6 +468,14 @@ class MainWindow(QtWidgets.QMainWindow):
             lambda _checked=False: self._open_library_dialog(),
             "选择 COD 参考数据库进行检索",
         )
+
+        # 「原始数据处理」菜单动作聚合这四个预处理 QAction（批次 1 接线；
+        # 同一批对象，工具栏与菜单永远同步）。
+        _raw_menu = QtWidgets.QMenu(self)
+        for _act in (self.background_action, self.smooth_action,
+                     self.ko2_action, self.reset_action):
+            _raw_menu.addAction(_act)
+        self.module_actions["raw_processing"].setMenu(_raw_menu)
 
     def _tool_action(
         self,
@@ -1395,6 +1422,20 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             text = "样品元素：未设置"
         action.setText(text)
+
+    def _focus_restraints(self) -> None:
+        """「限制条件检索」菜单动作：把右侧坞的限制条件页翻到最前（批次 1）。"""
+        dock = getattr(self, "_restraints_dock", None)
+        tabs = getattr(self, "_restraints_tabs", None)
+        if dock is not None:
+            dock.show()
+            dock.raise_()
+        if tabs is not None:
+            tabs.setCurrentIndex(0)
+        self.statusBar().showMessage(
+            "在周期表上标元素（绿=必须含 / 黄=必须不含），多相样品建议再填「样品元素」",
+            10000,
+        )
 
     def focus_sample_elements(self) -> None:
         """把「限制条件」页翻到最前并聚焦快速录入框。"""
