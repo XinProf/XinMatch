@@ -293,6 +293,27 @@ def _fine_hit(cand: CandidateResult, truths: list[FineTruth]) -> bool:
     return any(fine_hit_entry(cand.entry, t) for t in truths)
 
 
+def family_members(
+    cards: list[CandidateResult], top_n: int
+) -> list[list[CandidateResult]]:
+    """族折叠后的前 ``top_n`` 个相族，**每族带全部成员卡**。
+
+    族折叠的语义是「同一物相的多张卡只占一个位置」，所以「这一族里有没有真值相」
+    必须对**族内所有成员**判定。只看代表卡等于把语义换成「这一族的榜首卡是不是
+    真值相」—— 那是另一件事：族首名次由排序决定，与拼写、设置、掺杂是否正确无关。
+
+    这不是假想的边界情况。COD 里存在拼写变体卡，同一个物相会分成几张卡，正确拼写
+    的那张不一定排在前面：BAUXITE 的族 6 由错拼 ``Bohmite``（rank 10）领衔，
+    ``Boehmite``（rank 15）在同一族里，14.93 wt% 的 Boehmite 因此被判成漏检。
+    改判族内全部成员后该相找回（IUCr 族级 44→45/48）；13 组实验室谱里找回的是
+    ``5-2/5-2b`` 的方解石（细族级 20→22/50，方解石的族首同样是无名卡）。
+
+    返回的顺序即族的排名顺序，与 ``group_same_phase`` 保序一致。
+    """
+    groups = group_same_phase([c.entry for c in cards])
+    return [[cards[i] for i in g] for g in groups[:top_n]]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--patterns", type=Path, required=True)
@@ -352,20 +373,20 @@ def main() -> None:
         deep_n = max(args.top_n * 4, 100)
         whole = search_match(peaks, reader, pattern.wavelength, top_n=deep_n)
         cards = whole[:args.top_n]
-        fam_reps = [whole[g[0]] for g in group_same_phase([c.entry for c in whole])]
-        fam_reps = fam_reps[:args.top_n]
+        fams = family_members(whole, args.top_n)
         top1 = whole[0] if whole else None
         top5 = whole[:5]
         t1 = bool(top1) and _hit(top1, truths)
         t5 = any(_hit(c, truths) for c in top5)
-        # 每个真值相是否出现（相召回，逐相计）：卡级 Top-N vs 折叠后 Top-N 族
+        # 每个真值相是否出现（相召回，逐相计）：卡级 Top-N vs 折叠后 Top-N 族。
+        # 族级对族内全部成员判定（见 family_members 的说明）。
         in_top = [any(_hit(c, [t]) for c in cards) for t in truths]
-        in_fam = [any(_hit(c, [t]) for c in fam_reps) for t in truths]
+        in_fam = [any(_hit(c, [t]) for fam in fams for c in fam) for t in truths]
         in_top5 = [any(_hit(c, [t]) for c in top5) for t in truths]
 
         # 细口径（矿物名级）：同一批候选，换用 TRUTH_FINE 判定
         f_in_top = [any(fine_hit_entry(c.entry, t) for c in cards) for t in fine_truths]
-        f_in_fam = [any(fine_hit_entry(c.entry, t) for c in fam_reps)
+        f_in_fam = [any(fine_hit_entry(c.entry, t) for fam in fams for c in fam)
                     for t in fine_truths]
         f_in_top5 = [any(fine_hit_entry(c.entry, t) for c in top5)
                      for t in fine_truths]
@@ -419,10 +440,10 @@ def main() -> None:
                 whole_e = search_match(peaks, reader, pattern.wavelength,
                                        top_n=deep_n, restraints=restraints)
                 cards_e = whole_e[:args.top_n]
-                fam_e = [whole_e[g[0]] for g in
-                         group_same_phase([c.entry for c in whole_e])][:args.top_n]
+                fams_e = family_members(whole_e, args.top_n)
                 e_top = [any(_hit(c, [t]) for c in cards_e) for t in truths]
-                e_top_fam = [any(_hit(c, [t]) for c in fam_e) for t in truths]
+                e_top_fam = [any(_hit(c, [t]) for fam in fams_e for c in fam)
+                             for t in truths]
                 e_t1 = bool(whole_e) and _hit(whole_e[0], truths)
                 e_t5 = any(_hit(c, truths) for c in whole_e[:5])
                 if items:

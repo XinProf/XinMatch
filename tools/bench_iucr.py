@@ -46,16 +46,23 @@ Anatase (2.00 %)     Anatase / Rutile / Brookite (40)
 Quartz (5.16 %)      Quartz / Cristobalite / Coesite / Moganite (309)
 ===================  ==================================================
 
-The bias between the two calibers runs **both ways**, and the measurement says
-so.  On COD-Inorg with elements supplied, fine and coarse both score 44/48 —
-the *same total*, a different *composition*:
+The bias between the two calibers is **measured, not reasoned** — and the
+measurement changed once the family rule was fixed.  On COD-Inorg with elements
+supplied (family level) fine scores 45/48 and coarse 44/48; the single
+difference is coarse under-counting:
 
-* **coarse over-counts** BAUXITE's Boehmite: a same-composition card that
-  carries no such mineral name occupies the slot, so a phase the name rule
-  correctly records as a miss is scored a hit;
 * **coarse under-counts** CPD-2's Brucite: most Brucite cards in the library
   are deuterated (``D1.96 H0.04 Mg O2``) and the ratio rule demands an
   identical element set, so those cards can never match ``H2 Mg O2``.
+
+An earlier version of this docstring also claimed coarse *over*-counted
+BAUXITE's Boehmite.  That turned out to be an artefact of judging a family by
+its **representative card** alone: the family was led by a misspelled
+``Bohmite`` card while the correctly spelled card sat at rank 15 inside the very
+same family.  Once the family check looks at every member, fine hits Boehmite
+too and the "over-count" disappears (report §29).  The lesson is recorded in
+``COARSE_NOTES``: a caliber difference you did not measure may be a bug in the
+caliber's implementation.
 
 Neither caliber is a superset of the other, so they are reported side by side
 and never averaged.
@@ -86,7 +93,12 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.bench_real_samples import FineTruth, fine_hit_entry, truth_entry
+from tools.bench_real_samples import (
+    FineTruth,
+    family_members,
+    fine_hit_entry,
+    truth_entry,
+)
 from xinmatch.core.db.reader_v3 import XinDBReader
 from xinmatch.core.db.search_v3 import search_match_v3
 from xinmatch.core.io import load_pattern
@@ -96,7 +108,7 @@ from xinmatch.core.model.entry import parse_formula
 from xinmatch.core.model.restraints import ElementState, Restraints
 from xinmatch.core.peak.peak_search import find_peaks
 from xinmatch.core.preprocess.auto_pipeline import auto_process
-from xinmatch.core.search.phase_key import group_same_phase, same_phase
+from xinmatch.core.search.phase_key import same_phase
 from xinmatch.core.search.sequential import SequentialIdentifier, search_residual
 
 #: wt% 分桶边界（下界含、上界不含）。「次相能小到多少还能找到」是这套基准
@@ -148,8 +160,8 @@ def _fine_triple() -> list[FineTruth]:
     ]
 
 
-#: 组成级口径（coarse）。数字与 §2 起的粗口径同源，但与矿物名级存在**双向**偏差
-#: （误判同组成异名相 / 漏判氘代与掺杂卡，见模块文档），因此只作并列对照。
+#: 组成级口径（coarse）。数字与 §2 起的粗口径同源，但与矿物名级的偏差**方向实测**为
+#: 组成级单方漏判（氘代/掺杂卡元素集不等），见 ``COARSE_NOTES``；因此只作并列对照。
 IUCR_TRUTH: dict[str, list[IucrPhase]] = {
     # ── 单相 certified standards ──────────────────────────────────────────
     "BRUCITE": _pure("Brucite", "H2 Mg O2"),
@@ -267,11 +279,12 @@ FINE_NOTES = (
     "组成级无法区分它们，故以矿物名级为准、组成级只作并列对照。"
 )
 COARSE_NOTES = (
-    "对照口径 = 组成级：同组成的多晶型/异构相不区分。它与矿物名级的偏差是**双向**的，"
-    "而不是单向高估 —— 实测（COD-Inorg，给元素）两边都是 44/48，但构成不同："
-    "组成级会把 BAUXITE 的 Boehmite 记成命中（同组成的异名卡占了位置）→ 误判；"
-    "又漏掉 CPD-2 的 Brucite（库内 Brucite 多为氘代，元素集含 D，比值口径要求元素集相等）"
-    "→ 漏判。所以两个口径只能并列，不可互相替代。"
+    "对照口径 = 组成级：同组成的多晶型/异构相不区分。它与矿物名级的偏差**方向必须实测，不能推理**："
+    "实测（COD-Inorg，给元素，族级）矿物名级 45/48、组成级 44/48，唯一差异是组成级漏掉 "
+    "CPD-2 的 Brucite（库内 Brucite 多为氘代，元素集含 D，而比值口径要求元素集相等）。"
+    "上一版这里写的是「双向偏差、BAUXITE 的 Boehmite 被组成级误判命中」——那条在族级口径修好"
+    "（族内任一成员命中即算命中，见 §29）之后不再成立：矿物名级现在也命中 Boehmite，"
+    "所谓「误判」其实是族级只看代表卡造成的**假差异**。两个口径仍然只能并列、不可互相替代。"
 )
 
 
@@ -381,15 +394,19 @@ def _score(whole, fine_truths: list[FineTruth], top_n: int,
 
     ``coarse_truths``（组成级）只在 ``--coarse`` 时给出：它和 ``fine`` 用的是
     同一批候选，只是换一把判据，所以两者的差可以直接读作「口径差异」。
+
+    族级判定看**族内全部成员卡**，不看代表卡 —— 理由与
+    :func:`tools.bench_real_samples.family_members` 同源，那次修复的起因正是
+    BAUXITE 的 Boehmite 被错拼卡 ``Bohmite`` 领衔的族判成漏检。
     """
     cards = whole.candidates[:top_n]
-    fam = [whole.candidates[g[0]] for g in
-           group_same_phase([c.entry for c in whole.candidates])][:top_n]
+    fams = family_members(whole.candidates, top_n)
     top5 = whole.candidates[:5]
     top1 = whole.candidates[0] if whole.candidates else None
     out = {
         "in_top": [any(fine_hit_entry(c.entry, t) for c in cards) for t in fine_truths],
-        "in_fam": [any(fine_hit_entry(c.entry, t) for c in fam) for t in fine_truths],
+        "in_fam": [any(fine_hit_entry(c.entry, t) for fam in fams for c in fam)
+                   for t in fine_truths],
         "in_top5": [any(fine_hit_entry(c.entry, t) for c in top5) for t in fine_truths],
         "t1": bool(top1) and any(fine_hit_entry(top1.entry, t) for t in fine_truths),
         "t5": any(any(fine_hit_entry(c.entry, t) for t in fine_truths)
@@ -397,7 +414,7 @@ def _score(whole, fine_truths: list[FineTruth], top_n: int,
         "top1": top1,
     }
     if coarse_truths is not None:
-        out["c_in_fam"] = [any(same_phase(c.entry, t) for c in fam)
+        out["c_in_fam"] = [any(same_phase(c.entry, t) for fam in fams for c in fam)
                            for t in coarse_truths]
         out["c_in_top"] = [any(same_phase(c.entry, t) for c in cards)
                            for t in coarse_truths]
@@ -579,9 +596,10 @@ def main() -> None:
         print(f"\n[{label}] 样本 {t['samples']}　相 {t['phases']}"
               f"　Top-1 {t['top1']}/{t['samples']}　Top-5 {t['top5']}/{t['samples']}"
               f"　Top-5 覆盖全相 {t['all5']}/{t['samples']}")
+        wt = t["wt_hit"] / t["wt_sum"] if t["wt_sum"] else 0.0
         print(f"  相召回：卡级 {t['card']}/{t['phases']}　族级 {t['fam']}/{t['phases']}"
               f"　序贯 {t['seq']}/{t['phases']}"
-              f"　wt 加权（族级）{t['wt_hit'] / t['wt_sum']:.3f}"
+              f"　wt 加权（族级）{wt:.3f}"
               f"　预筛被截断 {t['trunc']}/{t['samples']} 样本")
         if args.coarse:
             print(f"  [对照·组成级] 卡级 {t['c_card']}/{t['phases']}"
