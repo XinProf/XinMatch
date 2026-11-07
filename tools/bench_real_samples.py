@@ -242,11 +242,14 @@ def _oracle_restraints(items, fine_truths) -> Restraints | None:
     return restraints
 
 
-def _truth_entry(label: str, formula: str) -> Entry:
+def truth_entry(label: str, formula: str) -> Entry:
     """Truth phase as an Entry carrying **only** a formula (no cell).
 
     ``same_phase`` then falls back to the composition-ratio rule, which is the
     only thing a mineral name can honestly claim to know.
+
+    Public because :mod:`tools.bench_iucr` scores its patterns with the *same*
+    rule — one definition of "hit", two ground-truth sets.
     """
     return Entry(
         entry_id=f"truth:{label}",
@@ -260,7 +263,7 @@ def _hit(cand: CandidateResult, truths: list[Entry]) -> bool:
     return any(same_phase(cand.entry, t) for t in truths)
 
 
-def _fine_hit_entry(entry: Entry, truth: FineTruth) -> bool:
+def fine_hit_entry(entry: Entry, truth: FineTruth) -> bool:
     """Mineral-name-level hit test for one card against one truth phase.
 
     Precedence is deliberate: a card that **has** a mineral name is judged by
@@ -280,14 +283,14 @@ def _fine_hit_entry(entry: Entry, truth: FineTruth) -> bool:
             return mineral_name_matches(entry.mineral_name, truth.minerals)
         if truth.split or not truth.formula:
             return False
-        return same_phase(entry, _truth_entry(truth.label, truth.formula))
+        return same_phase(entry, truth_entry(truth.label, truth.formula))
     return bool(truth.formula) and same_phase(
-        entry, _truth_entry(truth.label, truth.formula)
+        entry, truth_entry(truth.label, truth.formula)
     )
 
 
 def _fine_hit(cand: CandidateResult, truths: list[FineTruth]) -> bool:
-    return any(_fine_hit_entry(cand.entry, t) for t in truths)
+    return any(fine_hit_entry(cand.entry, t) for t in truths)
 
 
 def main() -> None:
@@ -342,7 +345,7 @@ def main() -> None:
         else:
             # 与 GUI 导入路径一致：平滑 → 背景 → 扣除 → Kα2 剥离 → 寻峰
             pattern, peaks = auto_process(pattern)
-        truths = [_truth_entry(label, formula) for label, formula in items]
+        truths = [truth_entry(label, formula) for label, formula in items]
         fine_truths = TRUTH_FINE.get(sample, [])
 
         # 一次多取一些卡，才能折叠后仍剩 top_n 个「相位」（相族）。
@@ -361,12 +364,12 @@ def main() -> None:
         in_top5 = [any(_hit(c, [t]) for c in top5) for t in truths]
 
         # 细口径（矿物名级）：同一批候选，换用 TRUTH_FINE 判定
-        f_in_top = [any(_fine_hit_entry(c.entry, t) for c in cards) for t in fine_truths]
-        f_in_fam = [any(_fine_hit_entry(c.entry, t) for c in fam_reps)
+        f_in_top = [any(fine_hit_entry(c.entry, t) for c in cards) for t in fine_truths]
+        f_in_fam = [any(fine_hit_entry(c.entry, t) for c in fam_reps)
                     for t in fine_truths]
-        f_in_top5 = [any(_fine_hit_entry(c.entry, t) for c in top5)
+        f_in_top5 = [any(fine_hit_entry(c.entry, t) for c in top5)
                      for t in fine_truths]
-        f_t1 = bool(top1) and any(_fine_hit_entry(top1.entry, t) for t in fine_truths)
+        f_t1 = bool(top1) and any(fine_hit_entry(top1.entry, t) for t in fine_truths)
         f_t5 = any(_fine_hit(c, fine_truths) for c in top5)
 
         found: list[str] = []
@@ -386,7 +389,7 @@ def main() -> None:
                 cover = sel.covered_fraction
             found_phases = sum(any(same_phase(e, t) for e in confirmed) for t in truths)
             found_phases_fine = sum(
-                any(_fine_hit_entry(e, t) for e in confirmed) for t in fine_truths
+                any(fine_hit_entry(e, t) for e in confirmed) for t in fine_truths
             )
 
         if in_coarse:
