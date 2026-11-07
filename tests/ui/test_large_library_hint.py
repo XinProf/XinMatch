@@ -47,6 +47,14 @@ def test_is_large_library_threshold_is_a_pure_predicate():
     assert not is_large_library(SimpleNamespace(entry_count="532038"))
 
 
+def test_predicate_is_reexported_from_core_for_cli():
+    """CLI 也要用同一份阈值/判据（§27），不能让两处魔数各自漂移。"""
+    from xinmatch.core.db import library_scale
+
+    assert mw.LARGE_LIBRARY_PHASE_THRESHOLD == library_scale.LARGE_LIBRARY_PHASE_THRESHOLD
+    assert mw.is_large_library is library_scale.is_large_library
+
+
 def test_large_library_changes_toolbar_text(qapp, monkeypatch):
     monkeypatch.setattr(mw, "library_by_id", lambda _id: _record(532_038))
     win = MainWindow()

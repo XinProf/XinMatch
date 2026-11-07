@@ -24,6 +24,12 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from xinmatch.core.db.library_scale import (
+    LARGE_LIBRARY_PHASE_THRESHOLD as LARGE_LIBRARY_PHASE_THRESHOLD,
+)
+from xinmatch.core.db.library_scale import (
+    is_large_library as is_large_library,
+)
 from xinmatch.core.db.multi_db import (
     LibraryNotAvailableError,
     open_library,
@@ -168,23 +174,11 @@ _SEARCH_MODE_ITEMS: tuple[tuple[str, str], ...] = (
 )
 
 # ---------------------------------------------------------------------------
-# 覆盖性大库的元素约束提示（基准报告 §23）
+# 覆盖性大库的元素约束提示（基准报告 §23 / §24）
 # ---------------------------------------------------------------------------
-#: 相数阈值：COD-Full 532k / PCOD-Inorg 1.06M 属覆盖性大库；
-#: 精选无机库 COD-Inorg 78k 不触发。
-LARGE_LIBRARY_PHASE_THRESHOLD = 200_000
-
-
-def is_large_library(record: object | None) -> bool:
-    """纯函数：按 ``entry_count`` 判断是否为「覆盖性大库」。
-
-    §23 实测：大库里大量有机 / 无关相会稀释候选池；给足元素约束后
-    COD-Full 与 COD-Inorg 收敛到同一组数字（12/13·13/13·12/13·23/24）。
-    ``entry_count`` 读不到时保守返回 ``False``，不打扰用户。
-    """
-    count = getattr(record, "entry_count", None)
-    return isinstance(count, int) and count >= LARGE_LIBRARY_PHASE_THRESHOLD
-
+# 阈值与纯判据已下沉到 ``xinmatch.core.db.library_scale``：CLI 也要用同一份，
+# 不能让命令行进程依赖 PySide6。这里 re-export 同名接口保持既有 import 不破，
+# 两个入口（GUI 工具栏 / CLI stderr 提示）永远只有一个阈值。
 
 # 工具栏悬停详细说明（v1.3.1）：比单行状态栏提示更完整的"是什么+怎么用"。
 _MODULE_TIPS: dict[str, str] = {

@@ -32,6 +32,7 @@ from typing import Any
 
 from xinmatch.core.batch import load_config as load_batch_config
 from xinmatch.core.batch import run_batch
+from xinmatch.core.db.library_scale import is_large_entry_count
 from xinmatch.core.db.multi_db import (
     add_external_library,
     list_libraries,
@@ -155,6 +156,61 @@ def _load_restraints(
     return Restraints.from_dict(json.loads(raw))
 
 
+def _large_library_hint_text(
+    count: int | None,
+    *,
+    has_element_restraints: bool,
+    fpfm: bool,
+    disabled: bool,
+) -> str | None:
+    """大库 + 未设元素约束 + peaks 模式 → 一条非阻塞引导文案；否则 ``None``。
+
+    刻意只返回字符串、不打印：抑制条件可以直接单测，而且调用方统一写
+    **stderr** —— ``--json`` 的 stdout 必须永远只有一个可解析的 JSON 文档。
+
+    ``fpfm`` 时跳过：全谱拟合不接元素约束（``cmd_search`` 里加了硬报错），
+    此时建议 ``--sample-elements`` 只会把用户导向一个必然失败的命令。
+    """
+    if disabled or fpfm or has_element_restraints:
+        return None
+    if not is_large_entry_count(count):
+        return None
+    return (
+        f"[提示] 当前库含 {count:,} 相（覆盖性大库）：大量无关相会稀释候选池，"
+        '建议加 --sample-elements "Zn Al Ca O F" 填 XRF/EDS 检出元素'
+        "（COD-Full 合成谱 Top-1 7/13 → 12/13，见基准报告 §23 / §25）。"
+        "不需要本提示可加 --no-library-hint。"
+    )
+
+
+def _emit_large_library_hint(
+    reader: object,
+    restraints: Restraints | None,
+    *,
+    fpfm: bool,
+    disabled: bool,
+) -> None:
+    """打开库之后、检索之前给提示；读不到相数就静默降级，绝不影响检索。
+
+    相数取 ``XinDBReader.entry_count()``（直接读 ``meta``，O(1)，不是
+    ``COUNT(*)`` 全表扫描）。这里用 ``getattr`` 是为了让「引导」与具体
+    reader 类型解耦，损坏/降级对象最多不给提示，不会抛异常打断检索。
+    """
+    getter = getattr(reader, "entry_count", None)
+    count: int | None = None
+    if callable(getter):
+        with contextlib.suppress(TypeError, ValueError):
+            count = int(getter())
+    text = _large_library_hint_text(
+        count,
+        has_element_restraints=bool(restraints and restraints.elements),
+        fpfm=fpfm,
+        disabled=disabled,
+    )
+    if text:
+        print(text, file=sys.stderr)
+
+
 def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
     """``xinmatch search`` — search-match against a reference database.
 
@@ -192,6 +248,10 @@ def cmd_search(args: argparse.Namespace) -> dict[str, Any]:
     # ``--db`` 只接受 ``.xinDB``（v3.0.0 起旧格式已移除）。
     conn = open_search_database(args.db)
     try:
+        _emit_large_library_hint(
+            conn, restraints, fpfm=fpfm,
+            disabled=getattr(args, "no_library_hint", False),
+        )
         if fpfm:
             # Kα 模型只解析一次：<=0 的 Kα1 跟随图谱自身波长（Co/Mo 靶数据
             # 无需手动改设置）；--single-kalpha → kalpha2=None 单线模型。
@@ -346,6 +406,10 @@ def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
 
     conn = open_search_database(args.db)
     try:
+        _emit_large_library_hint(
+            conn, restraints, fpfm=False,
+            disabled=getattr(args, "no_library_hint", False),
+        )
         candidates = search_match(
             peaks,
             conn,
@@ -822,6 +886,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--prescreen-n", type=int, default=None,
         help="FPFM 模式：峰列表预筛保留的候选数（默认用内置值 150）。",
     )
+    p_search.add_argument(
+        "--no-library-hint", action="store_true",
+        help="关闭「大库建议填样品元素」的 stderr 提示（脚本静默用；"
+             "提示不影响 --json 的 stdout）。",
+    )
     _add_json_flag(p_search)
     p_search.set_defaults(func=cmd_search)
 
@@ -894,6 +963,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument(
         "--top-n", type=int, default=20,
         help="Maximum number of candidates (default 20).",
+    )
+    p_run.add_argument(
+        "--no-library-hint", action="store_true",
+        help="关闭「大库建议填样品元素」的 stderr 提示（脚本静默用）。",
     )
     _add_json_flag(p_run)
     p_run.set_defaults(func=cmd_run)
