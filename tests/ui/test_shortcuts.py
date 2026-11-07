@@ -53,7 +53,7 @@ def test_injected_callbacks_fire(qapp):
     assert calls == ["search_match", "delete_all_peaks", "quit"]
 
 
-def test_default_wiring_triggers_module_action(qapp):
+def test_default_wiring_triggers_module_action(qapp, monkeypatch):
     win = MainWindow()
     registered = install_shortcuts(win)
     # Ctrl+A → raw_processing：批次 1 接线后带聚合子菜单（背景/平滑/Kα2/重置），
@@ -62,9 +62,17 @@ def test_default_wiring_triggers_module_action(qapp):
     menu = win.module_actions["raw_processing"].menu()
     assert menu is not None
     assert [a.text() for a in menu.actions()] == ["背景扣除", "平滑", "Kα2 剥离", "重置"]
-    # Ctrl+F5 等 profile_fitting 条目仍为占位联动
+    # Ctrl+F5 → profile_fitting：批次 3 接线后打开 Profile Fitting 对话框
+    # （无谱图时走 information 守卫，不再是占位播报）。
+    from PySide6 import QtWidgets
+
+    shown: list[str] = []
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox, "information",
+        lambda *a, **k: shown.append(a[1]),
+    )
     registered["profile_fit"].trigger()
-    assert "Profile Fitting" in win.statusBar().currentMessage()
+    assert shown == ["尚无谱图"]
 
 
 def test_global_entry_without_callback_is_noop(qapp):

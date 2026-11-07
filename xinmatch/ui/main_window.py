@@ -83,6 +83,7 @@ from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 from xinmatch.ui.pattern_view import PATTERN_COLORS, PatternPanel
 from xinmatch.ui.periodic_table import PeriodicTablePanel
+from xinmatch.ui.profile_fit_dialog import ProfileFitDialog
 from xinmatch.ui.refinement_wizard import RefinementWizard
 from xinmatch.ui.shortcuts import install_shortcuts
 from xinmatch.ui.structure_view import (
@@ -403,6 +404,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 # 批次 1 接线：与「精修向导…」（Ctrl+Shift+W）同一入口，
                 # 计算全委托 core.refine。
                 action.triggered.connect(self._open_refinement_wizard)
+            elif mod_id == "profile_fitting":
+                # 批次 3 接线：Profile Fitting 对话框（F5），计算全委托
+                # core.peak.profile_fit.fit_profile。
+                action.triggered.connect(self._open_profile_fit)
             else:
                 action.triggered.connect(
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
@@ -993,6 +998,44 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         selected = self.candidate_table.selected_results()
         return selected or list(self._candidates)
+
+    def _open_profile_fit(self) -> None:
+        """批次 3 — 打开 Profile Fitting 对话框（参考软件 F5）。
+
+        输入：当前谱图 + 峰列表初始猜测（`peak_table.peaks()`）。峰列表为空
+        或无谱图时提示而不打开对话框。计算全委托
+        :func:`xinmatch.core.peak.profile_fit.fit_profile`；「应用到峰列表」
+        把精修后的峰写回峰表（此后可重新 Search-Match）。
+        """
+        if self._current_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "尚无谱图",
+                "请先打开衍射数据，再做 Profile Fitting。",
+            )
+            return
+        peaks = self.peak_table.peaks()
+        if not peaks:
+            QtWidgets.QMessageBox.information(
+                self,
+                "峰列表为空",
+                "Profile Fitting 以峰列表为初始猜测。\n"
+                "请先寻峰（工具栏「峰检测」），再打开本对话框。",
+            )
+            return
+        dlg = ProfileFitDialog(
+            self._current_pattern, peaks, self.pattern_view, parent=self
+        )
+
+        def _apply(fitted: list) -> None:
+            self.peak_table.set_peaks(fitted)
+            self.statusBar().showMessage(
+                f"已把 {len(fitted)} 个精修峰写回峰列表（2θ / FWHM / 面积）",
+                10000,
+            )
+
+        dlg.fit_applied.connect(_apply)
+        dlg.exec()
 
     def _open_refinement_wizard(self) -> None:
         """T13.8 — open the Rietveld refinement wizard for current phases."""

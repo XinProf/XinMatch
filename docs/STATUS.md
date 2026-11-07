@@ -2004,3 +2004,27 @@ RIR/内标）、`microstructure`（`core.micro` 晶粒尺寸/微应变）、`ind
 - **实现注意**：聚合菜单必须在 `_build_menus` 末尾挂载——它引用同方法上方才
   创建的 `export_xinm_action` / `export_cifs_action`（`_build_actions` 循环阶段
   尚不存在）。
+
+## GUI 批次 3：Profile Fitting 对话框（2026-11-07）✅ 已完成
+
+`profile_fitting` 模块动作（F5 快捷键同一入口）从占位接成真实对话框
+`xinmatch/ui/profile_fit_dialog.py`。**计算全委托
+`core.peak.profile_fit.fit_profile`（多峰最小二乘，scipy TRF），不重写算法。**
+
+- **输入**：当前谱图 + 峰列表初始猜测（`peak_table.peaks()`）；无谱图 / 峰列表
+  为空时 information 提示，不打开对话框。
+- **选项**：谱形四选一（pseudo-Voigt 默认 / Gaussian / Lorentzian / Pearson VII）。
+- **运行**：`run_with_busy` 工作线程执行，异常走 critical 提示。
+- **输出**：
+  * 结果表——每峰精修 2θ / FWHM / 面积 / 相对强度 I-I₀（按最强峰归一）；
+  * Rwp（加权剖面 R 因子）标签；
+  * 拟合曲线叠加到谱图区（再拟合替换上一条；对话框关闭时移除）；
+  * 「应用到峰列表」→ `fit_applied` 信号 → 主窗口 `peak_table.set_peaks`
+    写回精修峰（此后可重新 Search-Match）。
+- **测试**：新 `tests/ui/test_profile_fit_dialog.py` 9 用例（构造默认值 /
+  双高斯合成谱拟合出表 + 叠加 +1 / apply 信号 / 关闭移除曲线 / 再拟合替换 /
+  两级守卫 / 模块动作打开对话框且不再占位播报）；同步更新
+  `test_shortcuts.py` 的 profile_fit 断言（无谱图走 information 守卫）。
+  tests/ui 全套通过；ruff / mypy(99) 通过。
+- **坑**：对话框不自动把实验谱加进谱图区（测试要先 `set_pattern`）；
+  隐藏对话框里的子控件 `isVisible()` 恒 False，要用 `isHidden()` 取反断言。
