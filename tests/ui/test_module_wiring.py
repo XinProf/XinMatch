@@ -84,7 +84,6 @@ def test_still_placeholder_modules_announce(qapp):
     win = MainWindow()
     win.show()
     for mod_id, label in (
-        ("data_export", "数据导出"),
         ("user_db", "用户数据库"),
         ("indexing", "指标化"),
         ("quant_analysis", "定量分析"),

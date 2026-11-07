@@ -1972,3 +1972,35 @@ RIR/内标）、`microstructure`（`core.micro` 晶粒尺寸/微应变）、`ind
   `tests/ui` 全套 170 用例通过；ruff / mypy(99) 通过。
 - **实现注意**：模块动作循环先于四个预处理动作创建执行，子菜单必须挂到循环
   外（`_build_actions` 末尾），否则 `AttributeError: background_action`。
+
+## GUI 批次 2 接线：数据导出聚合菜单 + 三张表 CSV 导出（2026-11-07）✅ 已完成
+
+「数据导出」模块动作从占位接成**聚合菜单**（7 项），并把三张数据表悬空的
+`export_requested` 右键信号接上——此前右键「导出 (CSV)...」点了没有任何反应。
+
+- **聚合菜单**（`data_export` 动作，图谱能力全部既有）：
+  1. 导出谱图 (ASCII profile)… — `core.io.exporters.export_ascii_profile`
+     （start/step/end 头 + 强度，可被 `read_ascii_profile_3col` 原样读回）；
+  2. 导出谱图 (两列 2θ–I)… — `export_ascii_2col`；
+  3. 导出峰列表 (CSV)… — 新方法 `_export_peak_list_csv`
+     （2θ/d/I/I-I₀/FWHM/hkl）；
+  4. 导出候选列表 (CSV)… — `_export_candidates_csv`（与界面显示同源：
+     `visible_results()` 截断口径）；
+  5. 导出匹配列表 (CSV)… — `_export_matches_csv`
+     （entry/化学式/scale/weight_pct）；
+  6. 导出物相分析（.xinm）… / 7. 导出所选相 CIF… — 复用既有动作（同对象）。
+- **信号接线**：`peak_table` / `candidate_table` / `match_table` 三处
+  `export_requested`（右键「导出 (CSV)...」）此前均无 handler，统一接到
+  对应导出方法。
+- **CSV 编码**：utf-8-sig（Excel 双击打开不乱码）+ LF；表头用英文列名。
+- **数据访问器**：`PeakListTable.peaks()` 与 `MatchListTable.phases()` 新增
+  （模型 `_peaks` / `_phases` 的公开转发）。
+- **守卫**：无谱图/无峰/无候选/无匹配时 information 提示，不抛异常；写文件
+  异常走 critical 提示（GUI 动作边界）。
+- **测试**：新 `tests/ui/test_export_menu.py` 14 用例（聚合菜单结构 + 谱图两种
+  格式 round-trip + 三表 CSV 内容 + 四个空守卫 + 信号接线）；同步更新
+  `test_main_window.py` / `test_module_wiring.py` 里以 data_export 为占位示例
+  的两处旧断言。tests/ui 全套通过；ruff / mypy(99) 通过。
+- **实现注意**：聚合菜单必须在 `_build_menus` 末尾挂载——它引用同方法上方才
+  创建的 `export_xinm_action` / `export_cifs_action`（`_build_actions` 循环阶段
+  尚不存在）。

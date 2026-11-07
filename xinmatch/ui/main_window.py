@@ -37,6 +37,10 @@ from xinmatch.core.db.multi_db import (
     resolve_default,
 )
 from xinmatch.core.io import load_pattern
+from xinmatch.core.io.exporters import (
+    export_ascii_2col,
+    export_ascii_profile,
+)
 from xinmatch.core.model import Entry, Peak, Restraints
 from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
@@ -379,6 +383,10 @@ class MainWindow(QtWidgets.QMainWindow):
             elif mod_id == "data_import":
                 # 批次 1 接线：与工具栏「打开数据…」（Ctrl+O）同一入口。
                 action.triggered.connect(self._open_data_file)
+            elif mod_id == "data_export":
+                # 批次 2 接线：聚合菜单在 _build_menus 里挂载（依赖该阶段
+                # 才创建的 .xinm / CIF 导出动作），这里不接占位播报。
+                pass
             elif mod_id == "raw_processing":
                 # 批次 1 接线：预处理已拆成工具栏四个真实动作（背景 / 平滑 /
                 # Kα2 剥离 / 重置）。菜单动作聚合同一组 QAction（无新逻辑）；
@@ -559,6 +567,46 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.export_cifs_action.triggered.connect(self._export_selected_cifs)
         refine_menu.addAction(self.export_cifs_action)
+
+        # 批次 2 接线：「数据导出」模块动作聚合全部导出能力（谱图 / 峰列表 /
+        # 候选 / 匹配 + 既有的 .xinm 项目与 CIF）。四个新动作在这里创建，
+        # 因为聚合菜单要同时引用本方法上方才创建的 export_xinm_action /
+        # export_cifs_action（_build_actions 循环阶段它们还不存在）。
+        self.export_profile_action = self._tool_action(
+            "导出谱图 (ASCII profile)…", "export",
+            lambda _checked=False: self._export_pattern_ascii("profile"),
+            "导出 start/step/end 头 + 强度序列的 ASCII profile（可被再次读回）",
+        )
+        self.export_2col_action = self._tool_action(
+            "导出谱图 (两列 2θ–I)…", "export",
+            lambda _checked=False: self._export_pattern_ascii("2col"),
+            "导出两列 2θ–I ASCII（通用交换格式）",
+        )
+        self.export_peaks_csv_action = self._tool_action(
+            "导出峰列表 (CSV)…", "export",
+            lambda _checked=False: self._export_peak_list_csv(),
+            "把峰列表导出为 CSV（2θ / d / I / I-I₀ / FWHM / hkl）",
+        )
+        self.export_candidates_csv_action = self._tool_action(
+            "导出候选列表 (CSV)…", "export",
+            lambda _checked=False: self._export_candidates_csv(),
+            "把候选列表（与界面显示同源的行）导出为 CSV",
+        )
+        self.export_matches_csv_action = self._tool_action(
+            "导出匹配列表 (CSV)…", "export",
+            lambda _checked=False: self._export_matches_csv(),
+            "把已确认物相列表导出为 CSV",
+        )
+        _export_menu = QtWidgets.QMenu(self)
+        for _act in (self.export_profile_action, self.export_2col_action,
+                     self.export_peaks_csv_action,
+                     self.export_candidates_csv_action,
+                     self.export_matches_csv_action):
+            _export_menu.addAction(_act)
+        _export_menu.addSeparator()
+        _export_menu.addAction(self.export_xinm_action)
+        _export_menu.addAction(self.export_cifs_action)
+        self.module_actions["data_export"].setMenu(_export_menu)
         refine_menu.addSeparator()
         self.structure_view_action = QtGui.QAction("3D 结构视图…", self)
         self.structure_view_action.setShortcut("Ctrl+Shift+V")
@@ -724,6 +772,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.candidate_table.candidate_activated.connect(self.confirm_candidate)
         self.match_table.phase_activated.connect(self.remove_matched_phase)
         self.match_table.remove_phase.connect(self.remove_matched_phase)
+
+        # 批次 2：三张数据表的「导出 (CSV)…」右键项此前是悬空信号（无 handler），
+        # 统一接到导出方法——与「数据导出」聚合菜单的 CSV 动作同一入口。
+        self.peak_table.export_requested.connect(self._export_peak_list_csv)
+        self.candidate_table.export_requested.connect(self._export_candidates_csv)
+        self.match_table.export_requested.connect(self._export_matches_csv)
 
     def _build_candidate_panel(self) -> QtWidgets.QWidget:
         """候选列表坞内容：序贯操作条 + 候选表格（v3.1.0）。
@@ -1004,6 +1058,145 @@ class MainWindow(QtWidgets.QMainWindow):
         dialog.load_entry(entry_id)  # friendly empty page if CIF missing
         dialog.setWindowTitle(f"3D 结构视图 — {entry_id}")
         dialog.exec()
+
+    # ------------------------------------------------------------------
+    # 批次 2：数据导出（谱图 ASCII / 三张表 CSV）。聚合菜单见 _build_menus。
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _write_csv(path: str, headers: list[str], rows: list[list[str]]) -> Path:
+        """Write *rows* as UTF-8 (BOM) CSV — Excel 双击打开不乱码。"""
+        import csv
+
+        out = Path(path)
+        with out.open("w", encoding="utf-8-sig", newline="") as fh:
+            writer = csv.writer(fh, lineterminator="\n")
+            writer.writerow(headers)
+            writer.writerows(rows)
+        return out
+
+    def _export_pattern_ascii(self, fmt: str) -> None:
+        """导出当前谱图为 ASCII profile（start/step/end 头）或两列 2θ–I。"""
+        pattern = self._current_pattern
+        if pattern is None:
+            QtWidgets.QMessageBox.information(
+                self, "尚无谱图", "请先打开衍射数据，再导出。"
+            )
+            return
+        if fmt == "2col":
+            caption = "导出谱图（两列 2θ–I）"
+            filt = "两列 ASCII (*.txt *.xy);;所有文件 (*)"
+            writer = export_ascii_2col
+        else:
+            caption = "导出谱图（ASCII profile）"
+            filt = "ASCII profile (*.txt *.prd);;所有文件 (*)"
+            writer = export_ascii_profile
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, caption, "", filt)
+        if not path:
+            return
+        try:
+            out = writer(pattern, path)
+        except Exception as exc:  # noqa: BLE001 — GUI 动作边界
+            logger.exception("pattern export failed")
+            QtWidgets.QMessageBox.critical(self, "导出失败", f"谱图导出未完成：\n{exc}")
+            return
+        self.statusBar().showMessage(f"已导出谱图：{out}", 10000)
+
+    def _export_peak_list_csv(self) -> None:
+        """把峰列表导出为 CSV（2θ / d / I / I-I₀ / FWHM / hkl）。"""
+        peaks = self.peak_table.peaks()
+        if not peaks:
+            QtWidgets.QMessageBox.information(
+                self, "峰列表为空", "请先寻峰（工具栏「峰检测」），再导出峰列表。"
+            )
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "导出峰列表 (CSV)", "peaks.csv", "CSV (*.csv);;所有文件 (*)"
+        )
+        if not path:
+            return
+        i_max = max((p.intensity for p in peaks), default=0.0)
+        rows = []
+        for p in peaks:
+            rows.append([
+                f"{p.two_theta:.4f}",
+                "" if p.d is None else f"{p.d:.4f}",
+                f"{p.intensity:.4f}",
+                f"{(p.intensity / i_max * 100.0):.2f}" if i_max > 0 else "0.00",
+                "" if p.fwhm is None else f"{p.fwhm:.4f}",
+                "" if p.hkl is None else " ".join(str(v) for v in p.hkl),
+            ])
+        try:
+            out = self._write_csv(path, ["2theta_deg", "d_A", "intensity",
+                                         "relative_pct", "fwhm_deg", "hkl"], rows)
+        except Exception as exc:  # noqa: BLE001 — GUI 动作边界
+            logger.exception("peak list export failed")
+            QtWidgets.QMessageBox.critical(self, "导出失败", f"峰列表导出未完成：\n{exc}")
+            return
+        self.statusBar().showMessage(f"已导出 {len(rows)} 个峰：{out}", 10000)
+
+    def _export_candidates_csv(self) -> None:
+        """把候选列表导出为 CSV（与界面显示同源：visible_results 截断口径）。"""
+        results = self.candidate_table.visible_results() or list(self._candidates)
+        if not results:
+            QtWidgets.QMessageBox.information(
+                self, "候选列表为空", "请先运行 Search-Match，再导出候选列表。"
+            )
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "导出候选列表 (CSV)", "candidates.csv", "CSV (*.csv);;所有文件 (*)"
+        )
+        if not path:
+            return
+        rows = []
+        for c in results:
+            e = c.entry
+            rows.append([
+                e.entry_id,
+                e.mineral_name or "",
+                e.formula,
+                e.space_group or "",
+                f"{c.fom:.4f}",
+            ])
+        try:
+            out = self._write_csv(path, ["entry_id", "mineral_name", "formula",
+                                         "space_group", "fom"], rows)
+        except Exception as exc:  # noqa: BLE001 — GUI 动作边界
+            logger.exception("candidate list export failed")
+            QtWidgets.QMessageBox.critical(self, "导出失败", f"候选列表导出未完成：\n{exc}")
+            return
+        self.statusBar().showMessage(f"已导出 {len(rows)} 个候选：{out}", 10000)
+
+    def _export_matches_csv(self) -> None:
+        """把已确认物相（匹配列表）导出为 CSV。"""
+        phases = self.match_table.phases()
+        if not phases:
+            QtWidgets.QMessageBox.information(
+                self, "匹配列表为空", "请先在候选列表中确认物相，再导出匹配列表。"
+            )
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "导出匹配列表 (CSV)", "matches.csv", "CSV (*.csv);;所有文件 (*)"
+        )
+        if not path:
+            return
+        rows = []
+        for ph in phases:
+            e = ph.entry
+            rows.append([
+                e.entry_id,
+                e.mineral_name or "",
+                e.formula,
+                f"{ph.scale_factor:.6g}",
+                "" if ph.weight_fraction is None else f"{ph.weight_fraction * 100.0:.2f}",
+            ])
+        try:
+            out = self._write_csv(path, ["entry_id", "mineral_name", "formula",
+                                         "scale_factor", "weight_pct"], rows)
+        except Exception as exc:  # noqa: BLE001 — GUI 动作边界
+            logger.exception("match list export failed")
+            QtWidgets.QMessageBox.critical(self, "导出失败", f"匹配列表导出未完成：\n{exc}")
+            return
+        self.statusBar().showMessage(f"已导出 {len(rows)} 个已确认相：{out}", 10000)
 
     def _export_selected_cifs(self) -> None:
         """Export matched COD CIFs of the selected candidates to a folder.

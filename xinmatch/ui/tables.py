@@ -209,6 +209,10 @@ class PeakListTable(QtWidgets.QTableView):
         self._model.set_peaks(peaks)
         self.resizeColumnsToContents()
 
+    def peaks(self) -> list[Peak]:
+        """The full peak list currently in the model (export / tests)."""
+        return list(self._model._peaks)
+
     def _source_row(self, proxy_index: QtCore.QModelIndex) -> int:
         return self._proxy.mapToSource(proxy_index).row()  # type: ignore[no-any-return]
 
@@ -807,6 +811,10 @@ class MatchListTable(QtWidgets.QTableView):
         """Fill from selected *phases* (optionally with pattern colors)."""
         self._model.set_phases(phases, colors)
         self.resizeColumnsToContents()
+
+    def phases(self) -> list[Phase]:
+        """The confirmed phases currently in the model (export / tests)."""
+        return list(self._model._phases)
 
     def _entry_id(self, proxy_index: QtCore.QModelIndex) -> str | None:
         return self._model.entry_id_at(self._proxy.mapToSource(proxy_index).row())

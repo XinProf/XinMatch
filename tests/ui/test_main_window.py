@@ -37,11 +37,12 @@ def test_every_module_action_appears_in_a_menu(qapp):
 
 def test_placeholder_action_writes_status_bar(qapp):
     # search_match / data_import / raw_processing / peak_list / restraints /
-    # rietveld 已接真实能力（批次 1 接线），改测仍为占位的模块动作（数据导出）。
+    # rietveld / data_export 已接真实能力（批次 1 / 2 接线），
+    # 改测仍为占位的模块动作（用户数据库）。
     win = MainWindow()
     win.show()
-    win.module_actions["data_export"].trigger()
-    assert "数据导出" in win.statusBar().currentMessage()
+    win.module_actions["user_db"].trigger()
+    assert "用户数据库" in win.statusBar().currentMessage()
 
 
 def test_dock_panels_present(qapp):
