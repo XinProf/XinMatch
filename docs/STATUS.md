@@ -1896,3 +1896,31 @@ Full 2 min 24 s），元素约束上界与 `--coarse` 对照均已跑通。
 探针只读（`.scratch/_probe_pool_ceiling.py`），**产品代码一行未动**。
 
 全文 `docs/基准报告-物相检索-v3.md` §35。
+
+## 方案 B 落地：候选列表行数上限 max_display_rows（2026-11-07）✅ 实现完成
+
+§35.5 建议的方案 B 已实现并验收通过。**CLI 与检索引擎零改动**，全部落在 GUI 层。
+
+- **设置项**：设置 → 选项 → 候选列表 → 「候选列表行数上限（折叠时按族计）」，
+  默认 **50**，YAML 持久化（`candidate_list.max_display_rows`）。
+- **换算 helper**：`main_window._candidate_row_budget()` → `(fetch, max_rows)`，
+  `fetch = min(1000, max(200, 4 × max_rows))`；脏值（非正数/非整数/None）回退默认。
+- **三处检索入口显式传 `top_n=fetch`**：整谱 `search_match`、序贯 `search_residual`
+  （原显式 20）、FPFM `search_match_fpfm`（prescreen 名额不动，只放大切片）。
+  `top_n` 只影响切片，打分成本与它无关（§34），成本增量≈0。
+- **表格模型层截断**：`_CandidateListModel.set_max_rows()`，`_rebuild_rows` 末尾
+  `visible[:N]`——折叠时前 N 行 = 前 N 个族，展开时前 N 张卡；0/负数归一不截断；
+  跨 `set_candidates` 保持。
+- **报告同源**：`_run_report_preview` 改用 `candidate_table.visible_results()`，
+  报告候选行数与用户看到的完全一致（折叠模式只列族代表）。
+- **存档不受影响**：`win._candidates` 仍持全量，`.xinm` 的 `candidates=[...]` 不截断。
+- **测试钳位的坑（§35.4）落地核实**：`setdefault("top_n", 10)` 钳位确实失效，
+  但夹具库极小、top_n 只影响切片，实测两个测试文件 17 用例耗时无可见变化，
+  无需改造。
+- **验收**：新单测 `tests/ui/test_candidate_max_rows.py` 19 用例全绿；受影响 UI 子集
+  （tables/main_window/sequential_ui/v131_ux 64 + search_mode/fpfm_kalpha2 17）全绿；
+  `ruff check .` 通过、`mypy xinmatch/core` 99 文件 Success；全量 pytest 回归判绿。
+- **行为变化**：候选表默认最多 50 行（合并后 ≤50 族），整谱检索返回卡数 20 → 200。
+  三把尺子基准数字不受影响（基准直连引擎，不经 GUI）。
+
+全文 `docs/基准报告-物相检索-v3.md` §36。

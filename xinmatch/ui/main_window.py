@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import math
 from pathlib import Path
+from typing import Any
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -68,7 +69,12 @@ from xinmatch.core.search.sequential import (
 from xinmatch.ui.about_dialog import AboutDialog
 from xinmatch.ui.busy import run_with_busy
 from xinmatch.ui.dialogs.colors_dialog import ColorsDialog
-from xinmatch.ui.dialogs.config import app_config_dir, load_config, save_config
+from xinmatch.ui.dialogs.config import (
+    DEFAULTS,
+    app_config_dir,
+    load_config,
+    save_config,
+)
 from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 from xinmatch.ui.pattern_view import PATTERN_COLORS, PatternPanel
@@ -103,6 +109,44 @@ logger = logging.getLogger(__name__)
 def _asset_path(name: str) -> Path:
     """Resolve a top-level ``assets/`` file (logo.png / splash.png)."""
     return Path(__file__).resolve().parents[2] / "assets" / name
+
+
+# 检索侧返回的候选卡数上界（§35）：``candidate_limit`` 的最大可配值，
+# 换算出的 fetch 不会超过它，避免无谓放大检索池。
+_ROW_BUDGET_FETCH_CEILING = 1000
+
+
+def _candidate_row_budget(config: dict[str, Any] | None = None) -> tuple[int, int]:
+    """把「候选列表行数上限」换算成 ``(fetch, max_rows)``（§35 方案 B）。
+
+    * ``max_rows`` — 候选表显示行数上限（折叠时一行 ≈ 一个相族，所以它
+      同时是族数上限；展开时按卡计）。取自
+      ``candidate_list.max_display_rows``，脏值（非正数 / 非整数）回退到
+      :data:`DEFAULTS` 里的默认值。
+    * ``fetch`` — 三处检索入口实际要引擎返回的卡数。族合并只减行数，
+      显示 N 行需要引擎返回多于 N 张卡，按 4 倍余量换算并钳位到
+      ``[200, _ROW_BUDGET_FETCH_CEILING]``；检索侧 ``top_n`` 只影响最终
+      切片、不影响打分成本（§35）。
+
+    *config* 可注入（单测用）；缺省时读持久化配置。可在工作线程调用
+    （只读 YAML，不触碰 GUI）。
+    """
+    if config is None:
+        config = load_config()
+    default_rows = int(
+        (DEFAULTS.get("candidate_list") or {}).get("max_display_rows", 50)
+    )
+    raw = (config.get("candidate_list") or {}).get("max_display_rows", default_rows)
+    try:
+        max_rows = int(raw)
+    except (TypeError, ValueError):
+        max_rows = default_rows
+    if max_rows <= 0:
+        max_rows = default_rows
+    fetch = min(
+        _ROW_BUDGET_FETCH_CEILING, max(200, 4 * max_rows)
+    )
+    return fetch, max_rows
 
 # 15 functional modules (FUNCTION_MAP.md sections 1–15).
 # (module id, label, the reference software help anchor this module maps to)
@@ -847,6 +891,11 @@ class MainWindow(QtWidgets.QMainWindow):
         changed — the mark only tells the user where to look.
         """
         self._candidates = list(results)
+        # 行数上限（§35 方案 B）：表格在模型层截断显示，``self._candidates``
+        # 仍持全量（项目存档 .xinm 与报告预览的同源口径见各处注释）。
+        # 折叠（族合并）时前 N 行 = 前 N 个族；展开时 = 前 N 张卡。
+        _, max_rows = _candidate_row_budget()
+        self.candidate_table.set_max_rows(max_rows)
         self.candidate_table.set_candidates(
             self._candidates, anchored_ids=anchored_ids
         )
@@ -1406,8 +1455,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 results, mode_label = self._search_fpfm(pattern, conn)
             else:
                 peaks = find_peaks(pattern.two_theta, pattern.intensity)
+                # §35：候选行数上限换算 fetch，检索多返回一些卡，
+                # 供表格族合并后仍能显示满 N 行（打分成本与 top_n 无关）。
+                fetch, _ = _candidate_row_budget()
                 results = search_match(peaks, conn, pattern.wavelength,
-                                       restraints=restraints)
+                                       restraints=restraints, top_n=fetch)
                 mode_label = "峰列表 FoM"
         finally:
             conn.close()
@@ -1726,7 +1778,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if seq is None:  # pragma: no cover - 调用前已保证
             raise RuntimeError("sequential state is not available")
         try:
-            return search_residual(seq, conn, top_n=20)
+            # §35：与整谱检索同一 fetch 口径（剩余峰候选也按行数上限放大）。
+            fetch, _ = _candidate_row_budget()
+            return search_residual(seq, conn, top_n=fetch)
         finally:
             conn.close()
 
@@ -1802,11 +1856,15 @@ class MainWindow(QtWidgets.QMainWindow):
         上抛，由忙碌窗口的 ``on_error`` 回调在 GUI 线程提示。
         """
         ka1, ka2 = self.fpfm_kalpha_wavelengths(pattern)
+        # §35：候选行数上限换算 fetch（FPFM 侧 prescreen 名额不动，
+        # 只放大最终返回切片，成本增量≈0）。
+        fetch, _ = _candidate_row_budget()
         raw = search_match_fpfm(
             pattern,
             conn,
             wavelength_kalpha1=ka1,
             wavelength_kalpha2=ka2,
+            top_n=fetch,
         )
         mode_label = (
             f"FPFM 全谱拟合（Kα 双线 {ka1:.4f}/{ka2:.4f} Å）"
@@ -1830,6 +1888,12 @@ class MainWindow(QtWidgets.QMainWindow):
         peaks: list = []
         if pattern is not None:
             peaks = find_peaks(pattern.two_theta, pattern.intensity)
+        # §35：报告渲染与表格显示同源——候选表按行数上限截断（折叠时
+        # 一行 ≈ 一个相族），报告里也应只出现用户能看到的行；
+        # visible_results() 为空（理论不可达，截断上限 ≥1）时回退全量。
+        report_candidates = (
+            self.candidate_table.visible_results() or list(self._candidates)
+        )
         report = Report(
             sample_info=SampleInfo(sample_name=sample_name, wavelength=wavelength),
             peak_list=PeakListSection(peaks=peaks),
@@ -1841,7 +1905,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         name=c.entry.mineral_name or "",
                         fom=c.fom,
                     )
-                    for c in self._candidates
+                    for c in report_candidates
                 ]
             ),
         )

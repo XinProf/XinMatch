@@ -78,6 +78,11 @@ DEFAULTS: dict[str, Any] = {
         "show_quality": True,
         "show_crystal_system": True,
         "color_by_fom": True,
+        # 候选表显示行数上限（§35 方案 B）。折叠（族合并）时一行 ≈ 一个相族，
+        # 所以这个数同时是「族数上限」；展开时按卡计。检索侧返回的卡数由
+        # ``main_window._candidate_row_budget()`` 按它换算（族合并只减行数，
+        # 显示 N 行需要返回多于 N 张卡）。
+        "max_display_rows": 50,
     },
     "match_list": {
         "show_amount_pct": True,

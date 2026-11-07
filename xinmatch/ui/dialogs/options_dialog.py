@@ -40,6 +40,7 @@ _PAGES: tuple[tuple[str, str, list[tuple[str, str, str, Any]]], ...] = (
         ("显示质量标记", "show_quality", "check", True),
         ("显示晶系", "show_crystal_system", "check", True),
         ("按 FoM 着色", "color_by_fom", "check", True),
+        ("候选列表行数上限（折叠时按族计）", "max_display_rows", "spin", 50),
     ]),
     ("匹配列表", "match_list", [
         ("显示含量 (%)", "show_amount_pct", "check", True),

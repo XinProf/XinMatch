@@ -278,6 +278,9 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
         #: 展示行 → 源行。合并变体时只保留族代表，所以两者不一定相同。
         self._visible: list[int] = []
         self._merge = True
+        #: 展示行数上限（§35 方案 B）。``None`` = 不截断（兼容既有调用方）。
+        #: 折叠时一行 ≈ 一个相族，所以截断同时是「族数上限」。
+        self._max_rows: int | None = None
 
     # -- population ------------------------------------------------------
     def set_candidates(self, results: list[CandidateResult],
@@ -321,6 +324,30 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
         self._rebuild_rows()
         self.endResetModel()
 
+    def set_max_rows(self, max_rows: int | None) -> None:
+        """Cap the number of displayed rows (``None`` = unlimited).
+
+        候选表可能一次收到几百张卡（§35：检索侧取足够多的卡以填满族的显示
+        预算），表格在这里截断。折叠时一行 ≈ 一个相族，所以这是「族数上限」；
+        展开时按卡计。``0`` / 负数按不截断处理（防御脏配置）。
+        """
+        value: int | None = None
+        if max_rows is not None:
+            value = int(max_rows)
+            if value <= 0:
+                value = None
+        if value == self._max_rows:
+            return
+        self.beginResetModel()
+        self._max_rows = value
+        self._rebuild_rows()
+        self.endResetModel()
+
+    @property
+    def max_rows(self) -> int | None:
+        """The current display-row cap (``None`` = unlimited)."""
+        return self._max_rows
+
     @property
     def merging(self) -> bool:
         return self._merge
@@ -346,6 +373,9 @@ class _CandidateListModel(QtCore.QAbstractTableModel):
             visible.extend(members[:1] if self._merge else members)
         # 调用方只给了部分族时，落单的行也要显示——否则候选会静默消失。
         visible.extend(i for i in range(n) if i not in covered)
+        # 行数上限（§35）：折叠时前 N 行 = 前 N 个族；展开时 = 前 N 张卡。
+        if self._max_rows is not None:
+            visible = visible[: self._max_rows]
         self._visible = visible
 
     # -- row accessors ---------------------------------------------------
@@ -551,12 +581,21 @@ class CandidateListTable(QtWidgets.QTableView):
 
         *merge* keeps the fold state across calls when left ``None``.
         *anchored_ids* marks strong-line anchored rows (see
-        ``_CandidateListModel.set_candidates``).
+        ``_CandidateListModel.set_candidates``).  显示行数上限由
+        :meth:`set_max_rows` 单独控制（跨调用保持）。
         """
         self._model.set_candidates(
             results, colors, merge=merge, anchored_ids=anchored_ids
         )
         self.resizeColumnsToContents()
+
+    def set_max_rows(self, max_rows: int | None) -> None:
+        """Cap displayed rows (``None`` = unlimited); see the model method."""
+        self._model.set_max_rows(max_rows)
+
+    def max_rows(self) -> int | None:
+        """The current display-row cap (``None`` = unlimited)."""
+        return self._model.max_rows
 
     def is_anchored(self, row: int) -> bool:
         """Whether **proxy** (display) *row* carries the anchor mark."""
