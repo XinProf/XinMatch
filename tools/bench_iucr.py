@@ -250,7 +250,9 @@ IUCR_TRUTH_FINE: dict[str, list[FineTruth]] = {
     ],
     "BAUXITE": [
         FineTruth("Gibbsite", ("Gibbsite",), "Al H3 O3"),
-        FineTruth("Boehmite", ("Boehmite",), "H Al O2"),
+        # "Bohmite" 是库内 96-901-2273/2274/2275 的错拼（§31.5 别名审计；
+        # 晶胞同为 Cmcm 一水软铝石结构，§29 族级口径已把它并进同一族）。
+        FineTruth("Boehmite", ("Boehmite", "Bohmite"), "H Al O2"),
         FineTruth("Hematite", ("Hematite",), "Fe2 O3"),
         FineTruth("Goethite", ("Goethite",), "H Fe O2"),
         FineTruth("Quartz", ("Quartz",), "O2 Si"),

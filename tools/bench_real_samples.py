@@ -152,6 +152,21 @@ class FineTruth:
 #: 矿物名级口径：13 组 × 50 个真值相（组成级 43 个 + 3.4.1 起被排除的 7 个）。
 #: 矿物名均已在 COD-Inorg-20261020 里定位到（覆盖率见报告 §17.1）；
 #: ``split=True`` 只标在同一组里成对出现的同组成多晶型。
+#:
+#: 真值别名（§31.5 别名缺口审计补齐，2026-11-07）——只收「同物异名 / 化学名 /
+#: 错拼」，且逐卡核过晶胞：
+#: * ``Calcite`` ← ``"Calcium Carbonate"``（96-702-2027）与 ``"CaCO3"``
+#:   （96-702-0139）：两张都是 R-3c 方解石胞，化学名/化学式写法。
+#: * ``Boehmite`` ← ``"Bohmite"``（96-901-2273/2274/2275 三张）：错拼，
+#:   晶胞同为 Cmcm 一水软铝石结构。
+#: * ``Feldspar`` ← ``"Orthoclase"``：正长石即 K-长石的种名（run_acceptance
+#:   的精选卡同样把 Orthoclase 记在 Feldspar 名下）。
+#: **刻意不收** ``Corundum`` ← ``"eta- Al-oxid"``（96-110-1168）：该卡空间群
+#: Fd-3m（尖晶石型 η-Al₂O₃ 过渡氧化铝），不是刚玉的 R-3c —— 与
+#: Rutile←Anatase 同类，属「同组成不同多晶型」的正确拒绝。§31.5 原表把它
+#: 误列「该补」，已按空间群证据更正。
+_CALCITE_NAMES = ("Calcite", "Calcium Carbonate", "CaCO3")
+
 TRUTH_FINE: dict[str, list[FineTruth]] = {
     "1-1": [FineTruth("Triphylite", ("Triphylite",), "Fe Li O4 P")],
     # NCM811 没有矿物名，库内也没有等比例卡（榜首是 Li1.01Mn0.1Ni0.89O2，缺 Co）。
@@ -160,7 +175,7 @@ TRUTH_FINE: dict[str, list[FineTruth]] = {
                       family_required=frozenset({"Li", "Ni", "O"}),
                       family_optional=frozenset({"Co", "Mn"}))],
     "2-1": [FineTruth("Zincite", ("Zincite",), "O Zn"),
-            FineTruth("Calcite", ("Calcite",), "C Ca O3")],
+            FineTruth("Calcite", _CALCITE_NAMES, "C Ca O3")],
     "2-2": [FineTruth("Anatase", ("Anatase",), "O2 Ti", split=True),
             FineTruth("Rutile", ("Rutile",), "O2 Ti", split=True)],
     "3-1": [FineTruth("Zincite", ("Zincite",), "O Zn"),
@@ -175,17 +190,17 @@ TRUTH_FINE: dict[str, list[FineTruth]] = {
             FineTruth("Brucite", ("Brucite",), "H2 Mg O2")],
     "5-1": [FineTruth("Quartz", ("Quartz",), "O2 Si", split=True),
             FineTruth("Cristobalite", ("Cristobalite",), "O2 Si", split=True),
-            FineTruth("Calcite", ("Calcite",), "C Ca O3"),
+            FineTruth("Calcite", _CALCITE_NAMES, "C Ca O3"),
             FineTruth("Magnesite", ("Magnesite",), "C Mg O3"),
             FineTruth("Dolomite", ("Dolomite",), "C2 Ca Mg O6")],
     "5-2": [FineTruth("Quartz", ("Quartz",), "O2 Si", split=True),
             FineTruth("Cristobalite", ("Cristobalite",), "O2 Si", split=True),
-            FineTruth("Calcite", ("Calcite",), "C Ca O3"),
+            FineTruth("Calcite", _CALCITE_NAMES, "C Ca O3"),
             FineTruth("Hematite", ("Hematite",), "Fe2 O3"),
             FineTruth("Muscovite", ("Muscovite", "Muscovite 2M1"), "Al3 H2 K O12 Si3")],
     "5-2b": [FineTruth("Quartz", ("Quartz",), "O2 Si", split=True),
              FineTruth("Cristobalite", ("Cristobalite",), "O2 Si", split=True),
-             FineTruth("Calcite", ("Calcite",), "C Ca O3"),
+             FineTruth("Calcite", _CALCITE_NAMES, "C Ca O3"),
              FineTruth("Hematite", ("Hematite",), "Fe2 O3"),
              FineTruth("Muscovite", ("Muscovite", "Muscovite 2M1"), "Al3 H2 K O12 Si3")],
     "5-3": [FineTruth("Quartz", ("Quartz",), "O2 Si"),
@@ -194,14 +209,14 @@ TRUTH_FINE: dict[str, list[FineTruth]] = {
             FineTruth("Goethite", ("Goethite",), "H Fe O2"),
             FineTruth("Kaolinite", ("Kaolinite",), "Al2 H4 O9 Si2")],
     "7-1": [FineTruth("Quartz", ("Quartz",), "O2 Si"),
-            FineTruth("Boehmite", ("Boehmite",), "H Al O2"),
+            FineTruth("Boehmite", ("Boehmite", "Bohmite"), "H Al O2"),
             FineTruth("Anatase", ("Anatase",), "O2 Ti"),
             FineTruth("Goethite", ("Goethite",), "H Fe O2"),
             FineTruth("Kaolinite", ("Kaolinite",), "Al2 H4 O9 Si2"),
             FineTruth("Gibbsite", ("Gibbsite",), "Al H3 O3"),
             FineTruth("Hematite", ("Hematite",), "Fe2 O3")],
     "7-2": [FineTruth("Quartz", ("Quartz",), "O2 Si", split=True),
-            FineTruth("Feldspar", ("Feldspar", "K-feldspar"), "Al K O8 Si3"),
+            FineTruth("Feldspar", ("Feldspar", "K-feldspar", "Orthoclase"), "Al K O8 Si3"),
             FineTruth("Albite", ("Albite",), "Al Na O8 Si3"),
             FineTruth("Clinochlore", ("Clinochlore",), "Al2 H8 Mg5 O18 Si3"),
             FineTruth("Zircon", ("Zircon",), "O4 Si Zr"),
