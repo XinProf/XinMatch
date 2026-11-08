@@ -64,11 +64,31 @@
 | 检索默认行为 | 本轮所有 A/B 结论都是「不动」：`prescreen_order` 保持 intensity、`sigma_intensity=10` 保持、FoM 权重保持发布值、序贯「跳过单质」不启用、`i_scale` 保持 clamp1.0；别名表只改真值侧（两把尺子重跑逐项零变化） |
 | 基准体系 | 新增第三把尺子 IUCr CPD（19 样本 / 48 相）；族级口径改为「族内任一成员命中」；真实谱细口径分母 43 → 50 |
 
-**未做**：本轮没有构建二进制，`v3.6.0` 的 EXE / 安装包**尚未产出与验收**
-（项目纪律：EXE 发布前必须人工双击验收）。需要发布二进制时另走
-`tools/build_exe.ps1 -Installer` + `docs/HANDOVER-20261106.md` §8.3 检查清单。
+### 五、二进制产物
 
-### 五、升级注意
+| 文件 | 大小 | SHA-256 |
+|---|---|---|
+| `XinMatch-Setup-3.6.0.exe` | 242.4 MiB | `fb5b0c19433213a1fb935a1f83e5611ed092f77d62370cb7aee645e1a586b155` |
+| `XinMatch-Internal-3.6.0.zip`（便携，不随 Release 分发） | 337.4 MiB | `2a46f4654094a922a7e2d5d406d0e21c34ff851c49c74c5802455dba25413665` |
+
+自动门 `python -m tools.verify_binary` 5 轮全过（56 s，`all_pass=true`）：
+
+| 轮 | 内容 | 结果 |
+|---|---|---|
+| 1 | 两产物 SHA-256 + manifest round-trip | 与上表一致 |
+| 2 | 便携包解压 → 冻结 CLI `libraries` / `import --help`、内置库、logo | 78,035 相；`variant=internal` |
+| 3 | 冻结 GUI offscreen 钩子 REG / LIBS / ABOUT | 10 个库；内部版状态栏「内部评估版本」 |
+| 4 | Setup 静默安装到隔离目录 | `variant=release`；内置库就位 |
+| 5 | 已安装态 CLI + 真实检索（`5-1.txt`，118 峰） | 5 候选，top `96-210-0189 C Ca O3` |
+
+`FileVersion=3.6.0`、`XinMatch.exe --version` → `xinmatch 3.6.0`、
+`dist/SHA256SUMS.txt` 为 LF 且 `sha256sum -c` 双 OK。
+
+> **状态**：二进制已产出并通过自动门；**人工双击验收尚未进行**，因此
+> `v3.6.0` 尚未打 tag、GitHub Release 尚未创建。按项目纪律，EXE 发布前必须
+> 人工双击验收（见 `docs/HANDOVER-20261106.md` §8.3 第 6 条）。
+
+### 六、升级注意
 
 1. **周期表的样式问题不是「字体太小」。** 如果你之前觉得元素符号被裁，
    根因是主题 QSS 的 `padding: 5px 14px` 吃掉了按钮内容区、且 `min-height: 20px`

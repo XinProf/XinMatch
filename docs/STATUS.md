@@ -2171,7 +2171,7 @@ CLI 至今没有 index 命令。
   尺寸跟随字体度量、三态 QSS 线型/字重互异且含 `padding: 0`、tooltip 跟随
   状态、弹窗关闭后实例回到面板）。ruff / mypy(99) 全绿。
 
-## v3.6.0 版本号更新与源码推送（2026-11-08）✅
+## v3.6.0 版本号更新、源码推送与二进制构建（2026-11-08）🟡 待人工验收
 
 按「版本号单一真相源」机制 bump（不再照 11 处清单人工改）：
 
@@ -2192,6 +2192,27 @@ CLI 至今没有 index 命令。
 - **验证**：`tests/test_version_consistency.py` 5 项通过（三处逐字一致、
   spec 无字面量、iss 无第二处硬编码）；全量回归 1753 = 1748 passed /
   4 skipped / 1 xfailed / 0 F / 0 E；ruff / mypy(99) 全绿。
-- **未做**：**本轮不构建二进制**。`XinMatch-Setup-3.6.0.exe` / 内部评估版
-  均未产出，`v3.6.0` 也未打 tag、未建 GitHub Release —— 按纪律 EXE 发布前
-  必须人工双击验收，需要时另走 §8.3 清单。
+- **二进制（同日构建，2026-11-08）**：`tools/build_exe.ps1 -Variant release
+  -Installer` + `-Variant internal` + 7z 打 zip，产物与哈希：
+
+  | 文件 | 大小 | SHA-256 |
+  |---|---|---|
+  | `XinMatch-Setup-3.6.0.exe` | 242.4 MiB | `fb5b0c19…86b155` |
+  | `XinMatch-Internal-3.6.0.zip` | 337.4 MiB | `2a46f465…413665` |
+
+  `XinMatch.exe --version` → `xinmatch 3.6.0`、`FileVersion=3.6.0`、内置库
+  `COD-Inorg-20261020.xinDB`（113 MB / 78,035 相）；`dist/SHA256SUMS.txt`
+  重写为 3.6.0 两条（**必须 LF**：PowerShell `Set-Content` 写 CRLF 会让
+  `sha256sum -c` 第二行报「文件名带 \r」），`sha256sum -c` 双 OK。
+- **自动门**：`python -m tools.verify_binary` 5 轮全过（56 s，`all_pass=true`）
+  —— SHA256/manifest、便携包 CLI + 内置库（78,035 相、`variant=internal`）、
+  冻结 GUI 钩子（REG/LIBS 10 库/ABOUT）、静默安装（`variant=release`）、
+  已安装态真实检索（`5-1.txt` 118 峰 → 5 候选，top `96-210-0189 C Ca O3`）。
+- **未做（硬红线）**：**人工双击验收尚未进行**，因此 `v3.6.0` 未打 tag、
+  GitHub Release 未创建。按 §8.3 第 6 条，验收通过后才走 tag → Release
+  （draft → 传资产 → publish）。
+- **构建踩坑**：① `build_exe.ps1` 是 UTF-8 **无 BOM**，用
+  `powershell -File`（5.1）执行会按 GBK 解码 → 中文注释变乱码 → 语法错误
+  「`,`后面缺少表达式」，必须用 PowerShell 7（`pwsh`）调用；
+  ② 后台 PowerShell 任务约 **120 s 被终止**（ISCC 需要 199 s，第一次只产出
+  41 MB 的半成品安装包），长构建要走**前台**（或拆成单独 ISCC 调用）。
