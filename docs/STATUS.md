@@ -2028,3 +2028,32 @@ RIR/内标）、`microstructure`（`core.micro` 晶粒尺寸/微应变）、`ind
   tests/ui 全套通过；ruff / mypy(99) 通过。
 - **坑**：对话框不自动把实验谱加进谱图区（测试要先 `set_pattern`）；
   隐藏对话框里的子控件 `isVisible()` 恒 False，要用 `isHidden()` 取反断言。
+
+## GUI 批次 4：RIR 定量分析对话框（2026-11-07）✅ 已完成（全量回归待机器空闲后补跑）
+
+`quant_analysis` 模块动作从占位接成真实对话框 `xinmatch/ui/quant_dialog.py`。
+**计算全委托 `core.quant.rir.rir_quantify`（Hill–Howard 绝热法，wt% 归一到
+1.0），不重写算法。**
+
+- **输入**：已确认物相（`match_table.phases()`）+ 当前峰列表
+  （`peak_table.peaks()`）；无已确认物相时 information 提示，不打开对话框。
+- **主峰强度**：每相取 `phase.correlations` 指向的实验峰的最大积分强度
+  （重叠分解由上游 Search-Match 的相关记录承担，本对话框不做分解；
+  越界索引保护，缺省 0.0）。强度为 0 的相不参与计算，wt% 列显示「—」。
+- **RIR 列**：默认 1.0、逐相可编辑（参考软件同样由用户按 PDF 卡片填 I/Ic）；
+  相名 / 强度 / wt% 三列只读。
+- **输出**：「计算 wt%」回填 wt% 列（百分数两位小数）；「应用到匹配列表」→
+  `quant_applied` 信号 → 主窗口把 wt% 写回 `Phase.weight_fraction` 并
+  `match_table.set_phases` 刷新（之后可用「数据导出 → 导出匹配列表 (CSV)…」
+  带走 weight_pct 列）。
+- **守卫**：RIR 非数字 → warning 逐行提示；全部相无可匹配峰 → information；
+  `rir_quantify` ValueError → warning。
+- **测试**：新 `tests/ui/test_quant_dialog.py` 8 用例（correlations 强度取 max /
+  RIR 2:1 强度 → 各 50.00 / 无效 RIR 警告 / 全零强度提示 / apply 写回
+  `weight_fraction` / 主窗口「无已确认物相」守卫 / 模块动作打开对话框 /
+  不再占位播报）。
+- **验证状态**：`test_quant_dialog.py` 8/8 通过；ruff / mypy(99) 全绿。
+  **tests/ui 全套与全量回归未跑完**——机器上有外部重任务并发
+  （PyInstaller 打包 / IUCr 逐样本解析 / build_binaries），tests/ui 跑了
+  41 min 无进展已中止；按约定不与重任务并发跑回归，**等机器空闲后补跑**
+  （新文件 + 纯接线，风险面与批次 3 同型）。

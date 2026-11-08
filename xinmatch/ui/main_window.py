@@ -84,6 +84,7 @@ from xinmatch.ui.dialogs.options_dialog import OptionsDialog
 from xinmatch.ui.pattern_view import PATTERN_COLORS, PatternPanel
 from xinmatch.ui.periodic_table import PeriodicTablePanel
 from xinmatch.ui.profile_fit_dialog import ProfileFitDialog
+from xinmatch.ui.quant_dialog import QuantDialog
 from xinmatch.ui.refinement_wizard import RefinementWizard
 from xinmatch.ui.shortcuts import install_shortcuts
 from xinmatch.ui.structure_view import (
@@ -408,6 +409,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 # 批次 3 接线：Profile Fitting 对话框（F5），计算全委托
                 # core.peak.profile_fit.fit_profile。
                 action.triggered.connect(self._open_profile_fit)
+            elif mod_id == "quant_analysis":
+                # 批次 4 接线：RIR 定量分析对话框，计算全委托
+                # core.quant.rir.rir_quantify。
+                action.triggered.connect(self._open_quant_dialog)
             else:
                 action.triggered.connect(
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
@@ -1035,6 +1040,37 @@ class MainWindow(QtWidgets.QMainWindow):
             )
 
         dlg.fit_applied.connect(_apply)
+        dlg.exec()
+
+    def _open_quant_dialog(self) -> None:
+        """批次 4 — 打开 RIR 定量分析对话框（绝热法）。
+
+        输入：已确认物相（匹配列表）+ 当前峰列表；主峰强度取每相
+        ``Phase.correlations`` 指向的实验峰最大积分强度。计算全委托
+        :func:`xinmatch.core.quant.rir.rir_quantify`；「应用到匹配列表」
+        把 wt% 写回 ``Phase.weight_fraction`` 并刷新匹配表（之后可用
+        「数据导出 → 导出匹配列表 (CSV)…」带走 weight_pct 列）。
+        """
+        phases = self.match_table.phases()
+        if not phases:
+            QtWidgets.QMessageBox.information(
+                self,
+                "无已确认物相",
+                "请先在候选列表中确认物相（双击 / 回车），再做定量分析。",
+            )
+            return
+        dlg = QuantDialog(phases, self.peak_table.peaks(), parent=self)
+
+        def _apply(updated: list) -> None:
+            self.match_table.set_phases(updated)
+            n = sum(1 for p in updated if p.weight_fraction is not None)
+            self.statusBar().showMessage(
+                f"已把 RIR 定量结果（{n} 相 wt%）写回匹配列表；"
+                "可用「数据导出 → 导出匹配列表 (CSV)…」导出",
+                10000,
+            )
+
+        dlg.quant_applied.connect(_apply)
         dlg.exec()
 
     def _open_refinement_wizard(self) -> None:
