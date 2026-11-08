@@ -1,5 +1,23 @@
 # COD CIF → SQLite 打包规范（PolyXRD / XinMatch 双项目通用外挂版）
 
+> ## ⚠️ 状态：**历史探讨稿，Dual-Schema 方案未采纳（2026-11-08 标注）**
+>
+> 本文写于 2026-10-13，提出「单文件双 schema（Dual-Schema）」让 PolyXRD 与 XinMatch 共读一份
+> `.sqlite`。**该方案最终没有落地**：v3.0.0 起 XinMatch 收口到 **`.xinDB` v3 列存单一格式**，
+> `multi_db.open_library()` 只接受 `.xinDB` v3 schema，`data/*.sqlite` 已无任何代码读取路径
+> （见 `docs/COD多库挂载说明.md` §1 与 `docs/HANDOVER-20261106.md` §6.1）。
+>
+> **现在要回答「为什么 COD 库必须重新打包」，别引用本文的 Dual-Schema 部分**，正确结论是：
+>
+> | 层面 | 原因 | 现状 |
+> |---|---|---|
+> | 格式层 | PolyXRD 侧表结构（`phases`/`peaks_d` CSV/`peaks_top_*` BLOB/整数 `cod_id`）与 `.xinDB` v3（`entries`/`peak_chunks` 列存/`entry_id` TEXT/`element_inv` 倒排）**完全不兼容**，项目从无「原地挂载」路径，只有转换 | ✅ 已按 `.xinDB` v3 从 CIF 重建（本文 §0–§5 的 schema 对比仍有效，可作为「为什么不能直接挂载」的证据） |
+> | 数据层 | v3.0.0 那次 COD-Full 建到 77.4% 被外部终止后清理；且 8 条坏相（3 条 `d=1.0` 占位晶胞 + 5 条 `d=0.7703` 180° 边界）的修复只对新建库生效 | ✅ 2026-11-01/02 一个窗口内把 COD-Inorg + COD-Full 一起重建完成，坏相清零（COD-Full 532,038 相 / `bad_phase_ids=0`） |
+> | 分发层 | 库体积 879 MiB，`.gitignore` 屏蔽 `/data/`，不入 git、不随安装包（安装包只内置 118 MB 的 COD-Inorg） | ✅ 走独立 GitHub Release `20261020-rebuild` |
+>
+> 保留本文的价值：§1 的 schema 实测对比、§3 输入约定、§5 峰口径分表理由，仍是理解两项目
+> 数据模型差异的一手材料。**下文全部当作历史记录阅读，不要照着实施。**
+
 > 目标：从 **COD 官方 CIF 集合** 重新打包出 **COD-Full** 与 **COD-Inorg** 两个 SQLite 库，
 > 使同一份文件能被 **PolyXRD** 和 **XinMatch** 两个项目**直接外挂使用**（零代码改动）。
 > 本文所有结论均基于对两项目现有数据库的实测内省（2026-10-13），非文档转述。

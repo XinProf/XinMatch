@@ -307,3 +307,177 @@ class TestRefinementWizard:
         wizard._run_refinement()
         assert wizard._outcome is not None
         wizard.close()
+
+    # ------------------------------------------------------------------
+    # 2026-11-08 regression: refinement must not run on the GUI thread
+    # ------------------------------------------------------------------
+    def test_refinement_runs_off_gui_thread(self, qapp):
+        """``_execute_driver`` 必须在工作线程执行，不能独占 GUI 线程。
+
+        回归：旧 ``_run_refinement`` 同步调 driver（GSAS-II 子进程几十秒到
+        几分钟），窗口变成「(未响应)」+ 白屏，用户以为程序挂了。
+        """
+        import threading
+
+        main_ident = threading.get_ident()
+        seen: list[int] = []
+
+        def fake_driver(pattern, phases, cif_paths, options, work_dir=None):
+            seen.append(threading.get_ident())
+            return _fake_outcome()
+
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=fake_driver,
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+        wizard._run_refinement()
+
+        assert seen, "driver 没有被调用"
+        assert seen[0] != main_ident, "driver 仍在 GUI 线程执行（会卡死窗口）"
+        assert wizard._outcome is not None
+        wizard.close()
+
+    def test_running_state_locks_navigation(self, qapp):
+        """运行期间导航与「开始精修」必须锁住，结束后解锁。"""
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=lambda *a, **kw: _fake_outcome(),
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+
+        wizard._set_running(True)
+        assert wizard._btn_run.isEnabled() is False
+        assert wizard._btn_next.isEnabled() is False
+
+        wizard._set_running(False)
+        assert wizard._btn_run.isEnabled() is True
+        assert wizard._btn_next.isEnabled() is True
+        wizard.close()
+
+    def test_empty_selection_refuses_to_run(self, qapp):
+        """没有勾选任何相时不启动精修（避免把空相列表喂给 GSAS-II）。"""
+        from unittest.mock import patch
+
+        calls: list = []
+
+        def fake_driver(*a, **kw):  # pragma: no cover - 不应被调用
+            calls.append(1)
+            return _fake_outcome()
+
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=fake_driver,
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+        for cb in wizard._phase_checks.values():
+            cb.setChecked(False)
+
+        with patch("PySide6.QtWidgets.QMessageBox.warning") as mock_warn:
+            wizard._run_refinement()
+            mock_warn.assert_called_once()
+        assert not calls
+        assert wizard._outcome is None
+        wizard.close()
+
+    def test_failure_is_reported_not_raised(self, qapp):
+        """driver 抛异常时给出失败文案，向导不崩、不留「运行中」状态。"""
+        from unittest.mock import patch
+
+        def boom(*a, **kw):
+            raise RuntimeError("GSAS-II 未找到可用的仪器参数")
+
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=boom,
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+
+        with patch("PySide6.QtWidgets.QMessageBox.warning") as mock_warn:
+            wizard._run_refinement()
+            mock_warn.assert_called_once()
+
+        assert "精修失败" in wizard._lbl_status.text()
+        assert "GSAS-II 未找到可用的仪器参数" in wizard._lbl_status.text()
+        # 运行态已解除，可以重试
+        assert wizard._btn_run.isEnabled() is True
+        assert wizard._outcome is None
+        wizard.close()
+
+    def test_run_button_is_not_in_nav_row(self, qapp):
+        """「开始精修」必须放在第 4 页内部，不能与「下一步」共用导航条位置。
+
+        回归：旧布局导航条是 ``[上一步] … [下一步][开始精修][完成]``，第 4 页
+        「下一步」隐藏后「开始精修」滑到同一位置；用户在第 3 页连点两下
+        「下一步」，第三下正好落在滑过来的「开始精修」上，直接触发长时间
+        精修 → 看起来就是「点下一步就卡死」。
+        """
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+        )
+        # 「开始精修」不在导航条里（导航条只有 back / next / finish）
+        assert wizard._btn_run not in {
+            wizard._btn_back, wizard._btn_next, wizard._btn_finish,
+        }
+
+        def in_current_page(widget) -> bool:
+            page = wizard._stack.currentWidget()
+            return page is not None and page.isAncestorOf(widget)
+
+        # 第 1 页时它根本不属于当前页，连点「下一步」不可能点到它
+        assert wizard._current_index() == 0
+        assert in_current_page(wizard._btn_run) is False
+        # 导航按钮本身也不在页面内（在对话框底部导航条里）
+        assert in_current_page(wizard._btn_next) is False
+
+        wizard._go_next()
+        wizard._go_next()
+        assert in_current_page(wizard._btn_run) is False
+
+        wizard._go_next()
+        assert in_current_page(wizard._btn_run) is True
+        assert wizard._btn_run.isEnabled() is True
+        wizard.close()
+
+    def test_run_button_disabled_while_running(self, qapp):
+        """运行期间「开始精修」禁用，防止重复提交。"""
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+            driver=lambda *a, **kw: _fake_outcome(),
+        )
+        wizard._go_next()
+        wizard._go_next()
+        wizard._go_next()
+        assert wizard._btn_run.isEnabled() is True
+
+        wizard._set_running(True)
+        assert wizard._btn_run.isEnabled() is False
+        assert wizard._btn_next.isEnabled() is False
+        assert wizard._progress.isVisibleTo(wizard) is True
+
+        wizard._set_running(False)
+        assert wizard._btn_run.isEnabled() is True
+        wizard.close()
+
+    def test_plot_uses_theme_background(self, qapp):
+        """结果图跟随主题：浅色下不是 pyqtgraph 默认黑底。"""
+        from xinmatch.ui.theme import THEMES, apply_theme, current_theme
+
+        apply_theme(qapp, "light")
+        wizard = RefinementWizard(
+            _phases(), {k: str(v) for k, v in _CIF.items()}, _pattern(),
+        )
+        bg = wizard._plot.backgroundBrush().color()
+        expected = THEMES[current_theme()]["chart_bg"]
+        assert bg.name().lower() == expected.lower()
+        # 浅色主题下亮度必须够高（严禁黑色背景）
+        assert bg.lightness() > 128
+        wizard.close()

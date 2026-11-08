@@ -28,7 +28,6 @@ API
 
 from __future__ import annotations
 
-import traceback
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
@@ -39,6 +38,7 @@ from xinmatch.core.model.pattern import Pattern
 from xinmatch.core.model.phase import Phase
 from xinmatch.core.refine.gsas2_adapter import RefineOptions
 from xinmatch.core.refine.gsas2_parse import Gsas2RefineOutcome
+from xinmatch.ui.busy import run_with_busy
 
 __all__ = ["RefinementWizard", "run_wizard"]
 
@@ -93,6 +93,8 @@ class RefinementWizard(QtWidgets.QDialog):
         self._options = options or RefineOptions()
         self._injected_driver = driver
         self._outcome: Gsas2RefineOutcome | None = None
+        #: 是否正在后台精修（决定导航按钮可用性）。
+        self._running = False
 
         # ---- Stacked pages ------------------------------------------------
         self._stack = QtWidgets.QStackedWidget()
@@ -108,9 +110,12 @@ class RefinementWizard(QtWidgets.QDialog):
             self._stack.addWidget(page)
 
         # ---- Navigation buttons -------------------------------------------
+        # 「开始精修」**不在**这条导航栏里：它属于第 4 页的动作按钮（见
+        # ``_build_result_page``）。以前它和「下一步」共用右侧同一位置，第 3 页
+        # 连点「下一步」时第三下正好落在滑过来的「开始精修」上，直接触发
+        # 长时间精修 → 用户以为程序卡死（2026-11-08 报障）。
         self._btn_back = QtWidgets.QPushButton("< 上一步")
         self._btn_next = QtWidgets.QPushButton("下一步 >")
-        self._btn_run = QtWidgets.QPushButton("开始精修")
         self._btn_finish = QtWidgets.QPushButton("完成")
         self._btn_finish.setEnabled(False)
 
@@ -118,13 +123,11 @@ class RefinementWizard(QtWidgets.QDialog):
         btn_row.addWidget(self._btn_back)
         btn_row.addStretch()
         btn_row.addWidget(self._btn_next)
-        btn_row.addWidget(self._btn_run)
         btn_row.addWidget(self._btn_finish)
         layout.addLayout(btn_row)
 
         self._btn_back.clicked.connect(self._go_back)
         self._btn_next.clicked.connect(self._go_next)
-        self._btn_run.clicked.connect(self._run_refinement)
         self._btn_finish.clicked.connect(self.accept)
 
         self._update_nav()
@@ -141,6 +144,16 @@ class RefinementWizard(QtWidgets.QDialog):
             "由 GSAS-II 后端独立处理。"
         ))
         self._phase_checks: dict[str, QtWidgets.QCheckBox] = {}
+        if not self._phases:
+            # 正常路径下 main_window 会先拦掉（没有候选相就不会打开向导），
+            # 但这里仍要有可见的说明：否则空页面看起来就是「向导打不开/全白」。
+            warn = QtWidgets.QLabel(
+                "⚠ 没有可精修的相。请先在搜索结果的候选列表中确认至少一个相，"
+                "再打开本向导。"
+            )
+            warn.setWordWrap(True)
+            warn.setStyleSheet("color: #b45309;")
+            v.addWidget(warn)
         for ph in self._phases:
             eid = str(ph.entry.entry_id)
             name = ph.entry.mineral_name or eid
@@ -249,9 +262,22 @@ class RefinementWizard(QtWidgets.QDialog):
         page = QtWidgets.QWidget()
         v = QtWidgets.QVBoxLayout(page)
 
-        self._lbl_status = QtWidgets.QLabel("准备就绪，点击「开始精修」运行。")
+        self._lbl_status = QtWidgets.QLabel(
+            "已确认的相将按当前勾选送入 GSAS-II。点击下方「开始精修」运行。"
+        )
         self._lbl_status.setWordWrap(True)
         v.addWidget(self._lbl_status)
+
+        # 「开始精修」放页面内（不在导航栏），避免与「下一步」抢同一位置。
+        run_row = QtWidgets.QHBoxLayout()
+        self._btn_run = QtWidgets.QPushButton("▶ 开始精修")
+        self._btn_run.setToolTip(
+            "在后台运行 GSAS-II 精修（窗口保持可操作，可随时看到进度）"
+        )
+        self._btn_run.clicked.connect(self._run_refinement)
+        run_row.addWidget(self._btn_run)
+        run_row.addStretch()
+        v.addLayout(run_row)
 
         self._progress = QtWidgets.QProgressBar()
         self._progress.setRange(0, 0)  # busy indicator
@@ -269,15 +295,31 @@ class RefinementWizard(QtWidgets.QDialog):
         self._plot.setLabel("left", "Intensity", units="counts")
         self._plot.showGrid(x=True, y=True, alpha=0.25)
         self._plot.addLegend(offset=(12, 12))
-        v.addWidget(self._plot)
+        # 3:2 分配高度——否则 QPlotWidget 的 Expanding 策略会吃掉全部空间，
+        # 晶胞表只剩一行可见（多相精修时用户以为只精修了一个相）。
+        v.addWidget(self._plot, 3)
+        # 浅色主题下 pyqtgraph 默认是黑底，与主窗口谱图区（近白）割裂；
+        # 按当前主题令牌统一配色（「严禁黑色」见 pattern_view 模块文档）。
+        self._apply_plot_theme()
 
         # Refined cell table
         self._table = QtWidgets.QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(
             ["相", "a (Å)", "c (Å)", "wt%"]
         )
-        self._table.horizontalHeader().setStretchLastSection(True)
-        v.addWidget(self._table)
+        self._table.verticalHeader().setVisible(False)
+        self._table.setWordWrap(False)
+        header = self._table.horizontalHeader()
+        header.setStretchLastSection(False)
+        # 「相」吃剩余宽度，三个数值列按内容收紧（否则 wt% 独占一半）。
+        header.setSectionResizeMode(
+            0, QtWidgets.QHeaderView.ResizeMode.Stretch
+        )
+        for col in (1, 2, 3):
+            header.setSectionResizeMode(
+                col, QtWidgets.QHeaderView.ResizeMode.ResizeToContents
+            )
+        v.addWidget(self._table, 2)
 
         # Refined-CIF actions (3D view / export) — enabled after a run that
         # produced refined CIFs.
@@ -301,6 +343,21 @@ class RefinementWizard(QtWidgets.QDialog):
         self._btn_export_cif.clicked.connect(self._export_refined_cifs)
 
         return page
+
+    # ------------------------------------------------------------------
+    # Theme
+    # ------------------------------------------------------------------
+    def _apply_plot_theme(self) -> None:
+        """把结果图配色对齐当前主题（幂等，浅色下不再是黑底）。"""
+        from xinmatch.ui import theme as _theme
+
+        tokens = _theme.THEMES[_theme.current_theme()]
+        self._plot.setBackground(tokens["chart_bg"])
+        axis_pen = pg.mkPen(tokens["chart_axis"])
+        for axis_name in ("bottom", "left"):
+            axis = self._plot.getPlotItem().getAxis(axis_name)
+            axis.setPen(axis_pen)
+            axis.setTextPen(tokens["chart_axis"])
 
     # ------------------------------------------------------------------
     # Navigation
@@ -331,10 +388,15 @@ class RefinementWizard(QtWidgets.QDialog):
 
     def _update_nav(self) -> None:
         idx = self._current_index()
-        self._btn_back.setEnabled(idx > 0)
+        running = self._running
+        self._btn_back.setEnabled(idx > 0 and not running)
         self._btn_next.setVisible(idx < 3)
-        self._btn_run.setVisible(idx == 3)
-        self._btn_finish.setVisible(idx == 3 and self._outcome is not None)
+        self._btn_next.setEnabled(not running)
+        # 「开始精修」在第 4 页内，这里只管可用性（不在别的页出现）。
+        self._btn_run.setEnabled(idx == 3 and not running)
+        done = idx == 3 and self._outcome is not None
+        self._btn_finish.setVisible(done)
+        self._btn_finish.setEnabled(done and not running)
 
     # ------------------------------------------------------------------
     # Run refinement
@@ -358,18 +420,17 @@ class RefinementWizard(QtWidgets.QDialog):
         return [ph for ph in self._phases if str(ph.entry.entry_id) in selected_ids]
 
     def _run_refinement(self) -> None:
-        self._lbl_status.setText("正在运行 GSAS-II 精修，请稍候…")
-        self._progress.setVisible(True)
-        self._btn_run.setEnabled(False)
-        self._btn_next.setEnabled(False)
-        QtWidgets.QApplication.processEvents()
+        """启动精修——**在后台线程**，GUI 全程可响应。
 
-        # Check GSAS-II availability
+        以前这里直接同步调 ``_execute_driver()``：GSAS-II 子进程要跑几十秒到
+        几分钟，GUI 线程被独占，窗口变成「(未响应)」+ 整块白屏，用户以为
+        程序挂了（2026-11-08 报障）。现在统一走 :func:`run_with_busy`
+        （后台 QThread + 模态走马灯），结果/异常经排队信号回到 GUI 线程。
+        """
         from xinmatch.core.refine.gsas2_project import GSAS2_AVAILABLE
 
         if not GSAS2_AVAILABLE and self._injected_driver is None:
             self._progress.setVisible(False)
-            self._btn_run.setEnabled(True)
             QtWidgets.QMessageBox.information(
                 self,
                 "未检测到 GSAS-II",
@@ -383,18 +444,54 @@ class RefinementWizard(QtWidgets.QDialog):
             )
             return
 
-        options = self._collect_options()
         phases = self._selected_phases()
+        if not phases:
+            QtWidgets.QMessageBox.warning(
+                self, "未选相", "请至少勾选一个相再开始精修。",
+            )
+            return
 
-        try:
-            outcome = self._execute_driver(phases, options)
-            self._outcome = outcome
-            self._show_result(outcome)
-        except Exception as exc:
-            self._progress.setVisible(False)
-            self._btn_run.setEnabled(True)
-            self._lbl_status.setText(f"精修失败：{exc}")
-            traceback.print_exc()
+        options = self._collect_options()
+        self._lbl_status.setText("正在运行 GSAS-II 精修，请稍候…")
+        self._lbl_rfactors.setVisible(False)
+        self._set_running(True)
+
+        started = run_with_busy(
+            self,
+            "Rietveld 精修",
+            "正在运行 GSAS-II 精修（需构建项目文件，可能数分钟）…",
+            lambda: self._execute_driver(phases, options),
+            on_success=self._on_refine_done,
+            on_error=self._on_refine_failed,
+        )
+        if not started:
+            # 重入保护：上一次精修还没结束。
+            self._lbl_status.setText("上一次精修仍在运行，请稍候…")
+            self._set_running(False)
+
+    def _set_running(self, running: bool) -> None:
+        """运行期间锁住导航与重复提交（幂等）。"""
+        self._running = running
+        self._progress.setVisible(running)
+        self._update_nav()
+
+    def _on_refine_done(self, outcome: Gsas2RefineOutcome) -> None:
+        """工作线程成功回调（GUI 线程执行）。"""
+        self._outcome = outcome
+        self._set_running(False)
+        self._show_result(outcome)
+
+    def _on_refine_failed(self, message: str) -> None:
+        """工作线程异常回调（GUI 线程执行）。"""
+        self._set_running(False)
+        self._lbl_status.setText(f"精修失败：{message}")
+        QtWidgets.QMessageBox.warning(
+            self,
+            "精修失败",
+            f"GSAS-II 精修未完成：\n\n{message}\n\n"
+            "常见原因：CIF 缺少原子位点/晶胞、仪器参数与数据不匹配、"
+            "GSAS-II 环境不完整。",
+        )
 
     def _execute_driver(
         self, phases: list[Phase], options: RefineOptions
@@ -436,8 +533,9 @@ class RefinementWizard(QtWidgets.QDialog):
     # Display results
     # ------------------------------------------------------------------
     def _show_result(self, outcome: Gsas2RefineOutcome) -> None:
+        # 运行态由 ``_set_running(False)``（在 ``_on_refine_done`` 里）解除；
+        # 这里只保证进度条收起，避免直接调用本方法时残留走马灯。
         self._progress.setVisible(False)
-        self._btn_run.setEnabled(True)
 
         rf = outcome.r_factors
         rwp_pct = rf.rwp * 100 if rf.rwp is not None else float("nan")
@@ -475,14 +573,15 @@ class RefinementWizard(QtWidgets.QDialog):
         for row, rph in enumerate(outcome.refined_phases):
             ph = rph.phase
             cell = ph.entry.cell
-            if cell is None:
-                continue
-            name = ph.entry.mineral_name or ph.entry.entry_id
+            name = ph.entry.mineral_name or str(ph.entry.entry_id)
+            # 晶胞缺失时也要填「相」，否则整行空白（用户以为这一相没精修出来）。
+            a_txt = f"{cell.a:.4f}" if cell is not None else "—"
+            c_txt = f"{cell.c:.4f}" if cell is not None else "—"
             wf = ph.weight_fraction
             wt_pct = f"{wf * 100:.2f}" if wf is not None else "—"
             self._table.setItem(row, 0, QtWidgets.QTableWidgetItem(name))
-            self._table.setItem(row, 1, QtWidgets.QTableWidgetItem(f"{cell.a:.4f}"))
-            self._table.setItem(row, 2, QtWidgets.QTableWidgetItem(f"{cell.c:.4f}"))
+            self._table.setItem(row, 1, QtWidgets.QTableWidgetItem(a_txt))
+            self._table.setItem(row, 2, QtWidgets.QTableWidgetItem(c_txt))
             self._table.setItem(row, 3, QtWidgets.QTableWidgetItem(wt_pct))
 
         # Enable refined-CIF actions when GSAS-II exported phase CIFs.

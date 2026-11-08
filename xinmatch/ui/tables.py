@@ -54,11 +54,18 @@ _SORT_ROLE = QtCore.Qt.ItemDataRole.UserRole
 def _crystal_system_letter(cell: CellParams | None) -> str:
     """Return the single-letter crystal system code for *cell* (GUI-side).
 
-    The reference software uses one-letter codes in the "Cryst." column (see
-    ``docs/candidate_list_basics.md``).  We derive it from the unit-cell
-    parameters here so the GUI layer does not depend on the indexed SQL
-    query helpers in :mod:`xinmatch.core.db`.  Returns ``"X"`` when the cell
-    is unknown / partial.
+    The reference software uses one-letter codes in the "Cryst." column:
+    ``C`` cubic / ``H`` hexagonal / ``T`` tetragonal / ``R`` rhombohedral
+    (trigonal) / ``O`` orthorhombic / ``M`` monoclinic / ``A`` anorthic
+    (triclinic).  We derive it from the unit-cell parameters here so the GUI
+    layer does not depend on the indexed SQL query helpers in
+    :mod:`xinmatch.core.db`.  Returns ``"X"`` when the cell is unknown /
+    partial.
+
+    2026-11-08 fix: hexagonal (a=b, α=β=90°, γ=120°) and rhombohedral
+    (a=b=c, α=β=γ≠90°) used to fall through to ``M`` and ``A`` — every
+    hexagonal mineral (graphite, ZnO, quartz…) was labelled monoclinic in
+    both the candidate list and the match list.
     """
     if cell is None:
         return "X"
@@ -66,6 +73,22 @@ def _crystal_system_letter(cell: CellParams | None) -> str:
     alpha, beta, gamma = cell.alpha, cell.beta, cell.gamma
     ortho = abs(alpha - 90) < 1e-3 and abs(beta - 90) < 1e-3 and abs(gamma - 90) < 1e-3
     if not ortho:
+        # 六方：a=b，两个角 90°，第三个角 120°。
+        if (
+            abs(a - b) < 1e-3
+            and abs(alpha - 90) < 1e-3
+            and abs(beta - 90) < 1e-3
+            and abs(gamma - 120) < 1e-3
+        ):
+            return "H"
+        # 菱方（三方）：a=b=c，三个角相等且不为 90°。
+        if (
+            abs(a - b) < 1e-3
+            and abs(b - c) < 1e-3
+            and abs(alpha - beta) < 1e-3
+            and abs(beta - gamma) < 1e-3
+        ):
+            return "R"
         # Monoclinic has one non-90 angle (usually beta); triclinic otherwise.
         n_non90 = sum(abs(ang - 90) > 1e-3 for ang in (alpha, beta, gamma))
         return "M" if n_non90 == 1 else "A"

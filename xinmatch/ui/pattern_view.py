@@ -35,7 +35,6 @@ the hand-built layout resolves that cache to the GraphicsView itself.
 
 from __future__ import annotations
 
-import contextlib
 import itertools
 import math
 
@@ -290,7 +289,13 @@ class PatternView(pg.PlotWidget):
         )
         self._plot.addItem(curve)
         curve.opts["clipToView"] = True
-        self._legend.addItem(curve, label)
+        # NOTE (2026-11-08): ``PlotItem.addItem()`` already appends *curve* to
+        # the legend on its own -- it calls ``legend.addItem(item, name=item.name())``
+        # whenever the item implements ``plotData`` and carries a name
+        # (pyqtgraph 0.13.7, PlotItem.py:516-552).  Calling
+        # ``self._legend.addItem(...)`` here as well produced **two identical
+        # legend rows per curve** (the 2026-11-08 "one phase drawn twice"
+        # report): the plot only ever held one item, the legend held two.
         self._records[key] = {
             "pattern": pattern,
             "curve": curve,
@@ -306,9 +311,12 @@ class PatternView(pg.PlotWidget):
         rec = self._records.pop(key, None)
         if rec is None:
             return
+        # ``PlotItem.removeItem()`` drops the matching legend row by item
+        # identity (LegendItem.removeItem matches ``sample.item is item``), so
+        # there is nothing to remove from the legend here.  Doing it by *name*
+        # used to be wrong twice over: it deleted a same-named sibling row and
+        # it was redundant after addItem stopped double-adding.
         self._plot.removeItem(rec["curve"])
-        with contextlib.suppress(KeyError, ValueError):
-            self._legend.removeItem(rec["name"])
         self.fit_data_range()
 
     def patterns(self) -> dict[str, Pattern]:
@@ -375,7 +383,8 @@ class PatternView(pg.PlotWidget):
             "color": pen_color,
         }
         self._apply_stick_data(key)
-        self._legend.addItem(curve, name)
+        # Legend row is added by ``PlotItem.addItem()`` (see the note in
+        # ``add_pattern``) -- do not add it a second time here.
         return key
 
     def remove_stick_pattern(self, key: str) -> None:
@@ -384,8 +393,6 @@ class PatternView(pg.PlotWidget):
         if rec is None:
             return
         self._plot.removeItem(rec["curve"])
-        with contextlib.suppress(KeyError, ValueError):
-            self._legend.removeItem(rec["name"])
 
     def clear_sticks(self) -> None:
         """Remove every reference stick pattern."""

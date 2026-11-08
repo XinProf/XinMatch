@@ -13,6 +13,7 @@ from xinmatch.ui.tables import (
     CandidateListTable,
     MatchListTable,
     PeakListTable,
+    _crystal_system_letter,
 )
 
 
@@ -354,3 +355,49 @@ def test_match_context_menu_remove(qapp):
     table.remove_phase.connect(lambda e: removed.append(e))
     next(a for a in menu.actions() if "移除" in a.text()).trigger()
     assert removed == ["P-3"]
+
+
+# ---------------------------------------------------------------------------
+# 晶系单字母（2026-11-08 修正：六方/菱方曾被误判为单斜/三斜）
+# ---------------------------------------------------------------------------
+class TestCrystalSystemLetter:
+    """``_crystal_system_letter`` 的七类判定 + 未知晶胞。"""
+
+    def test_cubic(self):
+        assert _crystal_system_letter(CellParams(5.46, 5.46, 5.46)) == "C"
+
+    def test_tetragonal(self):
+        # Anatase / Rutile 都是四方
+        assert _crystal_system_letter(CellParams(3.78, 3.78, 9.51)) == "T"
+
+    def test_hexagonal_is_not_monoclinic(self):
+        """回归：a=b、γ=120° 的六方相曾被返回 ``M``（单斜）。
+
+        旧判定只看「非 90° 角个数 == 1 → 单斜」，而六方的唯一非直角就是
+        γ=120°，于是石墨 / ZnO / 石英全部被标成单斜。
+        """
+        graphite = CellParams(2.46, 2.46, 6.71, 90.0, 90.0, 120.0)
+        assert _crystal_system_letter(graphite) == "H"
+        zno = CellParams(3.2494, 3.2494, 5.2054, 90.0, 90.0, 120.0)
+        assert _crystal_system_letter(zno) == "H"
+
+    def test_rhombohedral(self):
+        """回归：菱方（三方）曾被返回 ``A``（三斜）。"""
+        calcite = CellParams(6.375, 6.375, 6.375, 46.08, 46.08, 46.08)
+        assert _crystal_system_letter(calcite) == "R"
+
+    def test_orthorhombic(self):
+        assert _crystal_system_letter(CellParams(4.76, 5.13, 8.42)) == "O"
+
+    def test_monoclinic(self):
+        assert _crystal_system_letter(
+            CellParams(7.237, 14.952, 17.07, 90.0, 95.11, 90.0)
+        ) == "M"
+
+    def test_triclinic(self):
+        assert _crystal_system_letter(
+            CellParams(7.0, 8.0, 9.0, 88.0, 92.0, 101.0)
+        ) == "A"
+
+    def test_unknown_cell(self):
+        assert _crystal_system_letter(None) == "X"
