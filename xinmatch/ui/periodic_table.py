@@ -16,13 +16,25 @@ element-filtering logic in
 :func:`~xinmatch.core.search.restraints_apply.apply_restraints` — the GUI
 never invents its own semantics.  A *Toggle* check box enables / disables
 the whole three-state filter without losing the chosen states.
+
+Layout / styling notes (2026-11-08 rewrite)
+-------------------------------------------
+* 按钮尺寸**由字体度量算**（``_cell_w`` / ``_cell_h``），不要写死像素：
+  写死 38×30 时，全局 QSS 的 ``padding: 5px 14px`` 会把内容区压到 8 px，
+  两字母符号（He / Og）被裁。
+* 每个按钮的 QSS **必须完整覆盖**全局 ``QPushButton`` 的 ``padding`` 与
+  ``min-width`` / ``min-height``：QSS 的 min-* 优先级高于 ``setFixedSize()``，
+  漏写会让布局把按钮压到 25 px 高（大字体下贴边裁切）；写成 0 又会反过来
+  让 18 列被压扁。
+* 三态**不只靠颜色**区分（红绿色盲友好）：必含 = 绿底 + 2 px 实线 + 加粗，
+  排除 = 红底 + 2 px 虚线 + 加粗，不限制 = 灰底细实线常规字；表上方常显图例。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from xinmatch.core.model.element_symbols import (
     ELEMENT_SYMBOLS,
@@ -90,12 +102,66 @@ _CYCLE: tuple[ElementState, ...] = (
     ElementState.EXCLUDE,
 )
 
-# Background colours per state; overridable by Organizer / theme.
-STATE_BACKGROUNDS: dict[ElementState, str] = {
-    ElementState.OPTIONAL: "#f0f0f0",
-    ElementState.REQUIRED: "#b8e6b8",  # green
-    ElementState.EXCLUDE: "#f2b8b8",   # red
+#: 三态视觉：背景 / 边框色 / 边框线型 / 字色 / 字重。
+#:
+#: **不只靠颜色区分**（红绿色盲友好）：必含用 2 px 实线、排除用 2 px 虚线；
+#: 两者的字都加粗。线型差异在缩小截图或打印时仍然可分。
+_STATE_STYLES: dict[ElementState, dict[str, str]] = {
+    ElementState.OPTIONAL: {
+        "bg": "#f7f8f9", "border": "#c3c8cd", "style": "solid",
+        "fg": "#2b2f33", "weight": "normal",
+    },
+    ElementState.REQUIRED: {
+        "bg": "#d8f0de", "border": "#2f7d4a", "style": "solid",
+        "fg": "#14532d", "weight": "bold",
+    },
+    ElementState.EXCLUDE: {
+        "bg": "#fbdede", "border": "#b03a3a", "style": "dashed",
+        "fg": "#7f1d1d", "weight": "bold",
+    },
 }
+
+#: 兼容旧接口（Organizer / 老文档按背景色取材）。
+STATE_BACKGROUNDS: dict[ElementState, str] = {
+    state: style["bg"] for state, style in _STATE_STYLES.items()
+}
+
+_STATE_LABELS: dict[ElementState, str] = {
+    ElementState.OPTIONAL: "不限制",
+    ElementState.REQUIRED: "必含",
+    ElementState.EXCLUDE: "排除",
+}
+
+#: 按钮内边距（内容区到边框，单位 px）。尺寸计算与 QSS 必须共用这两个数，
+#: 否则又会算出「文字放不下」。
+_CELL_PAD_X = 8
+_CELL_PAD_Y = 6
+#: 边框宽度（QSS 里的 2px 实线/虚线）。QSS 的 min-width / min-height 作用于
+#: **内容矩形**，不含 border，所以换算最小尺寸时要各减 2×2。
+_BORDER_PX = 2
+# 全局 QSS 给 QPushButton 设了 `padding: 5px 14px; min-height: 20px`。
+# 本项目的小按钮必须把它们全部在自己的 QSS 里覆盖掉，理由有两条，且都实测踩过：
+#   ① padding 不归零 → 38 px 宽里只剩 8 px 放字，"He" 直接裁掉；
+#   ② min-height 不覆盖 → QSS 的 20px 优先级高于 setFixedSize()，按钮被压到
+#      25 px（字高 21 px 时贴边），大字体（13pt）下必裁。
+_BUTTON_QSS_TEMPLATE = """
+QPushButton {{
+    background: {bg};
+    color: {fg};
+    border: {border}px {style} {border_color};
+    border-radius: 4px;
+    padding: 0px;
+    margin: 0px;
+    min-width: {min_w}px;
+    min-height: {min_h}px;
+    font-size: {font_pt:g}pt;
+    font-weight: {weight};
+}}
+QPushButton:hover {{ border-color: #2f6fdb; }}
+QPushButton:disabled {{
+    color: #9aa0a6; background: #f0f0f0; border-color: #d8d8d8;
+}}
+"""
 
 
 class PeriodicTableWidget(QtWidgets.QWidget):
@@ -117,8 +183,25 @@ class PeriodicTableWidget(QtWidgets.QWidget):
         self._buttons: dict[str, QtWidgets.QPushButton] = {}
         self._states: dict[str, ElementState] = {}
 
+        # 尺寸按字体度量算，不写死 —— 写死 38×30 时符号被裁（2026-11-08 修）：
+        # 全局 QSS 的 `padding: 5px 14px` 会吃掉 28 px，剩 8 px 放不下 "He"。
+        font = QtGui.QFont(self.font())
+        point_size = font.pointSizeF()
+        if point_size <= 0:  # 字体用像素指定时 pointSizeF() 返回 -1
+            point_size = 9.0
+        font.setPointSizeF(point_size)
+        bold_font = QtGui.QFont(font)
+        bold_font.setBold(True)
+        metrics = QtGui.QFontMetrics(bold_font)  # 加粗态更宽，按它留余量
+        self._font_pt = point_size
+        self._cell_w = max(
+            30, metrics.horizontalAdvance("Og") + 2 * _CELL_PAD_X + 2 * _BORDER_PX
+        )
+        self._cell_h = max(26, metrics.height() + 2 * _CELL_PAD_Y)
+
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
 
         # Toggle: one-click enable / disable of three-state filtering.
         self._toggle = QtWidgets.QCheckBox("启用元素过滤")
@@ -126,9 +209,14 @@ class PeriodicTableWidget(QtWidgets.QWidget):
         self._toggle.toggled.connect(self._on_toggled)
         layout.addWidget(self._toggle)
 
+        layout.addLayout(self._build_legend())
+
         grid_holder = QtWidgets.QWidget()
         self._grid = QtWidgets.QGridLayout(grid_holder)
-        self._grid.setSpacing(2)
+        self._grid.setSpacing(3)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setColumnStretch(18, 1)  # 右侧留白，整表靠左
+        self._grid.setRowMinimumHeight(7, 10)  # 主表与 f 区之间的视觉间隔
         layout.addWidget(grid_holder)
 
         self._build_buttons()
@@ -136,31 +224,75 @@ class PeriodicTableWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
+    def _build_legend(self) -> QtWidgets.QHBoxLayout:
+        """三态图例（色块 + 线型 + 文字），常显在网格上方。"""
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+        for state in _CYCLE:
+            style = _STATE_STYLES[state]
+            swatch = QtWidgets.QLabel()
+            swatch.setFixedSize(14, 14)
+            swatch.setStyleSheet(
+                f"background: {style['bg']};"
+                f"border: 2px {style['style']} {style['border']};"
+                "border-radius: 3px;"
+            )
+            row.addWidget(swatch)
+            text = QtWidgets.QLabel(_STATE_LABELS[state])
+            row.addWidget(text)
+            if state is not _CYCLE[-1]:
+                row.addSpacing(8)
+        row.addStretch(1)
+        return row
+
     def _build_buttons(self) -> None:
         for symbol, row, col in _ELEMENTS:
             btn = QtWidgets.QPushButton(symbol)
             btn.setObjectName(f"elem_{symbol}")
-            btn.setFixedSize(38, 30)
+            btn.setFixedSize(self._cell_w, self._cell_h)
             btn.setCheckable(False)
+            btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _checked=False, s=symbol: self._cycle(s))
             self._grid.addWidget(btn, row, col)
             self._buttons[symbol] = btn
             self._states[symbol] = ElementState.OPTIONAL
             self._restyle(symbol)
 
-        # Row labels for the pulled-out f-block rows.
+        # Row labels for the pulled-out f-block rows（占 col 0–2，右对齐贴近
+        # 镧系首列，避免与主表第 3 列的元素挤在一起）。
         for row, label in ((8, "镧系"), (9, "锕系")):
             lbl = QtWidgets.QLabel(label)
-            lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-            self._grid.addWidget(lbl, row, 1)
+            lbl.setAlignment(
+                QtCore.Qt.AlignmentFlag.AlignRight
+                | QtCore.Qt.AlignmentFlag.AlignVCenter
+            )
+            self._grid.addWidget(lbl, row, 0, 1, 3)
 
     def _restyle(self, symbol: str) -> None:
-        """Paint *symbol* button according to its current state."""
+        """Paint *symbol* button according to its current state + refresh tooltip."""
         state = self._states[symbol]
         btn = self._buttons[symbol]
+        style = _STATE_STYLES[state]
         btn.setProperty("elemState", state.value)
-        color = STATE_BACKGROUNDS.get(state, "#f0f0f0")
-        btn.setStyleSheet(f"background-color: {color};")
+        # 完整覆盖全局 QPushButton 规则（padding / min-height）——只写
+        # background-color 会让全局的 `padding: 5px 14px; min-height: 20px`
+        # 继续生效，符号被裁 / 按钮被压扁。min-* 作用于内容矩形，故减 border。
+        btn.setStyleSheet(_BUTTON_QSS_TEMPLATE.format(
+            bg=style["bg"],
+            fg=style["fg"],
+            style=style["style"],
+            border_color=style["border"],
+            border=_BORDER_PX,
+            min_w=self._cell_w - 2 * _BORDER_PX,
+            min_h=self._cell_h - 2 * _BORDER_PX,
+            weight=style["weight"],
+            font_pt=self._font_pt,
+        ))
+        btn.setToolTip(
+            f"{symbol}｜当前：{_STATE_LABELS[state]}\n"
+            "点击循环切换：必含（绿实线）→ 排除（红虚线）→ 不限制"
+        )
         # Re-polish so dynamic properties take effect under QSS.
         btn.style().unpolish(btn)
         btn.style().polish(btn)
@@ -484,20 +616,33 @@ class PeriodicTablePanel(QtWidgets.QWidget):
         """弹出模态元素选择对话框（复用持久周期表实例）。"""
         dlg = QtWidgets.QDialog(self)
         dlg.setWindowTitle("选择元素")
-        dlg.resize(760, 420)
         v = QtWidgets.QVBoxLayout(dlg)
         hint = QtWidgets.QLabel(
-            "点击元素按钮循环切换：必含（绿）→ 排除（红）→ 无；"
+            "点击元素按钮循环切换：必含（绿底实线）→ 排除（红底虚线）→ 不限制；"
             "关闭窗口后仅展示选择结果。"
         )
         hint.setWordWrap(True)
         v.addWidget(hint)
+        # 滚动区兜底：小屏 / 大字体下 18 列可能放不下，宁可滚动也不裁字。
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        scroll.setWidget(self._table)
+        v.addWidget(scroll, 1)
         # 把持久实例临时移入对话框；关闭时移回面板隐藏。
-        v.addWidget(self._table)
         self._table.set_toggle_visible(False)
         self._table.show()
+        # 尺寸按表格实际 sizeHint 定（原先写死 760×420，大字体下会裁字）。
+        want_w = max(720, self._table.sizeHint().width() + 48)
+        want_h = max(320, self._table.sizeHint().height() + 88)
+        screen = dlg.screen()
+        if screen is not None:
+            avail = screen.availableGeometry()
+            want_w = min(want_w, max(480, avail.width() - 80))
+            want_h = min(want_h, max(320, avail.height() - 80))
+        dlg.resize(want_w, want_h)
         dlg.exec()
-        v.removeWidget(self._table)
+        scroll.takeWidget()  # 解绑，避免滚动区析构时连带删掉持久实例
         self._table.setParent(self)
         self._table.hide()
         self._refresh_summary()

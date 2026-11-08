@@ -2131,3 +2131,42 @@ CLI 至今没有 index 命令。
   该 JSON **紧跟 `[100%]` 同一行**，所以统计进度行时正则**不能锚 `$`**，
   否则漏掉最后一行（本次差点把 20 个点算丢，1748 变 1728）。判绿只能靠
   「进度行字符 + collect 总数对账」，不能看 exit code。
+
+## 元素周期表重设计：符号被裁修复（2026-11-08）✅ 已完成
+
+用户反馈「元素周期表显示文字不全」——截图里 `He` / `Be` / `Sc` 等两字母符号
+只露出半截。**根因两个，都在全局 QSS 与固定尺寸的冲突**：
+
+1. 主题 QSS 给所有 `QPushButton` 设了 `padding: 5px 14px`，而按钮
+   `setFixedSize(38, 30)` 写死 → 内容区只剩 `38 − 28 − 2 = 8 px`，放不下
+   「He」（约 18 px）；而 `_restyle()` 只设 `background-color`，全局 padding
+   继续生效。
+2. 主题的 `QPushButton { min-height: 20px }` **优先级高于 `setFixedSize()`**：
+   实测 13 pt 字体下按钮 `minimumSize=(45,24)`、`maximumSize=(45,33)`、
+   实际 `(45,25)` —— 布局贴最小值排，字高 21 px 时必然贴边裁切。
+   （反向踩过：把 QSS 写成 `min-width: 0px` 会让布局把 18 列压到 446 px 宽。）
+
+**重设计内容**：
+
+- **尺寸由字体度量驱动**：`cell_w = max(30, advance("Og") + 2×8 + 2×2)`、
+  `cell_h = max(26, fm.height() + 2×6)`，用 **bold** 度量留余量（三态里两种
+  是加粗）。实测 9 pt → 38×27、13 pt → 45×33、16 pt → 51×38，三档下
+  `min == max == actual` 且 `advance + 边框 ≤ 宽`。
+- **按钮 QSS 完整覆盖全局规则**：`padding: 0; margin: 0;
+  min-width/min-height = 尺寸 − 2×border`。只写 background 会漏掉 padding。
+- **三态不只靠颜色**（红绿色盲友好）：必含 = 绿底 + **2 px 实线** + 加粗；
+  排除 = 红底 + **2 px 虚线** + 加粗；不限制 = 灰底细实线常规字。
+  色值换成低饱和（`#d8f0de` / `#fbdede` / `#f7f8f9`）配深色字，打印和缩略图
+  也能分。
+- **网格与图例**：三态图例（色块 + 线型 + 文字）常显在表上方；grid spacing
+  2→3、`setColumnStretch(18, 1)` 靠左、f 区前留 10 px 间隔、「镧系 / 锕系」
+  标签占 col 0–2 右对齐（原先在 col 1 居中，与 col 3 元素挤在一起）。
+- **tooltip**：每键 `符号｜当前：必含/排除/不限制` + 点击循环说明，随状态刷新。
+- **弹窗尺寸**：原先写死 `resize(760, 420)`；改为按 `table.sizeHint()`
+  `+ 48 / + 88` 计算并夹到屏幕可用区，外套 `QScrollArea` 兜底（小屏 / 大字体
+  宁可滚动不裁字）。关闭时先 `takeWidget()` 解绑再把持久实例交回面板，
+  否则滚动区析构会连带删掉它。
+- **测试**：`tests/ui/test_periodic_table.py` 新增 5 用例（模拟全局 QSS 下
+  118 个按钮 `min == max == actual` 且每键 `advance/height + 边框 ≤ 尺寸`、
+  尺寸跟随字体度量、三态 QSS 线型/字重互异且含 `padding: 0`、tooltip 跟随
+  状态、弹窗关闭后实例回到面板）。ruff / mypy(99) 全绿。
