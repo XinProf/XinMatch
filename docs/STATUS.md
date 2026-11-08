@@ -2053,7 +2053,37 @@ RIR/内标）、`microstructure`（`core.micro` 晶粒尺寸/微应变）、`ind
   `weight_fraction` / 主窗口「无已确认物相」守卫 / 模块动作打开对话框 /
   不再占位播报）。
 - **验证状态**：`test_quant_dialog.py` 8/8 通过；ruff / mypy(99) 全绿。
-  **tests/ui 全套与全量回归未跑完**——机器上有外部重任务并发
-  （PyInstaller 打包 / IUCr 逐样本解析 / build_binaries），tests/ui 跑了
-  41 min 无进展已中止；按约定不与重任务并发跑回归，**等机器空闲后补跑**
-  （新文件 + 纯接线，风险面与批次 3 同型）。
+  提交时（`3bb5d8f`）因外部重任务并发，tests/ui 全套与全量回归未跑；
+  **已于 2026-11-08 补跑全量回归判绿**（1736 用例 = 1731 passed / 4 skip /
+  1 xfail / 0 F / 0 E），并借批次 5 修掉了 `test_module_wiring.py` 里
+  仍把 `quant_analysis` 当占位的陈旧断言。
+
+## GUI 批次 5：微结构分析对话框（2026-11-07）✅ 已完成
+
+`microstructure` 模块动作从占位接成真实对话框
+`xinmatch/ui/microstructure_dialog.py`。**计算全委托 `core.micro`，不重写算法。**
+
+- **输入**：当前谱图（提供 λ 默认值，可改）+ 峰列表的 FWHM。FWHM 只能来自
+  Profile Fitting 精修（峰检测本身不给宽度），无 FWHM 的峰逐条跳过。
+- **参数**：波长 λ（Å，默认取 `pattern.wavelength`）、Scherrer 常数 K
+  （默认 0.9）。两页共用同一组参数。
+- **Scherrer 页**：`scherrer_from_peaks` 逐峰给 D = Kλ/(βcosθ)（2θ / FWHM /
+  D 三列）+ 算术平均（标注「单峰值随 hkl 各向异性会分散」）。
+- **Williamson-Hall 页**：`williamson_hall_from_peaks` 对
+  βcosθ/λ = K/D + ε·4sinθ/λ 做最小二乘，报 D、ε、R²、参与峰数；回归用的
+  (2θ, x, y) 逐峰列出便于复核。截距非正时 D 显示「—（截距非正）」。
+- **不互相阻断**：一页数据条件不足（如 W-H 需 ≥2 峰）只把该页提示写回，
+  另一页照常出结果；两页都不弹模态框。
+- **仪器宽化**：本版**不做** β_sample² = β_obs² − β_inst²（需 LaB₆ / Si 标样
+  表，后续版本），对话框内常显提示「算出的 D 会偏小」，避免误读。
+- **不回写**：结果是报告性数值，不写峰列表（与参考软件一致）。
+- **测试**：新 `tests/ui/test_microstructure_dialog.py` 13 用例（构造默认 /
+  Scherrer 手算对齐 / 跳过无 FWHM 峰 / 算术平均 / 纯尺寸合成峰复原 D=50 nm /
+  纯应变合成峰复原 ε=2e-3 / 回归表与峰序对齐 / 单峰时 W-H 提示但 Scherrer
+  照常 / 全无 FWHM 提示 / 两个主窗口守卫 / 模块动作打开且不再占位）。
+- **连带修正**：`tests/ui/test_module_wiring.py` 的「仍占位模块」清单把
+  `quant_analysis`（批次 4 已接）与 `microstructure` 移出——批次 4 因外部
+  重任务并发未跑 tests/ui 全套，这条陈旧断言当时没被发现。
+- **验证**：受影响 UI 子集 93 用例全绿；**全量回归判绿**（1736 用例 =
+  1731 passed / 4 skip / 1 xfail / 0 F / 0 E，19m55s，同时补上批次 4 的
+  回归缺口）；ruff / mypy(99) 全绿。

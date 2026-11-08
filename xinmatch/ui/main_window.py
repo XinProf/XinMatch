@@ -81,6 +81,7 @@ from xinmatch.ui.dialogs.config import (
 )
 from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
+from xinmatch.ui.microstructure_dialog import MicrostructureDialog
 from xinmatch.ui.pattern_view import PATTERN_COLORS, PatternPanel
 from xinmatch.ui.periodic_table import PeriodicTablePanel
 from xinmatch.ui.profile_fit_dialog import ProfileFitDialog
@@ -413,6 +414,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 # 批次 4 接线：RIR 定量分析对话框，计算全委托
                 # core.quant.rir.rir_quantify。
                 action.triggered.connect(self._open_quant_dialog)
+            elif mod_id == "microstructure":
+                # 批次 5 接线：Scherrer / Williamson-Hall 微结构对话框，
+                # 计算全委托 core.micro。
+                action.triggered.connect(self._open_microstructure)
             else:
                 action.triggered.connect(
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
@@ -1071,6 +1076,34 @@ class MainWindow(QtWidgets.QMainWindow):
             )
 
         dlg.quant_applied.connect(_apply)
+        dlg.exec()
+
+    def _open_microstructure(self) -> None:
+        """批次 5 — 打开微结构分析对话框（Scherrer / Williamson-Hall）。
+
+        输入：当前谱图（提供波长）+ 峰列表的 FWHM。FWHM 只能来自 Profile
+        Fitting 精修（峰检测本身不给宽度），所以峰列表为空或无 FWHM 时
+        提示而不打开对话框。计算全委托 :mod:`xinmatch.core.micro`；
+        结果为报告性数值，不回写峰列表。
+        """
+        if self._current_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "尚无谱图",
+                "请先打开衍射数据，再做微结构分析。",
+            )
+            return
+        peaks = self.peak_table.peaks()
+        if not peaks:
+            QtWidgets.QMessageBox.information(
+                self,
+                "峰列表为空",
+                "微结构分析以峰列表的 FWHM 为输入。\n"
+                "请先寻峰（工具栏「峰检测」），再用 Profile Fitting（F5）"
+                "精修出 FWHM。",
+            )
+            return
+        dlg = MicrostructureDialog(self._current_pattern, peaks, parent=self)
         dlg.exec()
 
     def _open_refinement_wizard(self) -> None:

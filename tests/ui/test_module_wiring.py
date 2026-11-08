@@ -9,8 +9,9 @@ HANDOVER §7.2 P2「GUI 剩余向导 / 主题」拆解后的第一批：不改�
 * ``restraints``     → ``_focus_restraints``（右侧坞的限制条件页翻到最前）；
 * ``rietveld``       → ``_open_refinement_wizard``（与精修向导 Ctrl+Shift+W 同槽）。
 
-仍占位：``data_export`` / ``user_db`` / ``indexing`` / ``quant_analysis`` /
-``microstructure``（批次 2+）。
+仍占位：``user_db`` / ``indexing``（其余模块已在批次 2–5 接成真实对话框 /
+聚合菜单，各自的单测见 ``test_export_menu.py`` / ``test_profile_fit_dialog.py``
+/ ``test_quant_dialog.py`` / ``test_microstructure_dialog.py``）。
 """
 
 from __future__ import annotations
@@ -86,8 +87,6 @@ def test_still_placeholder_modules_announce(qapp):
     for mod_id, label in (
         ("user_db", "用户数据库"),
         ("indexing", "指标化"),
-        ("quant_analysis", "定量分析"),
-        ("microstructure", "微结构分析"),
     ):
         _trigger(win, mod_id)
         assert label in win.statusBar().currentMessage(), mod_id
