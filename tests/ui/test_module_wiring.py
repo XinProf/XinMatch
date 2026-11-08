@@ -9,9 +9,10 @@ HANDOVER §7.2 P2「GUI 剩余向导 / 主题」拆解后的第一批：不改�
 * ``restraints``     → ``_focus_restraints``（右侧坞的限制条件页翻到最前）；
 * ``rietveld``       → ``_open_refinement_wizard``（与精修向导 Ctrl+Shift+W 同槽）。
 
-仍占位：``user_db`` / ``indexing``（其余模块已在批次 2–5 接成真实对话框 /
-聚合菜单，各自的单测见 ``test_export_menu.py`` / ``test_profile_fit_dialog.py``
-/ ``test_quant_dialog.py`` / ``test_microstructure_dialog.py``）。
+仍占位：``user_db``（无对应 core 能力，需求待定）。其余模块已在批次 2–6
+接成真实对话框 / 聚合菜单，各自的单测见 ``test_export_menu.py`` /
+``test_profile_fit_dialog.py`` / ``test_quant_dialog.py`` /
+``test_microstructure_dialog.py`` / ``test_indexing_wizard.py``。
 """
 
 from __future__ import annotations
@@ -81,12 +82,16 @@ def test_raw_processing_menu_aggregates_preprocess_actions(qapp):
 
 
 def test_still_placeholder_modules_announce(qapp):
-    """未接线的模块动作仍然只做占位播报，不抛异常。"""
+    """未接线的模块动作仍然只做占位播报，不抛异常。
+
+    清单是手写的：**每接通一个模块动作都要从这里删掉对应条目**，并跑本文件。
+    2026-11-07 踩过——批次 4 接了 ``quant_analysis`` 但没跑本文件，清单里
+    的陈旧条目一直红着没人发现（HANDOVER §6.6）。
+    """
     win = MainWindow()
     win.show()
     for mod_id, label in (
         ("user_db", "用户数据库"),
-        ("indexing", "指标化"),
     ):
         _trigger(win, mod_id)
         assert label in win.statusBar().currentMessage(), mod_id

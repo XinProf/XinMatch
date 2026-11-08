@@ -81,6 +81,7 @@ from xinmatch.ui.dialogs.config import (
 )
 from xinmatch.ui.dialogs.library_dialog import LibraryDialog
 from xinmatch.ui.dialogs.options_dialog import OptionsDialog
+from xinmatch.ui.indexing_wizard import IndexingWizard
 from xinmatch.ui.microstructure_dialog import MicrostructureDialog
 from xinmatch.ui.pattern_view import PATTERN_COLORS, PatternPanel
 from xinmatch.ui.periodic_table import PeriodicTablePanel
@@ -418,6 +419,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 # 批次 5 接线：Scherrer / Williamson-Hall 微结构对话框，
                 # 计算全委托 core.micro。
                 action.triggered.connect(self._open_microstructure)
+            elif mod_id == "indexing":
+                # 批次 6 接线：Treor90 / DicVol06 指标化向导，计算全委托
+                # core.index。
+                action.triggered.connect(self._open_indexing_wizard)
             else:
                 action.triggered.connect(
                     lambda _checked=False, lbl=label: self._placeholder(lbl)
@@ -1104,6 +1109,32 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             return
         dlg = MicrostructureDialog(self._current_pattern, peaks, parent=self)
+        dlg.exec()
+
+    def _open_indexing_wizard(self) -> None:
+        """批次 6 — 打开指标化向导（Treor90 / DicVol06）。
+
+        输入：当前谱图（提供波长默认值）+ 峰列表（跳过用户排除的峰）。
+        计算全委托 :mod:`xinmatch.core.index`；结果为候选单胞表，暂无自动
+        去处（精修向导需要已鉴定相 + CIF，单胞不能直接注入），选中行可复制。
+        """
+        if self._current_pattern is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "尚无谱图",
+                "请先打开衍射数据，再做指标化。",
+            )
+            return
+        peaks = self.peak_table.peaks()
+        if not peaks:
+            QtWidgets.QMessageBox.information(
+                self,
+                "峰列表为空",
+                "指标化以峰位（2θ → d）为输入。\n"
+                "请先寻峰（工具栏「峰检测」），再打开本向导。",
+            )
+            return
+        dlg = IndexingWizard(self._current_pattern, peaks, parent=self)
         dlg.exec()
 
     def _open_refinement_wizard(self) -> None:
