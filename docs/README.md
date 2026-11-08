@@ -12,7 +12,8 @@
 | [`STATUS.md`](STATUS.md) | 路线图任务完成状态（按 Phase / T 编号，含每个版本的发布记录） |
 | [`../ROADMAP_v3.md`](../ROADMAP_v3.md) | **当前**路线图（v1/v2 为历史版本） |
 | [`../FUNCTION_MAP_v43.md`](../FUNCTION_MAP_v43.md) | **当前**功能映射（对齐参考软件 4.3） |
-| [`RELEASE-NOTES-v3.5.0.md`](RELEASE-NOTES-v3.5.0.md) | **当前版本**（v3.5.0）发布说明：元素「必须不含」约束落地 + 版本号单一真相源 |
+| [`RELEASE-NOTES-v3.6.0.md`](RELEASE-NOTES-v3.6.0.md) | **当前版本**（v3.6.0）发布说明：GUI 11 个菜单动作接通 + 峰位精修 LM 提速 + 周期表重设计 |
+| [`RELEASE-NOTES-v3.5.0.md`](RELEASE-NOTES-v3.5.0.md) | v3.5.0 发布说明：元素「必须不含」约束落地 + 版本号单一真相源 |
 | [`RELEASE-NOTES-v3.4.0.md`](RELEASE-NOTES-v3.4.0.md) | v3.4.0 发布说明（导出物相分析 `.xinm`） |
 | [`RELEASE-NOTES-v3.3.0.md`](RELEASE-NOTES-v3.3.0.md) | v3.3.0 发布说明：少线相 ★ 强线锚定标记 |
 | [`RELEASE-NOTES-v3.2.0.md`](RELEASE-NOTES-v3.2.0.md) | v3.2.0 发布说明（相位级身份 + 候选折叠） |

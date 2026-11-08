@@ -2170,3 +2170,28 @@ CLI 至今没有 index 命令。
   118 个按钮 `min == max == actual` 且每键 `advance/height + 边框 ≤ 尺寸`、
   尺寸跟随字体度量、三态 QSS 线型/字重互异且含 `padding: 0`、tooltip 跟随
   状态、弹窗关闭后实例回到面板）。ruff / mypy(99) 全绿。
+
+## v3.6.0 版本号更新与源码推送（2026-11-08）✅
+
+按「版本号单一真相源」机制 bump（不再照 11 处清单人工改）：
+
+| 落点 | 值 |
+|---|---|
+| `pyproject.toml` `[project] version` | **3.6.0**（唯一真相源） |
+| `xinmatch/__init__.py` `_FALLBACK_VERSION` | `"3.6.0"`（冻结态 About / `.xinm` manifest 取值） |
+| `tools/xinmatch_setup.iss` `#define AppVersion` | `"3.6.0"`（安装包默认值，构建脚本仍可用 `/DAppVersion=` 覆盖） |
+| `xinmatch.spec` | 未动（从 pyproject 推导，测试保证不出现字面量） |
+
+- **发布说明**：新增 `docs/RELEASE-NOTES-v3.6.0.md`（基线 `v3.5.0` = tag
+  `fe4ccfe`，其后 31 个提交）；`docs/README.md` 索引与根 `README.md` 顶部
+  徽标 / 本版摘要同步；HANDOVER §5.1 版本线新增 v3.6.0 行、文首版本信息更新。
+- **版本主题**：GUI 11 个占位菜单动作接通（Profile Fit / RIR 定量 /
+  Scherrer·W-H / Treor90·DicVol06 / 导出聚合菜单等）＋ 峰位精修换 LM
+  （预处理 35.2 s → 0.35 s，CLI 36 s → 2.3 s）＋ 候选列表默认 50 行
+  （族级 81/98 → 89/98）＋ 元素周期表重设计 ＋ 三把尺子/别名表等基准收口。
+- **验证**：`tests/test_version_consistency.py` 5 项通过（三处逐字一致、
+  spec 无字面量、iss 无第二处硬编码）；全量回归 1753 = 1748 passed /
+  4 skipped / 1 xfailed / 0 F / 0 E；ruff / mypy(99) 全绿。
+- **未做**：**本轮不构建二进制**。`XinMatch-Setup-3.6.0.exe` / 内部评估版
+  均未产出，`v3.6.0` 也未打 tag、未建 GitHub Release —— 按纪律 EXE 发布前
+  必须人工双击验收，需要时另走 §8.3 清单。
