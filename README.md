@@ -8,7 +8,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.6.0.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.6.1.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
 > multi-phase identification** (confirm a phase → re-search on the remaining
 > unexplained peaks → confirm the next) + true March-Dollase preferred
@@ -45,6 +45,15 @@ workflows, published algorithms and open reference data (COD).
 >   not deprecated;
 > * still mountable from any folder (设置→参考数据库…, or
 >   `xinmatch libraries --add <path>`), `.xinDB` only.
+>
+> **v3.6.1** 是纯缺陷修复版，修三处实测报障，接口与数据格式均无变更：
+> ① 谱图图例每条曲线**出现两次**（pyqtgraph 的 `PlotItem.addItem()` 已自动加图例，
+> 代码又手动加了一次 —— 曲线一直只有 1 条，重复的是图例行）；
+> ② Rietveld 精修向导**整窗白屏 + 卡死**（精修在 GUI 线程同步跑 GSAS-II 子进程
+> 导致「(未响应)」，同时「开始精修」按钮会滑到「下一步」的位置，连点就误触），
+> 现改为后台线程 + 动作按钮移入页面内部；③ 列表「晶系」列把**六方相标成单斜**
+> （只按「非 90° 角个数」判据，而六方唯一的非直角就是 γ=120°），已补 `H`/`R` 判据。
+> 详见 [docs/RELEASE-NOTES-v3.6.1.md](docs/RELEASE-NOTES-v3.6.1.md)。
 >
 > **v3.6.0** 补的是「能点但没反应」：15 个功能模块里有 11 个菜单动作只在状态栏
 > 播一句「模块骨架已就位」，而 `core.quant` / `core.micro` / `core.index` 早已
