@@ -2307,5 +2307,20 @@ CLI 至今没有 index 命令。
 - **全量回归 1771 = 1766 passed / 4 skipped / 1 xfailed / 0 F / 0 E**（18m 05s，exit=0），
   与 `--collect-only` 求和 **1771 精确对账**。基线 1753 + 本次新增 18 项（+3 +7 +8）= 1771。
   判绿口径按 §6.6：进度行字符统计（不 `count('.')` 全文、不锚 `$`）+ collect 对账，不看 exit code。
-- **注意**：本修复晚于 `v3.6.0` 二进制构建，`dist/` 里的 3.6.0 安装包**不含这三处修复**，
-  重新分发前必须重建二进制（并按纪律走人工双击验收）。
+- **二进制（v3.6.1，2026-11-08 构建）**：release 便携树 + 安装包 + internal 便携树 + zip，
+  自动验收门 5 轮全过。
+
+  | 文件 | 大小 | SHA-256 |
+  |---|---|---|
+  | `XinMatch-Setup-3.6.1.exe` | 254,158,820 B（242.4 MiB） | `55d4f90d…3a9c60f` |
+  | `XinMatch-Internal-3.6.1.zip` | 368,271,127 B（351.2 MiB） | `f463a1a6…369c86c2` |
+
+  `XinMatch.exe --version` → `xinmatch 3.6.1`、`FileVersion=3.6.1`、内置库
+  `COD-Inorg-20261020.xinDB`（118,706,176 B / 78,035 相）；`dist/SHA256SUMS.txt`
+  两条（LF），`sha256sum -c` 双 OK。`verify_binary --tag v3.6.1` 5 轮
+  `all_pass=true`：R2 便携 `libraries` rc=0 + `variant=internal` + logo 一致；
+  R3 REG/LIBS(10 库)/ABOUT 钩子 rc=0；R4 静默安装 `variant=release`；
+  R5 已安装态 `5-1.txt` 118 峰 → 5 候选，top `96-210-0189`。
+- **未做（硬红线）**：**人工双击验收尚未进行**，因此 `v3.6.1` 未打 tag、
+  GitHub Release 未创建。
+

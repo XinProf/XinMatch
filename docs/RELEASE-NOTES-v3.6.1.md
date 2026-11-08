@@ -79,7 +79,34 @@
    牵动模型层与所有构造点；几何派生在「晶胞可信」的前提下是等价且零成本的。
    真正的教训是**上位规则推导必须显式枚举所有分支**，而不是等它自己 fallback。
 
-### 五、升级注意
+### 五、二进制产物
+
+2026-11-08 构建（`tools/build_exe.ps1 -Variant release -Installer` + `-Variant internal` + 7-Zip）：
+
+| 文件 | 大小 | SHA-256 |
+|---|---|---|
+| `XinMatch-Setup-3.6.1.exe` | 242.4 MiB（254,158,820 B） | `55d4f90d8350e7114549e944dbc221119da66155ed457c8575c869e613a9c60f` |
+| `XinMatch-Internal-3.6.1.zip` | 351.2 MiB（368,271,127 B） | `f463a1a6217b91d985e5f6373077b96e4f5b6e8bc1dcc3734e79fc02369c86c2` |
+
+- 便携树 784 MB，`XinMatch.exe --version` → `xinmatch 3.6.1`，`FileVersion = 3.6.1`；
+  内置默认库 `data/COD-Inorg-20261020.xinDB`（118,706,176 B / **78,035 相**），解压即可检索。
+- `dist/SHA256SUMS.txt` 为 3.6.1 两条（**LF 行尾**），`sha256sum -c` 双 OK。
+- **自动验收门 `tools.verify_binary` 5 轮全过**（`all_pass=true`）：
+
+| 轮 | 检查项 | 结果 |
+|---|---|---|
+| 1 | 两产物 SHA-256 + manifest round-trip | OK（与上表一致） |
+| 2 | 便携解压 → 冻结 CLI（`libraries` / `import --help`）→ 内置库 → logo 字节 | OK（`libraries` rc=0，78,035 相，`variant=internal`） |
+| 3 | 冻结 GUI offscreen 钩子：REG / LIBS / ABOUT | OK（10 个库；ABOUT 截图 9,117 B） |
+| 4 | 静默安装到隔离目录 | OK（`variant=release`，内置库存在） |
+| 5 | 已安装态冻结 CLI + 真实检索 | OK（`5-1.txt` **118 峰 → 5 候选**，top `96-210-0189`） |
+
+> ⚠️ **人工双击验收尚未进行**。按 §硬红线，验收通过前不打 `v3.6.1` tag、不建 GitHub Release。
+> 人工验收清单见 `docs/HANDOVER-20261106.md` §8.3，本版**新增一项**：
+> 打开谱图确认图例每条曲线只有一行；打开精修向导点「开始精修」确认窗口不白屏、
+> 可看到后台进度且能正常回填 Rwp。
+
+### 六、升级注意
 
 - **无数据迁移**。`.xinDB` 库、`.xinm` 存档、`config.yaml` 全部兼容，无需重建参考库。
 - **无 API 变更**。`core.*` 公开签名未动；`RefinementWizard` 构造参数未动，
