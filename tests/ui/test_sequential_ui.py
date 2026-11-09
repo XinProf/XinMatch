@@ -25,6 +25,7 @@ from xinmatch.core.model import Entry, Pattern, Peak
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.sequential import ResidualSearchResult
 from xinmatch.ui import main_window as mw
+from xinmatch.ui.stick_lane import CANDIDATE_COLOR
 
 WL = 1.5406
 
@@ -326,3 +327,74 @@ def test_duplicate_card_is_flagged_as_low_gain(harness):
 
     assert len(win.matched_phases()) == 2
     assert "几乎未解释新峰" in win.statusBar().currentMessage()
+
+
+# --------------------------------------------------------------------------- #
+# v3.6.2 谱图下方参考线条分区
+# --------------------------------------------------------------------------- #
+def test_lane_lists_every_confirmed_phase(harness):
+    """已确认相全部进"参考线分区"，一行一相（查漏用）。"""
+    win = harness.window
+    assert win.pattern_panel.lane_rows() == []
+
+    win.confirm_candidate("A")
+    rows = win.pattern_panel.lane_rows()
+    assert [r.label for r in rows] == ["A"]
+    assert rows[0].candidate is False
+    assert rows[0].positions, "参考线的峰位不能为空"
+
+    win.confirm_candidate("B")
+    assert [r.label for r in win.pattern_panel.lane_rows()] == ["A", "B"]
+
+    win.undo_last_phase()
+    assert [r.label for r in win.pattern_panel.lane_rows()] == ["A"]
+
+
+def test_lane_matches_pattern_stick_colors(harness):
+    """同一相在主谱图参考线与分区里必须是同一个颜色（颜色即身份）。"""
+    win = harness.window
+    win.confirm_candidate("A")
+    lane_row = win.pattern_panel.lane_rows()[0]
+    stick_color = next(iter(win.pattern_view._sticks.values()))["color"]
+    assert lane_row.color == stick_color
+
+
+def test_highlighting_a_candidate_previews_its_lane_row(harness):
+    """候选列表高亮一行 → 分区顶部出现该相的虚线预览行（候选行）。"""
+    win = harness.window
+    table = win.candidate_table
+    # 先点第一行（A），再点第二行（B）：预览行跟着换，且始终只有一行。
+    table.setCurrentIndex(table.model().index(0, 0))
+    rows = win.pattern_panel.lane_rows()
+    assert [r.label for r in rows] == ["A"]
+    assert rows[0].candidate is True
+    assert rows[0].color == CANDIDATE_COLOR
+
+    table.setCurrentIndex(table.model().index(1, 0))
+    rows = win.pattern_panel.lane_rows()
+    assert [r.label for r in rows] == ["B"]
+    assert rows[0].candidate is True
+
+
+def test_clearing_selection_drops_only_the_preview_row(harness):
+    win = harness.window
+    win.confirm_candidate("A")
+    table = win.candidate_table
+    table.setCurrentIndex(table.model().index(0, 0))
+    assert len(win.pattern_panel.lane_rows()) == 2  # 预览行 + 已确认 A
+
+    table.candidate_highlighted.emit("")  # 取消高亮
+    rows = win.pattern_panel.lane_rows()
+    assert [r.label for r in rows] == ["A"]
+    assert rows[0].candidate is False
+
+
+def test_new_candidate_list_clears_the_preview_row(harness):
+    """换一批候选（残差检索返回）时，旧候选的预览行必须消失。"""
+    win = harness.window
+    table = win.candidate_table
+    table.setCurrentIndex(table.model().index(0, 0))
+    assert win.pattern_panel.lane_rows()[0].candidate is True
+
+    win.set_candidates([CandidateResult(entry=_entry("Z", A_D, A_I), fom=0.4)])
+    assert win.pattern_panel.lane_rows() == []

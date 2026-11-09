@@ -89,6 +89,7 @@ from xinmatch.ui.profile_fit_dialog import ProfileFitDialog
 from xinmatch.ui.quant_dialog import QuantDialog
 from xinmatch.ui.refinement_wizard import RefinementWizard
 from xinmatch.ui.shortcuts import install_shortcuts
+from xinmatch.ui.stick_lane import CANDIDATE_COLOR, LaneRow, lane_row_from_entry
 from xinmatch.ui.structure_view import (
     StructureViewDialog,
     resolve_entry_cif,
@@ -790,6 +791,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # 序贯流程信号（v3.1.0）：候选双击 / 回车 / 右键"确认为匹配物相"；
         # 匹配列表双击 / 右键移除 → 回滚该相并重算剩余峰。
         self.candidate_table.candidate_activated.connect(self.confirm_candidate)
+        # v3.6.2：候选列表高亮 → 谱图下方参考线分区预览该相峰位。
+        self.candidate_table.candidate_highlighted.connect(
+            self._on_candidate_highlighted
+        )
         self.match_table.phase_activated.connect(self.remove_matched_phase)
         self.match_table.remove_phase.connect(self.remove_matched_phase)
 
@@ -962,7 +967,9 @@ class MainWindow(QtWidgets.QMainWindow):
         apply_theme(self, target)
         self._theme_action.setText(f"切换主题（当前：{current_theme()}）")
         # 谱图区配色随主题切换（并行任务交付；缺失时静默跳过）。
-        getattr(self.pattern_view, "apply_theme_colors", lambda: None)()
+        # v3.6.2：改走面板的转发方法——谱图与"参考线分区"要一起换色，
+        # 只刷视图会留下一条浅色底的分区挂在深色谱图下面。
+        getattr(self.pattern_panel, "apply_theme_colors", lambda: None)()
         # 工具栏图标按新主题重着色（否则深色主题下图标仍是深色线条，几乎不可见）。
         self._refresh_icons()
 
@@ -1481,6 +1488,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_candidates([])
         self.match_table.set_phases([])
         self.peak_table.set_peaks([])
+        # 参考线分区也要清空（换数据后旧相的线条没有意义）。
+        self.pattern_panel.set_confirmed_lane_rows([])
+        self.pattern_panel.set_candidate_lane_row(None)
         self._refresh_sequential_controls()
         self.set_pattern(pattern, name=fname)
         n = len(pattern)
@@ -2067,37 +2077,77 @@ class MainWindow(QtWidgets.QMainWindow):
         线高 = 该相的比例因子 × 参考相对强度（即它**声称**贡献的计数），
         因此线条应与实测峰高度大致吻合；明显矮一截说明该相只解释了峰的
         一部分（重叠峰的另一相还没确认）。
+
+        v3.6.2 起同一批相还要进「谱图下方参考线分区」（一行一相，行内强度
+        归一化），供查漏"还有哪些峰没被任何相覆盖"；两处配色按同一索引取，
+        颜色即相的身份。
         """
         for key in self._stick_keys:
             self.pattern_view.remove_stick_pattern(key)
         self._stick_keys.clear()
         seq = self._seq
         if seq is None:
+            self.pattern_panel.set_confirmed_lane_rows([])
             return
         wavelength = seq.wavelength
+        lane_rows: list[LaneRow] = []
         for index, selection in enumerate(seq.selections):
             entry = selection.phase.entry
             ref_max = float(entry.intensity_max)
-            if selection.scale <= 0.0 or ref_max <= 0.0:
-                continue
-            positions: list[float] = []
-            heights: list[float] = []
-            for d, intensity in zip(entry.d_spacings, entry.intensities, strict=True):
-                two_theta = d_to_two_theta(float(d), wavelength)
-                if not math.isfinite(two_theta):
-                    continue
-                positions.append(two_theta)
-                heights.append(selection.scale * float(intensity) / ref_max)
-            if not positions:
-                continue
-            label = f"{entry.entry_id} {entry.formula}".strip()
-            key = self.pattern_view.add_stick_pattern(
-                label,
-                positions,
-                heights,
-                PATTERN_COLORS[index % len(PATTERN_COLORS)],
+            color = PATTERN_COLORS[index % len(PATTERN_COLORS)]
+            if selection.scale > 0.0 and ref_max > 0.0:
+                positions: list[float] = []
+                heights: list[float] = []
+                for d, intensity in zip(entry.d_spacings, entry.intensities, strict=True):
+                    two_theta = d_to_two_theta(float(d), wavelength)
+                    if not math.isfinite(two_theta):
+                        continue
+                    positions.append(two_theta)
+                    heights.append(selection.scale * float(intensity) / ref_max)
+                if positions:
+                    label = f"{entry.entry_id} {entry.formula}".strip()
+                    key = self.pattern_view.add_stick_pattern(
+                        label,
+                        positions,
+                        heights,
+                        color,
+                    )
+                    self._stick_keys.append(key)
+            lane_rows.append(
+                lane_row_from_entry(entry, wavelength, color=color)
             )
-            self._stick_keys.append(key)
+        self.pattern_panel.set_confirmed_lane_rows(lane_rows)
+
+    def _on_candidate_highlighted(self, entry_id: str) -> None:
+        """候选列表高亮某相 → 在参考线分区顶部预览它的峰位与强度。
+
+        用户需求（2026-11-08）：在候选列表里点一行，谱图下方就该画出这个相
+        的参考线条，和上面的实测峰对照着判断"能不能对上"；换行即换相，取消
+        选中即清空该预览行（已确认相的行不受影响）。
+        """
+        row = None
+        if entry_id:
+            result = next(
+                (r for r in self._candidates if r.entry.entry_id == entry_id), None
+            )
+            if result is not None:
+                row = lane_row_from_entry(
+                    result.entry,
+                    self._lane_wavelength(),
+                    color=CANDIDATE_COLOR,
+                    candidate=True,
+                )
+        self.pattern_panel.set_candidate_lane_row(row)
+
+    def _lane_wavelength(self) -> float:
+        """参考线分区换算 d→2θ 用的波长（优先序贯状态，其次当前谱图）。"""
+        seq = self._seq
+        if seq is not None and float(getattr(seq, "wavelength", 0.0) or 0.0) > 0.0:
+            return float(seq.wavelength)
+        pattern = self._current_pattern
+        if pattern is not None and float(pattern.wavelength or 0.0) > 0.0:
+            return float(pattern.wavelength)
+        return 1.5406
 
     def _search_residual_peaks(self) -> None:
         """用剩余未解释峰重新检索（工作线程 + 忙碌窗口）。

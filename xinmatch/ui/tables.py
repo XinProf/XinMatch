@@ -576,6 +576,9 @@ class CandidateListTable(QtWidgets.QTableView):
     """
 
     candidate_activated = QtCore.Signal(str)
+    #: 高亮行变化（v3.6.2）：参数为条目号；无高亮时为空串。
+    #: 主窗口据此在谱图下方"参考线分区"预览该相的峰位与强度。
+    candidate_highlighted = QtCore.Signal(str)
     view_entry = QtCore.Signal(str)
     toggle_selection = QtCore.Signal(str)
     export_requested = QtCore.Signal()
@@ -597,6 +600,7 @@ class CandidateListTable(QtWidgets.QTableView):
         self.customContextMenuRequested.connect(self._context_menu)
         self.doubleClicked.connect(self._on_double_clicked)
         self.horizontalHeader().setStretchLastSection(True)
+        self.selectionModel().currentRowChanged.connect(self._on_current_row_changed)
 
     # -- public API ------------------------------------------------------
     def set_candidates(self, results: list[CandidateResult],
@@ -615,6 +619,8 @@ class CandidateListTable(QtWidgets.QTableView):
             results, colors, merge=merge, anchored_ids=anchored_ids
         )
         self.resizeColumnsToContents()
+        # 模型重置会清掉当前行，但未必发 currentRowChanged → 显式清掉预览行。
+        self.candidate_highlighted.emit("")
 
     def set_max_rows(self, max_rows: int | None) -> None:
         """Cap displayed rows (``None`` = unlimited); see the model method."""
@@ -688,6 +694,12 @@ class CandidateListTable(QtWidgets.QTableView):
         return self._model.entry_id_at(self._proxy.mapToSource(proxy_index).row())
 
     # -- signals / menu --------------------------------------------------
+    def _on_current_row_changed(self, current: QtCore.QModelIndex,
+                               _previous: QtCore.QModelIndex) -> None:
+        """当前行变化 → 发出条目号（无选中时发空串）。"""
+        eid = self._entry_id(current) if current.isValid() else None
+        self.candidate_highlighted.emit(eid or "")
+
     def _on_double_clicked(self, proxy_index: QtCore.QModelIndex) -> None:
         eid = self._entry_id(proxy_index)
         if eid is not None:
