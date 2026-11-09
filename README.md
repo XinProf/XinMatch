@@ -57,7 +57,9 @@ workflows, published algorithms and open reference data (COD).
 > ⑤ **物相鉴定默认改用 FPFM 全谱拟合（不寻峰）**，下拉框仍可一键切回「峰列表 FoM（寻峰）」。
 > ⚠️ 注意：FPFM 检索链不接受元素限制条件，**要用元素限定请切回峰列表 FoM**；
 > 工具栏「样品元素」按钮在有约束 + FPFM 时会常显「｜FPFM 下不生效」提示。
-> 详见 [docs/RELEASE-NOTES-v3.6.3.md](docs/RELEASE-NOTES-v3.6.3.md)。
+> **下载**：[GitHub Release v3.6.3](https://github.com/PolyXRD/XinMatch/releases/tag/v3.6.3)
+> （Windows 安装包，内置 COD-Inorg 默认库，开箱即可检索）；详见
+> [docs/RELEASE-NOTES-v3.6.3.md](docs/RELEASE-NOTES-v3.6.3.md)。
 >
 > **v3.6.2** 改的是谱图区交互（接口与数据格式均无变更）：
 > ① 谱图下方新增**参考线分区**——候选列表高亮哪个相，就在谱图正下方画出它的峰位

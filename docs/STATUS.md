@@ -2506,3 +2506,22 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
   FoM 那一半（原测试依赖「默认 = 峰列表 FoM」，这是最容易被默认值改动带崩的一处）。
 - 全量回归 **1867 = 1862 passed / 4 skipped / 1 xfailed / 0 F / 0 E**
   （基线 1809 + 元素四态 55 + 默认模式 3），`--collect-only` 求和 **1867** 精确对账。
+
+## v3.6.3 发布收口（2026-11-09）✅ 已发布
+
+| 项 | 结果 |
+|---|---|
+| 代码 | 3 个提交 `51b5a00` / `bc620c7` / `bad1c0a`；`git push origin master` → `41279d4..bad1c0a` |
+| 静态检查 | `ruff check .` all passed；`mypy xinmatch/core` 99 files 无问题；`test_version_consistency` 5/5 |
+| 全量回归 | **1867 = 1862 passed / 4 skipped / 1 xfailed / 0 F / 0 E**，`--collect-only` 求和 1867 精确对账（20m31s；`EXIT=1` 来自 safe-delete 清理钩子，不是测试失败） |
+| 构建 | `build_exe.ps1 -Variant release -Installer` 与 `-Variant internal` 各出 784 MB 便携树；`XinMatch-Setup-3.6.3.exe` 242.5 MiB（254,236,829 B）、`XinMatch-Internal-3.6.3.zip` 352 MiB；exe 版本资源 3.6.3、variant 标记正确、内置库 113 MB 且 `data/` 无 `-shm`/`-wal` 侧车 |
+| 二进制门 | `verify_binary --tag v3.6.3` **5 轮 `ok=True` / `all_pass=True`**；`dist/SHA256SUMS.txt` 双 OK |
+| 新功能穿透 | 从冻结 EXE 抽出 `PYZ.pyz`（7.38 MB），字节码常量命中 `DEFAULT_SEARCH_MODE` / `fpfm_full`、`HAS` / `MAYBE` / `closed_world`、`element_constraint_sets`、`elements_any`、`补轻元素` / `限定在所选元素内` —— 证明 v3.6.3 新代码确实进包，不是复用旧源码 |
+| 人工验收 | 用户明确确认双击验收通过（§8.3 第 6 条硬红线已满足） |
+| Release | [`v3.6.3`](https://github.com/PolyXRD/XinMatch/releases/tag/v3.6.3)，**Latest**，`draft=false`，唯一资产 `XinMatch-Setup-3.6.3.exe`；云端 `digest=sha256:3b90460c…` 与本地逐位一致 |
+
+**这是自 v3.5.0 之后的首次公开发布**，一次性累积 v3.6.0 / v3.6.1 / v3.6.2 / v3.6.3
+（前三版此前都卡在人工验收，未单独打 tag / 建 Release）。
+发布按 §8.3 三步走：空 draft → `gh release upload --clobber` 单件上传 → `--draft=false --latest`，
+未触发「大附件随 `release create` 一次性上传会崩并回滚整个 draft」的坑。
+`dist/` 中 v3.6.1 旧产物保留但不随 Release 分发，**不含** v3.6.2 / v3.6.3 的改动。

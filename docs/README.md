@@ -12,7 +12,7 @@
 | [`STATUS.md`](STATUS.md) | 路线图任务完成状态（按 Phase / T 编号，含每个版本的发布记录） |
 | [`../ROADMAP_v3.md`](../ROADMAP_v3.md) | **当前**路线图（v1/v2 为历史版本） |
 | [`../FUNCTION_MAP_v43.md`](../FUNCTION_MAP_v43.md) | **当前**功能映射（对齐参考软件 4.3） |
-| [`RELEASE-NOTES-v3.6.3.md`](RELEASE-NOTES-v3.6.3.md) | **当前版本**（v3.6.3）发布说明：元素限定四态（必有 / 含有 / 可能 / 没有）+ 闭环开关（口径对齐 PolyXRD）、物相鉴定默认改用 FPFM 全谱拟合 |
+| [`RELEASE-NOTES-v3.6.3.md`](RELEASE-NOTES-v3.6.3.md) | **当前版本**（v3.6.3，**已发布 GitHub Release `v3.6.3` / Latest**）发布说明：元素限定四态（必有 / 含有 / 可能 / 没有）+ 闭环开关（口径对齐 PolyXRD）、物相鉴定默认改用 FPFM 全谱拟合；累积发布 v3.6.0~v3.6.2 |
 | [`RELEASE-NOTES-v3.6.2.md`](RELEASE-NOTES-v3.6.2.md) | v3.6.2 发布说明：谱图区交互改造（谱图下方参考线分区 / 快捷图标行 / 点击坐标轴切显示） |
 | [`RELEASE-NOTES-v3.6.1.md`](RELEASE-NOTES-v3.6.1.md) | v3.6.1 发布说明：图例重复 / 精修向导卡死 / 晶系误判三处报障修复（二进制已构建，未人工验收） |
 | [`RELEASE-NOTES-v3.6.0.md`](RELEASE-NOTES-v3.6.0.md) | v3.6.0 发布说明：GUI 11 个菜单动作接通 + 峰位精修 LM 提速 + 周期表重设计 |
