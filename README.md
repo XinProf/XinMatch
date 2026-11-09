@@ -90,7 +90,7 @@ workflows, published algorithms and open reference data (COD).
 > 重做尺寸与三态编码（不再被全局 QSS 裁字）。检索默认行为逐项不变；详见
 > [docs/RELEASE-NOTES-v3.6.0.md](docs/RELEASE-NOTES-v3.6.0.md)。
 >
-> See [ROADMAP_v3.md](ROADMAP_v3.md) for the full implementation plan and
+> See [docs/ROADMAP_v3.md](docs/ROADMAP_v3.md) for the full implementation plan and
 > [docs/STATUS.md](docs/STATUS.md) for current progress.
 
 ## What XinMatch does

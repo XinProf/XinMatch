@@ -1,8 +1,12 @@
 # docs 索引
 
-本目录是 XinMatch 的文档库。**新增文档请先在这里登记一行**，避免文档散落
-（此前根目录同时存在 `ROADMAP.md` / `ROADMAP_v2` / `ROADMAP_v3`、
-`FUNCTION_MAP.md` / `FUNCTION_MAP_v43` 等 8 个 md）。
+本目录是 XinMatch 的文档库。**新增文档请先在这里登记一行**，避免文档散落。
+2026-11-09 已按 `CODE_REVIEW-20261018.md` P2-5 完成收口：根目录 8 个早期文档
+（旧 `ROADMAP` v1/v2、`FUNCTION_MAP.md`、技术栈分析、方案对比、项目文档合集、
+外挂库重设计复核结论）移入 [`archive/`](archive/)；三份**当前**技术文档
+`ROADMAP_v3.md` / `FUNCTION_MAP_v43.md` / `FOM_MODEL.md` 也一并收进本目录。
+根目录现在只留 `README.md` 与 LICENSE / 构建配置，GitHub 首页不再堆技术文档。
+归档文档内部引用的 `docs/*.md` 相对路径多为当时的写法，**不再维护**，仅供追溯。
 
 ## 入口
 
@@ -10,17 +14,18 @@
 |---|---|
 | [`../README.md`](../README.md) | 项目介绍、安装、快速开始 |
 | [`STATUS.md`](STATUS.md) | 路线图任务完成状态（按 Phase / T 编号，含每个版本的发布记录） |
-| [`../ROADMAP_v3.md`](../ROADMAP_v3.md) | **当前**路线图（v1/v2 为历史版本） |
-| [`../FUNCTION_MAP_v43.md`](../FUNCTION_MAP_v43.md) | **当前**功能映射（对齐参考软件 4.3） |
+| [`ROADMAP_v3.md`](ROADMAP_v3.md) | **当前**路线图（v1/v2 为历史版本，已归入 `archive/`） |
+| [`FUNCTION_MAP_v43.md`](FUNCTION_MAP_v43.md) | **当前**功能映射（对齐参考软件 4.3） |
 | [`RELEASE-NOTES-v3.6.3.md`](RELEASE-NOTES-v3.6.3.md) | **当前版本**（v3.6.3，**已发布 GitHub Release `v3.6.3` / Latest**）发布说明：元素限定四态（必有 / 含有 / 可能 / 没有）+ 闭环开关（口径对齐 PolyXRD）、物相鉴定默认改用 FPFM 全谱拟合；累积发布 v3.6.0~v3.6.2 |
 | [`RELEASE-NOTES-v3.6.2.md`](RELEASE-NOTES-v3.6.2.md) | v3.6.2 发布说明：谱图区交互改造（谱图下方参考线分区 / 快捷图标行 / 点击坐标轴切显示） |
-| [`RELEASE-NOTES-v3.6.1.md`](RELEASE-NOTES-v3.6.1.md) | v3.6.1 发布说明：图例重复 / 精修向导卡死 / 晶系误判三处报障修复（二进制已构建，未人工验收） |
+| [`RELEASE-NOTES-v3.6.1.md`](RELEASE-NOTES-v3.6.1.md) | v3.6.1 发布说明：图例重复 / 精修向导卡死 / 晶系误判三处报障修复（该版当时未单独发布，后随 v3.6.3 累积发布） |
 | [`RELEASE-NOTES-v3.6.0.md`](RELEASE-NOTES-v3.6.0.md) | v3.6.0 发布说明：GUI 11 个菜单动作接通 + 峰位精修 LM 提速 + 周期表重设计 |
 | [`RELEASE-NOTES-v3.5.0.md`](RELEASE-NOTES-v3.5.0.md) | v3.5.0 发布说明：元素「必须不含」约束落地 + 版本号单一真相源 |
 | [`RELEASE-NOTES-v3.4.0.md`](RELEASE-NOTES-v3.4.0.md) | v3.4.0 发布说明（导出物相分析 `.xinm`） |
 | [`RELEASE-NOTES-v3.3.0.md`](RELEASE-NOTES-v3.3.0.md) | v3.3.0 发布说明：少线相 ★ 强线锚定标记 |
 | [`RELEASE-NOTES-v3.2.0.md`](RELEASE-NOTES-v3.2.0.md) | v3.2.0 发布说明（相位级身份 + 候选折叠） |
 | [`RELEASE-NOTES-v3.1.0.md`](RELEASE-NOTES-v3.1.0.md) | v3.1.0 发布说明（序贯物相鉴定） |
+| [`archive/`](archive/) | **历史归档**：v1/v2 路线图、早期技术栈分析 / 方案对比 / 功能映射、项目文档合集（md + docx）、外挂库重设计复核结论。仅供追溯，当前口径一律以 `ROADMAP_v3.md` / `FUNCTION_MAP_v43.md` 及本表为准 |
 
 ## 规范与工程化
 
@@ -38,7 +43,7 @@
 
 | 文档 | 内容 |
 |---|---|
-| [`../FOM_MODEL.md`](../FOM_MODEL.md) | FoM / P 值模型（五分量、3640 条候选 NNLS 拟合的发布权重、留一交叉验证）。**注意**：它解出的是「权重如何组合」，不是每个 `P_xxx` 的精确算法；T0.8 已以「证据驱动的不动决策」结案，见基准报告 §26 |
+| [`FOM_MODEL.md`](FOM_MODEL.md) | FoM / P 值模型（五分量、3640 条候选 NNLS 拟合的发布权重、留一交叉验证）。**注意**：它解出的是「权重如何组合」，不是每个 `P_xxx` 的精确算法；T0.8 已以「证据驱动的不动决策」结案，见基准报告 §26 |
 | [`fpfm_mechanism.md`](fpfm_mechanism.md) | FPFM 全谱拟合机制与参数决策 |
 | [`fpfm_research_notes.md`](fpfm_research_notes.md) | FPFM 研究笔记 |
 | [`峰口径冻结-v3.0.0.md`](峰口径冻结-v3.0.0.md) | v3 `.xinDB` 峰口径（波长 / d 范围 / DW / norm-1000）的冻结依据 |

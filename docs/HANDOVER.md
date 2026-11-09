@@ -39,7 +39,7 @@
 
 ## 2. 路线图概览（P0–P16）
 
-详见 [ROADMAP_v3.md](../ROADMAP_v3.md)。摘要：
+详见 [ROADMAP_v3.md](ROADMAP_v3.md)。摘要：
 
 | Phase | 主题 | 完成度 |
 |---|---|---|
@@ -357,9 +357,9 @@ python -m xinmatch.cli <subcommand>
 | 类别 | 路径 |
 |---|---|
 | README | [README.md](../README.md) |
-| 路线图 | [ROADMAP_v3.md](../ROADMAP_v3.md) |
+| 路线图 | [ROADMAP_v3.md](ROADMAP_v3.md) |
 | 状态表 | [docs/STATUS.md](STATUS.md) |
-| FoM 模型 | [FOM_MODEL.md](../FOM_MODEL.md) |
+| FoM 模型 | [FOM_MODEL.md](FOM_MODEL.md) |
 | 样品索引 | [tests/fixtures/SAMPLE_INDEX.md](../tests/fixtures/SAMPLE_INDEX.md) |
 | 项目记忆（项目内镜像） | [.trae/projects/XinMatch/project_memory.md](../.trae/projects/XinMatch/project_memory.md) |
 | L3 验收脚本 | [tools/run_acceptance.py](../tools/run_acceptance.py) |

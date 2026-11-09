@@ -1,6 +1,6 @@
 # Implementation status
 
-Tracks progress against [ROADMAP_v3.md](../ROADMAP_v3.md).
+Tracks progress against [ROADMAP_v3.md](ROADMAP_v3.md).
 
 Legend: ⬜ not started · 🟡 in progress · ✅ done
 
@@ -190,7 +190,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 
 ## Phases 14–16
 
-See [ROADMAP_v3.md](../ROADMAP_v3.md).
+See [ROADMAP_v3.md](ROADMAP_v3.md).
 
 - **Phase 15 打包 ✅（2026-10-09）**：PyInstaller **onedir**（db 512 MB，onefile 解压不可接受）；`xinmatch.spec` + `tools/build_exe.ps1` + `tools/pyi_entry.py`（单入口调度器按 argv 分派 CLI/GUI——踩坑：PyInstaller 6.22 多脚本切片并不会让第二个 exe 跑第二个脚本）；PySide6 走内置 hook、pyqtgraph `collect_all`、gemmi pyd 自动收集、`data/cod_inorganics.db` 随包（exe 同级 data/）、`schema.sql` 随包（import 时 read_text）；GSAS-II 不可打包，无 GSAS-II 环境按 `GSAS2_AVAILABLE` 降级；产物 `dist/xinmatch-1.0.0/`（~1.18 GB）；构建/冒烟/限制见 [PACKAGING.md](PACKAGING.md)。
 - **Phase 16 3D 结构可视化 ✅（2026-10-09）**：`ui/structure_view.py`（QWebEngineView + **3Dmol.js 2.5.5 本地打包**，禁外部 CDN；gemmi 0.7.5 解析 CIF→JSON 纯函数 `cif_to_structure_data()`，晶胞从 CIF 标签直读剥 esd；COD ref_id→归档 CIF 路径规则实测核对）；主窗口"精修(&E)"→"3D 结构视图…" Ctrl+Shift+V，无 CIF 时空态页。精修后 CIF 接入 3D 留待后续（`Gsas2RefineOutcome` 未携带精修 CIF 路径）。
