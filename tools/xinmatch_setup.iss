@@ -13,7 +13,7 @@
 #define AppName "XinMatch"
 ; 构建脚本用 /DAppVersion= 覆盖；不使用覆盖时以此默认值为准（须与 pyproject 同步）
 #ifndef AppVersion
-#define AppVersion "3.6.2"
+#define AppVersion "3.6.3"
 #endif
 
 [Setup]
