@@ -111,8 +111,16 @@ def test_open_data_bad_file_warns(qapp, tmp_path):
 # 4. 检索成功
 # ---------------------------------------------------------------------------
 def test_search_match_success_fills_tables(qapp):
+    """峰列表 FoM 接线（v3.6.3 起**不是**默认，必须显式切过去）。
+
+    这里打桩的是 ``main_window.search_match``（峰列表 FoM 入口）；默认改成
+    FPFM 后会走 ``_search_fpfm``，桩不会命中。这是「改默认值最容易被带崩的
+    旧测试」之一：它测的是峰列表接线，就让它显式选峰列表，别依赖默认值。
+    """
     win = MainWindow()
     win.set_pattern(_synthetic_pattern())
+    win._search_mode_combo.setCurrentIndex(0)
+    assert win._search_mode == "peaks_fom"
     fake_conn = MagicMock()
     fake_results = [_cand("96-100-0001"), _cand("96-100-0002", formula="Y")]
     with patch.object(

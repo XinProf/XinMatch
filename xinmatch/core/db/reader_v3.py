@@ -855,6 +855,7 @@ class XinDBReader:
         min_match: int = 3,
         rank_limit: int | None = None,
         elements_allowed: set[str] | None = None,
+        elements_any: set[str] | None = None,
         elements_excluded: set[str] | None = None,
         diversify_slots: int | None = None,
     ) -> PrescreenResult:
@@ -881,6 +882,12 @@ class XinDBReader:
                 backed by the ``element_inv`` inverted index).  An element that
                 occurs in no phase yields zero candidates rather than being
                 ignored.
+            elements_any: When given, only phases that contain **at least one**
+                of these elements are kept (``ElementState.HAS`` — the OR half
+                of the element restraint).  An element that occurs in no phase
+                simply cannot vouch for anything, so it is skipped; the group
+                as a whole yields zero candidates only when *none* of its
+                elements occurs anywhere.
             elements_excluded: When given, every phase that contains **any** of
                 these elements is dropped.  This is the "must be absent" half of
                 the three-state element restraint; together with
@@ -985,6 +992,10 @@ class XinDBReader:
 
         if elements_allowed:
             keep = self.element_filter(elements_allowed, n)
+            if keep is not None:
+                cand &= keep
+        if elements_any:
+            keep = self.element_union_filter(elements_any, n)
             if keep is not None:
                 cand &= keep
         if elements_excluded:
@@ -1159,6 +1170,36 @@ class XinDBReader:
             keep = mine if keep is None else (keep & mine)
             if not keep.any():
                 return keep
+        return keep
+
+    def element_union_filter(self, elements: Iterable[str], n: int) -> np.ndarray | None:
+        """布尔掩码：含有 *elements* 中**至少一个**的物相（``HAS`` 语义）。
+
+        :meth:`element_filter` 的交集版本要求「全部含有」，这里是它的并集
+        对偶——「只要含其中一个」。预筛据此落地 ``ElementState.HAS``
+        （PolyXRD 的「含有」：``S ∩ H ≠ ∅``）。
+
+        与「必须全含」不同，未知元素（库里根本不存在）在这里**什么都担保不了**，
+        直接跳过：把「不可能含有」当成「不可能满足」会让一个拼错的符号清空结果。
+        只有整组元素一个都不在库里时，掩码才会全 ``False``。
+
+        Args:
+            elements: 允许命中的元素符号（大小写不敏感）。
+            n: 库内条目数。
+
+        Returns:
+            长度 *n* 的布尔数组；请求里没有任何可用元素时返回 ``None``
+            （表示本参数不生效，调用方跳过过滤）。
+        """
+        wanted = [str(e).strip().title() for e in elements if str(e).strip()]
+        if not wanted:
+            return None
+        keep = np.zeros(n, dtype=bool)
+        for element in wanted:
+            idx = self.element_index(element)
+            if idx is None or idx.size == 0:
+                continue
+            keep[idx[idx < n]] = True
         return keep
 
     def element_exclude_filter(

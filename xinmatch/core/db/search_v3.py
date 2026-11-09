@@ -173,6 +173,7 @@ def search_match_v3(
     tolerance: float = 0.02,
     tolerance_rel: float = 0.0,
     elements_allowed: set[str] | None = None,
+    elements_any: set[str] | None = None,
     elements_excluded: set[str] | None = None,
 ) -> SearchV3Result:
     """Run a peak-based search-match against a v3 ``.xinDB`` library.
@@ -195,6 +196,9 @@ def search_match_v3(
         tolerance: Absolute d-window half-width for the prescreen (Å).
         tolerance_rel: Relative d-window component.
         elements_allowed: Optional element pool restriction ("must contain").
+        elements_any: Optional element pool restriction ("must contain at
+            least one of") — the ``ElementState.HAS`` half of the four-state
+            element restraint.
         elements_excluded: Optional element pool restriction ("must not
             contain") — the chemistry sanity filter that keeps phases built
             from elements the sample does not show out of the pool.
@@ -231,6 +235,7 @@ def search_match_v3(
         min_match=min_match,
         rank_limit=candidate_limit,
         elements_allowed=elements_allowed,
+        elements_any=elements_any,
         elements_excluded=elements_excluded,
     )
     if not screen.candidate_ids:

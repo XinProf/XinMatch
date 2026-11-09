@@ -103,9 +103,12 @@ from xinmatch.core.db.reader_v3 import XinDBReader
 from xinmatch.core.db.search_v3 import search_match_v3
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Entry
-from xinmatch.core.model.element_symbols import complement_restraints
+from xinmatch.core.model.element_symbols import (
+    complement_restraints,
+    element_constraint_sets,
+)
 from xinmatch.core.model.entry import parse_formula
-from xinmatch.core.model.restraints import ElementState, Restraints
+from xinmatch.core.model.restraints import Restraints
 from xinmatch.core.peak.peak_search import find_peaks
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.search.phase_key import same_phase
@@ -357,25 +360,24 @@ def _library_coverage(library: Path, formulas: dict[str, str]) -> dict[str, int]
     return out
 
 
-def _pools(restraints: Restraints | None) -> tuple[set[str] | None, set[str] | None]:
-    """Split a :class:`Restraints` into the two pools the v3 prescreen takes.
+def _pools(
+    restraints: Restraints | None,
+) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
+    """Split a :class:`Restraints` into the three pools the v3 prescreen takes.
 
-    Mirrors ``search_match``'s own v3 branch so the benchmark searches with the
-    *same* semantics the product uses — REQUIRED becomes ``elements_allowed``
-    ("must contain all"), EXCLUDE becomes ``elements_excluded`` ("must contain
-    none").
+    Delegates to :func:`element_constraint_sets` — the same single conversion
+    point ``search_match`` uses — so the benchmark searches with the *exact*
+    product semantics (必有 → ``elements_allowed``, 含有 → ``elements_any``,
+    没有 + 闭环补集 → ``elements_excluded``).
     """
     if restraints is None:
-        return None, None
-    allowed = {el for el, st in restraints.elements.items()
-               if st == ElementState.REQUIRED} or None
-    excluded = {el for el, st in restraints.elements.items()
-                if st == ElementState.EXCLUDE} or None
-    return allowed, excluded
+        return None, None, None
+    required, any_of, excluded = element_constraint_sets(restraints)
+    return required or None, any_of or None, excluded or None
 
 
 def _search(peaks, reader, wavelength: float, *, deep_n: int,
-            pools: tuple[set[str] | None, set[str] | None]):
+            pools: tuple[set[str] | None, set[str] | None, set[str] | None]):
     """One whole-pattern search, keeping the prescreen metadata.
 
     ``search_match`` throws ``n_prescreened`` / ``truncated`` away, but they are
@@ -383,10 +385,11 @@ def _search(peaks, reader, wavelength: float, *, deep_n: int,
     be the dominant failure mode on this dataset.  So the v3 entry point is
     called directly.
     """
-    allowed, excluded = pools
+    allowed, any_of, excluded = pools
     return search_match_v3(
         peaks, reader, wavelength, top_n=deep_n,
-        elements_allowed=allowed, elements_excluded=excluded,
+        elements_allowed=allowed, elements_any=any_of,
+        elements_excluded=excluded,
     )
 
 

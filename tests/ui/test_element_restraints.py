@@ -75,6 +75,33 @@ def test_panel_states_become_three_state_restraints(qapp):
         "O": ElementState.REQUIRED,
         "Bi": ElementState.EXCLUDE,
     }
+    assert r.closed_world is False
+
+
+def test_closed_world_switch_reaches_the_restraints(qapp):
+    """闭环开关必须跟着 constraints 一起传下去，不能在 GUI 边界被丢掉。
+
+    它决定「未勾选的元素算不算没有」，也就是 ``HAS`` / ``MAYBE`` 两个新状态
+    的意义所在；丢了它，用户勾上闭环后看到的检索结果与没勾时一模一样。
+    """
+    win = MainWindow()
+    win.periodic_panel.set_states({"O": ElementState.HAS, "Si": ElementState.MAYBE})
+    assert win._current_restraints().closed_world is False
+
+    win.periodic_panel.set_closed_world(True)
+    r = win._current_restraints()
+    assert r is not None and r.closed_world is True
+    assert r.elements == {"O": ElementState.HAS, "Si": ElementState.MAYBE}
+
+
+def test_quick_entry_leaves_closed_world_alone(qapp):
+    """快速录入走的是补集写法，不必也不该顺带打开闭环（否则两套判据叠加）。"""
+    win = MainWindow()
+    win.periodic_panel.apply_detected_elements("Zn Al Ca O F")
+    r = win._current_restraints()
+    assert r is not None
+    assert r.closed_world is False
+    assert set(r.elements.values()) == {ElementState.EXCLUDE}
 
 
 def test_peak_list_search_forwards_restraints(qapp, monkeypatch):

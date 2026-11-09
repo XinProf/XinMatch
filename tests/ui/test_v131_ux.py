@@ -143,8 +143,9 @@ def test_periodic_panel_default_summary_and_states_roundtrip():
     panel.set_states({"Fe": "green", "Na": "red"})
     assert panel.states() == {"Fe": "green", "Na": "red"}  # drop-in API
     text = panel._summary.text()
-    assert "必含" in text and "Fe" in text
-    assert "排除" in text and "Na" in text
+    # v3.6.3 起文案对齐 PolyXRD 四态：必含→必有、排除→没有（值仍是绿/红）。
+    assert "必有" in text and "Fe" in text
+    assert "没有" in text and "Na" in text
     panel.reset()
     assert panel.states() == {}
     assert "未选择元素" in panel._summary.text()

@@ -36,6 +36,7 @@ import numpy as np
 
 from xinmatch.core.db.query_peaks import search_by_d
 from xinmatch.core.model import CellParams, Entry, Peak, Restraints
+from xinmatch.core.model.element_symbols import element_constraint_sets
 from xinmatch.core.search.fom import CandidateResult, rank_candidates, select_top_n
 from xinmatch.core.search.fom_criteria import FomWeights
 from xinmatch.core.search.restraints_apply import apply_restraints
@@ -233,25 +234,24 @@ def _search_match_v3(
 ) -> list[CandidateResult]:
     """v3 分支：委托给 :func:`search_v3.search_match_v3`。
 
-    只搬运 v2 签名里语义对得上的参数：``restraints`` 的**必需元素**转成
-    ``elements_allowed``、**排除元素**转成 ``elements_excluded``（两者都在预筛
-    层用 ``element_inv`` 精确过滤）；晶系/年份这类谓词 v3 的预筛矩阵不表达，
-    留给调用方在结果上二次过滤（GUI 目前不启用这些谓词）。
+    只搬运 v2 签名里语义对得上的参数，元素部分走
+    :func:`~xinmatch.core.model.element_symbols.element_constraint_sets` ——
+    四态（必有 / 含有 / 可能 / 没有）+ 闭环一次折算成预筛的三个集合，
+    与 SQL 直查、基准脚本共用同一份口径。晶系/年份这类谓词 v3 的预筛矩阵
+    不表达，留给调用方在结果上二次过滤（GUI 目前不启用这些谓词）。
     """
     from xinmatch.core.db.search_v3 import search_match_v3
 
     allowed: set[str] | None = None
+    any_of: set[str] | None = None
     excluded: set[str] | None = None
     if restraints is not None:
-        from xinmatch.core.model.restraints import ElementState
-
-        required = {el for el, st in restraints.elements.items()
-                    if st == ElementState.REQUIRED}
+        required, required_any, banned = element_constraint_sets(restraints)
         allowed = required or None
+        any_of = required_any or None
         # 「必须不含」：样品侧元素合理性（XRF/EDS 未检出的元素一律排除），
         # 用来挡 Bi-Y-O 这类化学上不可能的假卡（基准报告 §11.5 的下一步）。
-        banned = {el for el, st in restraints.elements.items()
-                  if st == ElementState.EXCLUDE}
+        # 闭环开启时这里已经被补成了「允许池之外的 118-n 个元素」。
         excluded = banned or None
 
     result = search_match_v3(
@@ -262,6 +262,7 @@ def _search_match_v3(
         top_n=top_n,
         min_match=max(2, int(recall_min_matches)),
         elements_allowed=allowed,
+        elements_any=any_of,
         elements_excluded=excluded,
     )
     return result.candidates

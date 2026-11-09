@@ -1,7 +1,7 @@
 """统一检索入口（Search-Match 模式切换）测试：峰列表 FoM / FPFM 全谱拟合。
 
 覆盖：
-- 工具栏下拉框 ``self._search_mode_combo`` 存在、默认 ``peaks_fom``、
+- 工具栏下拉框 ``self._search_mode_combo`` 存在、**v3.6.3 起默认 FPFM 全谱拟合**、
   切换只更新 ``self._search_mode`` 而不自动触发检索；
 - 模块级转换函数 ``fpfm_results_to_candidates``（FPFM ``(Entry, score)``
   → GUI :class:`~xinmatch.core.search.fom.CandidateResult`）单测；
@@ -40,6 +40,7 @@ from xinmatch.core.model import Entry
 from xinmatch.core.search.fom import CandidateResult
 from xinmatch.core.search.fpfm import search_match_fpfm
 from xinmatch.ui.main_window import (
+    DEFAULT_SEARCH_MODE,
     SEARCH_MODE_FPFM_FULL,
     SEARCH_MODE_PEAKS_FOM,
     MainWindow,
@@ -101,9 +102,58 @@ def test_search_mode_combo_present_and_default(qapp):
     assert combo.itemData(1) == SEARCH_MODE_FPFM_FULL
     assert "峰列表" in combo.itemText(0)
     assert "FPFM" in combo.itemText(1)
-    # 默认峰列表 FoM；tooltip 说明当前模式。
+    # v3.6.3：物相鉴定默认 FPFM 全谱拟合（用户要求）。下拉框**选项顺序不变**
+    # （峰列表仍是第 0 项），默认靠 findData(DEFAULT_SEARCH_MODE) 选中 ——
+    # 这样旧测试里按 index 切换的断言不会漂移。
+    assert DEFAULT_SEARCH_MODE == SEARCH_MODE_FPFM_FULL
+    assert win._search_mode == SEARCH_MODE_FPFM_FULL
+    assert combo.currentData() == SEARCH_MODE_FPFM_FULL
+    assert combo.currentIndex() == 1
+    assert "全谱拟合" in combo.toolTip()
+
+
+def test_default_mode_is_persistent_across_windows(qapp):
+    """每次新开主窗口都从 FPFM 起步（没有隐藏的配置写入把默认改回去）。"""
+    first = MainWindow()
+    second = MainWindow()
+    assert first._search_mode == DEFAULT_SEARCH_MODE
+    assert second._search_mode == DEFAULT_SEARCH_MODE
+    assert first._search_mode_combo.currentData() == DEFAULT_SEARCH_MODE
+    assert second._search_mode_combo.currentData() == DEFAULT_SEARCH_MODE
+
+
+def test_switching_to_peaks_fom_makes_the_default_explicit(qapp):
+    """用户仍能一键切回峰列表 FoM；切换不自动触发检索。"""
+    win = MainWindow()
+    assert win._search_mode == SEARCH_MODE_FPFM_FULL
+    win._search_mode_combo.setCurrentIndex(0)
     assert win._search_mode == SEARCH_MODE_PEAKS_FOM
-    assert combo.toolTip()
+    assert "峰列表" in win._search_mode_combo.toolTip()
+    assert win._candidates == []
+
+
+def test_fpfm_default_warns_when_element_restraints_are_set(qapp):
+    """FPFM 不吃元素约束 —— 有了约束时工具栏必须**常显**说明，不是靠 8 秒状态栏。
+
+    这是把默认改成 FPFM 后最容易骗到用户的一处：截图里同时显示
+    「样品元素：自定义 2 项」和「FPFM 全谱拟合」，但元素约束其实不参与检索。
+    """
+    win = MainWindow()
+    win.periodic_panel.set_states({"O": "green", "Bi": "red"})
+    assert "自定义 2 项" in win.sample_elements_action.text()
+    assert "FPFM 下不生效" in win.sample_elements_action.text()
+
+    # 切回峰列表 FoM → 提示消失（约束真的生效）。
+    win._search_mode_combo.setCurrentIndex(0)
+    assert "FPFM 下不生效" not in win.sample_elements_action.text()
+
+    # 切回 FPFM → 提示回来（模式切换会刷新常显状态）。
+    win._search_mode_combo.setCurrentIndex(1)
+    assert "FPFM 下不生效" in win.sample_elements_action.text()
+
+    # 关掉过滤后不再提示（本来就不参与）。
+    win.periodic_panel.set_enabled(False)
+    assert win.sample_elements_action.text() == "样品元素：已关闭"
 
 
 def test_combo_switch_updates_state_without_search(qapp):
@@ -213,7 +263,9 @@ def test_unified_entry_runs_both_modes(qapp, monkeypatch):
     win.set_pattern(load_pattern(SYNTH_DIR / "synth_06.txt"))
     conn = _connect(monkeypatch, win)
     try:
-        # --- 模式 1：峰列表 FoM（默认） ---
+        # --- 模式 1：峰列表 FoM（v3.6.3 起**不是**默认，必须显式切过去）---
+        win._search_mode_combo.setCurrentIndex(0)
+        assert win._search_mode == SEARCH_MODE_PEAKS_FOM
         win._run_search_match()
         n_fom = len(win._candidates)
         assert n_fom > 0, "FoM 模式候选列表为空"

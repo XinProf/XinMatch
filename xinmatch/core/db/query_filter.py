@@ -19,9 +19,10 @@ def search_by_elements(
     conn: sqlite3.Connection,
     required: set[str] | None = None,
     excluded: set[str] | None = None,
+    any_of: set[str] | None = None,
 ) -> list[str]:
-    """Return entry ids whose element set includes all *required* elements
-    and none of the *excluded* elements.
+    """Return entry ids whose element set includes all *required* elements,
+    at least one of *any_of*, and none of the *excluded* elements.
 
     Implements the reference software's *Restraints → Composition* element filter
     (Phase 5 / T5.5).  Uses the ``elements`` inverted-index table.
@@ -31,9 +32,14 @@ def search_by_elements(
     conn:
         Open database connection.
     required:
-        Elements that must be present.
+        Elements that must all be present (``ElementState.REQUIRED``).
     excluded:
-        Elements that must not be present.
+        Elements that must not be present (``ElementState.EXCLUDE``).
+    any_of:
+        Elements of which at least one must be present
+        (``ElementState.HAS``).  Passed in only when *required* is empty —
+        the "must contain one of" rule is skipped once an all-required
+        constraint already holds.
 
     Returns
     -------
@@ -42,7 +48,8 @@ def search_by_elements(
     """
     required = set(required or [])
     excluded = set(excluded or [])
-    if not required and not excluded:
+    any_of = set(any_of or [])
+    if not required and not excluded and not any_of:
         return [r[0] for r in conn.execute("SELECT entry_id FROM entries")]
 
     candidates: set[str]
@@ -60,6 +67,14 @@ def search_by_elements(
         candidates = {row[0] for row in cur}
     else:
         candidates = {row[0] for row in conn.execute("SELECT entry_id FROM entries")}
+
+    if any_of:
+        placeholders = ",".join("?" for _ in any_of)
+        cur = conn.execute(
+            f"SELECT DISTINCT entry_id FROM elements WHERE element IN ({placeholders})",
+            (*any_of,),
+        )
+        candidates &= {row[0] for row in cur}
 
     if excluded:
         placeholders = ",".join("?" for _ in excluded)
@@ -217,6 +232,7 @@ def search_combined(conn: sqlite3.Connection, **filters: Any) -> list[str]:
     keyword filters:
 
     * ``elements`` / ``required``: ``set[str]`` of required elements
+    * ``any_of``: ``set[str]`` of which at least one must be present
     * ``excluded``: ``set[str]`` of forbidden elements
     * ``crystal_system``: ``str``
     * ``space_group``: ``str``
@@ -242,10 +258,12 @@ def search_combined(conn: sqlite3.Connection, **filters: Any) -> list[str]:
     # Collect per-filter id sets.
     sets: list[set[str]] = []
 
-    if "elements" in filters or "required" in filters:
+    if "elements" in filters or "required" in filters or "any_of" in filters:
         req = filters.get("required", filters.get("elements"))
         exc = filters.get("excluded")
-        ids = search_by_elements(conn, required=req, excluded=exc)
+        ids = search_by_elements(
+            conn, required=req, excluded=exc, any_of=filters.get("any_of")
+        )
         sets.append(set(ids))
 
     if "crystal_system" in filters:

@@ -43,6 +43,11 @@ ELEMENT_SYMBOLS: tuple[str, ...] = tuple(
 _SPLIT_RE = re.compile(r"[,;\s、，/]+")
 _SYMBOL_LOOKUP: dict[str, str] = {sym.lower(): sym for sym in ELEMENT_SYMBOLS}
 
+#: 轻元素：EDX/EDS 等常规手段常测不出，但 XRD 里（氢氧化物 / 碳酸盐 / 水合物）
+#: 极常见 → UI 提供「一键设为含有」的辅助按钮。取自 PolyXRD
+#: ``formula_parser.LIGHT_ELEMENTS``。
+LIGHT_ELEMENTS: tuple[str, ...] = ("O", "C", "H", "N", "S")
+
 
 def parse_element_symbols(text: str) -> tuple[list[str], list[str]]:
     """Parse a free-form "detected elements" string into canonical symbols.
@@ -68,6 +73,62 @@ def parse_element_symbols(text: str) -> tuple[list[str], list[str]]:
     order = {sym: i for i, sym in enumerate(ELEMENT_SYMBOLS)}
     known.sort(key=order.__getitem__)
     return known, unknown
+
+
+def element_constraint_sets(
+    restraints: Restraints, *, closed_world: bool | None = None
+) -> tuple[set[str], set[str], set[str]]:
+    """把 :class:`Restraints` 的元素状态折算成检索链能直接用的三组元素。
+
+    返回 ``(必含全部, 至少含一个, 必须不含)``，对应预筛的
+    ``elements_allowed`` / ``elements_any`` / ``elements_excluded``：
+
+    * **必含全部**（``P``）—— ``REQUIRED``，判据 ``P ⊆ S``（AND）。
+    * **至少含一个**（``H``）—— ``HAS``，判据 ``S ∩ H ≠ ∅``（OR）。勾了必有
+      时这一组返回空集：PolyXRD 的规则是「必有已满足就不再要求至少含一个含有」，
+      否则纯金属这类单元素相永远进不了候选。
+    * **必须不含**（``E``）—— ``EXCLUDE``；**闭环开启且允许池非空时**再加进
+      ``全部 118 元素 − (必有 ∪ 含有 ∪ 可能)``，这就是「未勾选 = 没有」的落地
+      形式（``S ⊆ 允许池`` ⟺ ``S ∩ 池外 = ∅``）。
+
+    **这是元素约束的唯一换算点**：预筛、SQL 直查、基准脚本都调它，避免三处
+    各写一份而口径漂移。``MAYBE`` 在这里只贡献允许池，不产生任何硬条件。
+
+    同一元素的「状态冲突」不需要处理：``Restraints.elements`` 是
+    ``{符号: 状态}`` 字典，一个元素只有一个状态（PolyXRD 的扁平列表 API 才需要
+    按 必有 > 含有 > 可能 > 没有 做重叠去重）。
+
+    Args:
+        restraints: 元素状态（``elements`` + ``closed_world``）。
+        closed_world: 是否启用「未勾选 = 没有」。``None``（默认）沿用
+            :attr:`Restraints.closed_world`，显式传 ``True/False`` 可覆盖。
+
+    Returns:
+        ``(required_all, required_any, excluded)`` 三个符号集合。
+    """
+    if closed_world is None:
+        closed_world = restraints.closed_world
+    required: set[str] = set()
+    any_of: set[str] = set()
+    maybe: set[str] = set()
+    banned: set[str] = set()
+    for element, state in restraints.elements.items():
+        if state == ElementState.REQUIRED:
+            required.add(element)
+        elif state == ElementState.HAS:
+            any_of.add(element)
+        elif state == ElementState.MAYBE:
+            maybe.add(element)
+        elif state == ElementState.EXCLUDE:
+            banned.add(element)
+
+    pool = required | any_of | maybe
+    if closed_world and pool:
+        banned |= set(ELEMENT_SYMBOLS) - pool
+    # 必有已满足时不再要求至少含一个含有（PolyXRD 规则④）。这条必须在**换算点**
+    # 就丢掉：预筛会把 required_all 与 required_any 取交集，留着就等于悄悄改成了
+    # 「必含 AND 至少含一个含有」，纯金属这类单元素相会被无谓地挡掉。
+    return required, (any_of if not required else set()), banned
 
 
 def complement_restraints(detected: list[str] | tuple[str, ...]) -> Restraints:
@@ -105,7 +166,9 @@ def restraints_from_sample_elements(text: str) -> Restraints:
 
 __all__ = [
     "ELEMENT_SYMBOLS",
+    "LIGHT_ELEMENTS",
     "complement_restraints",
+    "element_constraint_sets",
     "parse_element_symbols",
     "restraints_from_sample_elements",
 ]

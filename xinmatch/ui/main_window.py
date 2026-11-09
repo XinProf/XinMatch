@@ -220,7 +220,14 @@ _TOOLBAR_ICONS: dict[str, str] = {
 SEARCH_MODE_PEAKS_FOM = "peaks_fom"
 SEARCH_MODE_FPFM_FULL = "fpfm_full"
 
-# 模式下拉框选项：(显示文本, 内部常量)。
+#: v3.6.3 起物相鉴定默认走全谱拟合（用户要求）。下拉框仍保留两种模式，
+#: 用户可在工具栏随时切回峰列表 FoM —— 特别是**要用元素限制条件**时：
+#: FPFM 检索链没有 restraints 形参，元素约束只在峰列表 FoM 生效。
+DEFAULT_SEARCH_MODE = SEARCH_MODE_FPFM_FULL
+
+# 模式下拉框选项：(显示文本, 内部常量)。顺序刻意保持「峰列表在前」，
+# 默认值靠 :data:`DEFAULT_SEARCH_MODE` 选中，不靠把某一项挪到第 0 位 ——
+# 这样测试里按 index 切换的旧断言仍然成立。
 _SEARCH_MODE_ITEMS: tuple[tuple[str, str], ...] = (
     ("峰列表 FoM（寻峰）", SEARCH_MODE_PEAKS_FOM),
     ("FPFM 全谱拟合（不寻峰）", SEARCH_MODE_FPFM_FULL),
@@ -242,10 +249,12 @@ _MODULE_TIPS: dict[str, str] = {
     "peak_list": "寻峰与峰列表：自动寻峰并维护可编辑峰列表；峰位/强度供检索与报告使用。",
     "profile_fitting": "Profile Fitting：多峰同时最小二乘拟合，输出精确峰位 / FWHM / 面积。",
     "search_match": "Search-Match 物相检索：按工具栏右侧下拉框所选模式执行——\n"
-    "峰列表 FoM（先寻峰再匹配）或 FPFM 全谱拟合（不寻峰）。\n"
+    "默认 FPFM 全谱拟合（不寻峰），可切「峰列表 FoM（先寻峰再匹配）」。\n"
+    "注意：元素限制条件只在峰列表 FoM 生效。\n"
     "检索前请先打开数据并挂载参考数据库（设置→参考数据库…）。",
-    "restraints": "限制条件检索：按元素三态（必含/排除/可选）、晶系等条件过滤候选。\n"
-    "推荐先填「样品元素」（XRF/EDS 或配方），其余元素自动标为排除——\n"
+    "restraints": "限制条件检索：按元素四态（必有/含有/可能/没有）与闭环开关、"
+    "晶系等条件过滤候选。\n"
+    "推荐先填「样品元素」（XRF/EDS 或配方），其余元素自动标为没有——\n"
     "实测多相样品相召回 20/43 → 30/43（上界口径）。\n"
     "元素选择在右侧「检索与数据」坞的「限制条件」页。",
     "reference_db": "参考数据库：挂载 / 切换参考库（COD 无机库、全库、优选库…）。",
@@ -306,8 +315,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._raw_pattern: Pattern | None = None
         # 谱图区当前曲线的句柄（预处理后替换曲线，避免叠加多条）。
         self._pattern_key: str | None = None
-        # 统一检索入口模式：默认峰列表 FoM（寻峰）；可在工具栏下拉框切换。
-        self._search_mode: str = SEARCH_MODE_PEAKS_FOM
+        # 统一检索入口模式：v3.6.3 起默认 FPFM 全谱拟合（不寻峰）；
+        # 可在工具栏下拉框切换回峰列表 FoM（元素限制条件只在后者生效）。
+        self._search_mode: str = DEFAULT_SEARCH_MODE
 
         # ---- v3.1.0 序贯物相鉴定（逐相确认 → 剩余峰再检索）----
         #: 本次分析的原始峰列表（序贯鉴定的基准，后续只做残差，不重新寻峰）。
@@ -683,6 +693,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._search_mode_combo = QtWidgets.QComboBox()
         for text, mode in _SEARCH_MODE_ITEMS:
             self._search_mode_combo.addItem(text, userData=mode)
+        # 内部状态在 __init__ 里已设为 DEFAULT_SEARCH_MODE；这里把下拉框选中项
+        # 同步过去（不是靠「第 0 项恰好是默认」这种隐式约定）。
+        default_index = self._search_mode_combo.findData(DEFAULT_SEARCH_MODE)
+        if default_index >= 0:
+            self._search_mode_combo.setCurrentIndex(default_index)
         self._refresh_search_mode_combo_tip()
         self._search_mode_combo.currentIndexChanged.connect(
             self._on_search_mode_combo_changed
@@ -1631,6 +1646,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if mode:
             self._search_mode = mode
         self._refresh_search_mode_combo_tip()
+        # 「样品元素」按钮要跟着变：FPFM 不吃元素约束，切过去必须常显说明，
+        # 不能只靠检索时那条 8 秒状态栏提示。
+        self._refresh_sample_elements_action()
 
     def _refresh_search_mode_combo_tip(self) -> None:
         """根据当前模式刷新下拉框 tooltip（说明当前所选检索模式）。"""
@@ -1657,9 +1675,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def _run_search_match(self) -> None:
         """统一 Search-Match 入口：按工具栏所选模式检索参考数据库。
 
-        - ``peaks_fom``（默认）：自动寻峰 → 峰列表 FoM 检索（现状行为）；
-        - ``fpfm_full``：FPFM 全谱拟合检索（直接拟合原始谱，不寻峰、不覆盖
-          峰列表）。
+        - ``fpfm_full``（**v3.6.3 起默认**）：FPFM 全谱拟合检索（直接拟合原始谱，
+          不寻峰、不覆盖峰列表）；
+        - ``peaks_fom``：先自动寻峰，再按峰位/强度匹配参考库。**元素限制条件
+          只在这一模式生效**，FPFM 检索链没有 restraints 形参。
         两模式结果统一为 :class:`CandidateResult` 列表填充候选列表，
         保证精修向导 / 3D 视图 / CIF 导出等下游链路元素类型不变。
 
@@ -1767,6 +1786,13 @@ class MainWindow(QtWidgets.QMainWindow):
             text = "样品元素：大库建议填写"
         else:
             text = "样品元素：未设置"
+        # FPFM 的检索链（core/search/fpfm.py）没有 restraints 形参，元素三态 /
+        # 闭环到不了预筛。有了约束又切到 FPFM 时，按钮上**常显**说明，避免用户
+        # 以为设了元素却生效了（不弹模态框，遵循「常显状态 + 非阻塞提示」）。
+        if (
+            text.startswith("样品元素：仅 ") or text.startswith("样品元素：自定义 ")
+        ) and self._search_mode == SEARCH_MODE_FPFM_FULL:
+            text += "｜FPFM 下不生效"
         action.setText(text)
 
     def _focus_restraints(self) -> None:
@@ -1802,7 +1828,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
     def _current_restraints(self) -> Restraints | None:
-        """把「限制条件」面板的元素三态转成 :class:`Restraints`（GUI 线程调用）。
+        """把「限制条件」面板的元素四态转成 :class:`Restraints`（GUI 线程调用）。
 
         面板关掉或没选任何元素时返回 ``None``，调用方据此走原来的无约束检索，
         保证「不用这个面板」的用户行为逐位不变。
@@ -1811,6 +1837,10 @@ class MainWindow(QtWidgets.QMainWindow):
         摘要会显示「排除：Bi」，但检索链一路到预筛都没读过它。于是「样品里没有
         Bi」这条化学上最硬的先验进不了召回，基准报告 §11.5 的 ``3-2``
         ``Bi-Y-O`` 假卡只能靠肉眼剔。
+
+        v3.6.3 起元素是**四态 + 闭环**（对齐 PolyXRD）：``closed_world`` 必须
+        跟着一起传下去，否则「未勾选的元素算不算没有」这条判据会在 GUI 边界被
+        静默丢掉，而它正是 ``HAS`` / ``MAYBE`` 这两个新状态的意义所在。
         """
         panel = getattr(self, "periodic_panel", None)
         if panel is None or not panel.is_enabled():
@@ -1818,7 +1848,8 @@ class MainWindow(QtWidgets.QMainWindow):
         states = panel.states()
         if not states:
             return None
-        return Restraints(elements=dict(states))
+        closed = bool(panel.closed_world()) if hasattr(panel, "closed_world") else False
+        return Restraints(elements=dict(states), closed_world=closed)
 
     def _do_search(
         self,

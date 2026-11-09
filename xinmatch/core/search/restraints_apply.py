@@ -50,6 +50,7 @@ from xinmatch.core.db.query_filter import (
     search_by_year,
 )
 from xinmatch.core.model import ElementState, Entry, Restraints, parse_formula
+from xinmatch.core.model.element_symbols import element_constraint_sets
 
 __all__ = [
     "apply_restraints",
@@ -118,12 +119,16 @@ def apply_restraints(conn: sqlite3.Connection, restraints: Restraints) -> list[s
     bottom-left of the reference software GUI is restricted to entries that satisfy
     every active restraint (logical AND across all subpages).
 
-    Element three-state semantics:
+    Element four-state semantics (see :func:`element_constraint_sets`):
 
-    * 🔴 EXCLUDE  — entries containing this element are filtered out.
-    * 🟢 REQUIRED — entries must contain this element.
-    * 🟡 OPTIONAL — no effect on filtering (considered in
-      :func:`score_restraints_match`).
+    * 🔴 EXCLUDE（没有）— entries containing this element are filtered out.
+    * 🟢 REQUIRED（必有）— entries must contain **every** required element.
+    * 🟩 HAS（含有）— entries must contain **at least one** of them.
+    * 🟨 MAYBE（可能）— no hard condition; only widens the closed-world pool
+      (considered in :func:`score_restraints_match`).
+    * 🟡 OPTIONAL（不限制）— no effect on filtering, unless
+      :attr:`Restraints.closed_world` is on, in which case it counts as
+      "must be absent".
 
     Indexed fields (elements, crystal system, space group, year, mineral
     name) use the SQL filters from :mod:`~xinmatch.core.db.query_filter`.
@@ -145,11 +150,17 @@ def apply_restraints(conn: sqlite3.Connection, restraints: Restraints) -> list[s
     """
     sets: list[set[str]] = []
 
-    # Elements (green required + red excluded — yellow does not filter).
-    required = {e for e, s in restraints.elements.items() if s == ElementState.REQUIRED}
-    excluded = {e for e, s in restraints.elements.items() if s == ElementState.EXCLUDE}
-    if required or excluded:
-        sets.append(set(search_by_elements(conn, required=required, excluded=excluded)))
+    # Elements: 四态 + 闭环一次折算（必有→required、含有→any_of、
+    # 没有+闭环补集→excluded；可能只放宽池，不产生硬条件）。
+    required, any_of, excluded = element_constraint_sets(restraints)
+    if required or any_of or excluded:
+        sets.append(
+            set(
+                search_by_elements(
+                    conn, required=required, excluded=excluded, any_of=any_of
+                )
+            )
+        )
 
     # Crystal system.
     if restraints.crystal_system:
@@ -308,13 +319,18 @@ def score_restraints_match(entry: Entry, restraints: Restraints) -> float:
     score = 0.0
     entry_elements = set(entry.elements)
 
-    # Elements (hard: required / excluded; soft: optional).
+    # Elements (hard: required / has / excluded; soft: optional / maybe).
     for elem, state in restraints.elements.items():
         if state == ElementState.REQUIRED:
             score += 1.0 if elem in entry_elements else -1.0
         elif state == ElementState.EXCLUDE:
             score += 1.0 if elem not in entry_elements else -1.0
-        elif state == ElementState.OPTIONAL and elem in entry_elements:
+        elif state == ElementState.HAS:
+            # 「含有」已经由硬过滤保证至少命中一个，这里只给命中项同样的弱加分，
+            # 让「明确含有」比「只是可能」略占优。
+            score += 0.1 if elem in entry_elements else 0.0
+        elif state in (ElementState.OPTIONAL, ElementState.MAYBE) and elem in entry_elements:
+            # 「不限制」与「可能」都是软先验：出现了就略加分，没出现不惩罚。
             score += 0.1
 
     # Crystal system (derived from space group / cell).
