@@ -1,11 +1,15 @@
 """Merge XinMatch project markdown docs into a single organized MD file.
 
 Keeps original content verbatim, adds front matter, TOC and category headers.
+
+Note (2026-11-09): source paths follow the docs/ reorganisation — current
+technical docs live in docs/, historical ones in docs/archive/.  The output is
+the archived snapshot in docs/archive/, not a new root-level file.
 """
 from pathlib import Path
 
 ROOT = Path(r"D:\Project\XRD\XinMatch")
-OUT = ROOT / "XinMatch项目文档合集.md"
+OUT = ROOT / "docs/archive/XinMatch项目文档合集.md"
 
 # (relative path, short title for TOC, category)
 CATEGORIES = [
@@ -13,7 +17,7 @@ CATEGORIES = [
         "第一部分 · 项目总览",
         [
             ("README.md", "README — 项目简介"),
-            ("ROADMAP_v3.md", "实施路线图 v3.0（合并版）"),
+            ("docs/ROADMAP_v3.md", "实施路线图 v3.0（合并版）"),
             ("docs/STATUS.md", "Implementation status（实施状态）"),
             ("docs/HANDOVER-20261012.md", "项目转交记录（阶段性总结 · 2026-10-12）"),
             ("docs/HANDOVER.md", "项目转交记录（2026-10-08）"),
@@ -22,16 +26,16 @@ CATEGORIES = [
     (
         "第二部分 · 技术方案与合规",
         [
-            ("00_TECH_STACK_ANALYSIS.md", "参考软件技术栈勘察报告"),
-            ("01_方案对比与补充.md", "方案对比与补充（评审合并）"),
+            ("docs/archive/00_TECH_STACK_ANALYSIS.md", "参考软件技术栈勘察报告"),
+            ("docs/archive/01_方案对比与补充.md", "方案对比与补充（评审合并）"),
             ("docs/CONVENTIONS.md", "跨平台编码规范（T0.7）"),
         ],
     ),
     (
         "第三部分 · 功能与算法模型",
         [
-            ("FUNCTION_MAP.md", "功能清单（自动提取自帮助数据库）"),
-            ("FOM_MODEL.md", "FoM（Figure-of-Merit）定量结构"),
+            ("docs/archive/FUNCTION_MAP.md", "功能清单（自动提取自帮助数据库）"),
+            ("docs/FOM_MODEL.md", "FoM（Figure-of-Merit）定量结构"),
         ],
     ),
     (
