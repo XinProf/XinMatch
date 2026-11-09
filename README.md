@@ -8,7 +8,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.6.1.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.6.2.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
 > multi-phase identification** (confirm a phase → re-search on the remaining
 > unexplained peaks → confirm the next) + true March-Dollase preferred
@@ -45,6 +45,15 @@ workflows, published algorithms and open reference data (COD).
 >   not deprecated;
 > * still mountable from any folder (设置→参考数据库…, or
 >   `xinmatch libraries --add <path>`), `.xinDB` only.
+>
+> **v3.6.2** 改的是谱图区交互（接口与数据格式均无变更）：
+> ① 谱图下方新增**参考线分区**——候选列表高亮哪个相，就在谱图正下方画出它的峰位
+> 与强度（一行一相、左标化学式、横坐标与谱图联动对齐），已确认的相也全部列进去，
+> 一眼看出「哪些峰还没被任何相匹配」；勾选框可切「只看角度位置 / 同时看强度」；
+> ② 顶部「X 轴 / Y 轴 / 适应数据范围」控制条隐藏但功能保留，切换到**点击坐标轴**上
+> （左键循环、右键菜单）；③ 谱图上方加了一排**快捷图标**（复位 / 横向框选 / 纵向框选 /
+> 区域放大 / 左右平移 / 步进缩放 / 十字线），参考姊妹项目 XinRefinement 的实现移植。
+> 详见 [docs/RELEASE-NOTES-v3.6.2.md](docs/RELEASE-NOTES-v3.6.2.md)。
 >
 > **v3.6.1** 是纯缺陷修复版，修三处实测报障，接口与数据格式均无变更：
 > ① 谱图图例每条曲线**出现两次**（pyqtgraph 的 `PlotItem.addItem()` 已自动加图例，

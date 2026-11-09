@@ -2324,3 +2324,74 @@ CLI 至今没有 index 命令。
 - **未做（硬红线）**：**人工双击验收尚未进行**，因此 `v3.6.1` 未打 tag、
   GitHub Release 未创建。
 
+## 谱图区交互改造：参考线分区 / 快捷图标 / 轴点击切换（2026-11-09）✅ 已完成 → 发布为 v3.6.2
+
+用户报障原文（6 张截图 + 5 段文字）：
+
+> 「在谱图下方，当在下面的候选列表选择一个物相时，上面显示对应的位置和强度……
+> 以便使用人员比对物相匹配情况，可以鼠标在这个区域勾选只要角度位置或同时显示
+> 角度和强度；右侧已匹配的物相，也在这个区域都显示上吧……以便查漏是否有峰未匹配。
+> 在谱图的这个区域可以不用要（隐藏，但功能保留），把功能放入横竖轴中，鼠标点击
+> 左键可切换不同的显示，鼠标右键也可以切换。这个位置可以参考 XinRefinement 那样
+> 显示一些快捷图标以便对谱图进行处理」
+
+拆成四件事，全部落地：
+
+| # | 需求 | 落地 |
+|---|---|---|
+| ① | 谱图下方独立参考线区，一行一相、标物相名、竖线高度=强度 | 新模块 `xinmatch/ui/stick_lane.py`（`StickLaneView` + `LaneRow`），`ViewBox.setXLink` 与主谱图共用横坐标 |
+| ② | 已匹配的物相也全部列进来（查漏未匹配峰） | `_rebuild_reference_sticks()` 同时产出 `LaneRow` 列表 → `PatternPanel.set_confirmed_lane_rows()`；配色与谱图内参考线条同索引 |
+| ③ | 顶部 X/Y 控制条隐藏（功能保留），改成点击横竖轴切换 | `PatternPanel._axis_bar.setVisible(False)`（`x_combo`/`y_combo`/`fit_button` 属性与功能保留）；`ClickableAxisItem`：左键循环、右键菜单 |
+| ④ | 谱图区一排快捷图标（参考 XinRefinement） | 新模块 `xinmatch/ui/plot_toolbar.py` + `xinmatch/ui/plot_icons.py`（9 个 QPainter 图标，从 `xinrefinement/gui/button_icons.py` 移植） |
+
+**分区细节**：勾选「同时显示峰强」（默认）→ 行内归一化强度；取消 → 全部等高只看位置。
+候选列表高亮一行 → 顶部出现**橙色虚线**预览行（标「候选 ⟨化学式⟩」）；确认后转实线行。
+无行时整个分区隐藏，谱图吃掉这块高度。
+
+**横坐标对齐**（最容易做错的地方）：分区与主谱图是两个 `PlotWidget`，左轴宽度差 1 px
+竖线就整体错位。做法是 `sync_geometry()` 把分区左轴 `fixedWidth` 同步成主谱图左轴的
+**实测像素宽**（resize / 数据变化 / 主题切换时都调），其余交给 pyqtgraph 的
+`linkedViewChanged` 按屏幕几何重叠区补偿。回归测试用 `mapViewToScene()` 比同一 2θ 的
+像素 x，容差 1.5 px。
+
+**新增公开 API**（都不改既有签名）：
+`PatternView.reset_view / pan_x / zoom_scale / fit_y_range / set_plot_tool / tool /
+set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / data_bounds`、
+`PatternView.x_axis_clicked / y_axis_clicked / x_mode_changed / y_mode_changed` 信号、
+`PatternPanel.set_confirmed_lane_rows / set_candidate_lane_row / lane_rows`、
+`CandidateListTable.candidate_highlighted` 信号。
+
+### 本轮踩到的坑（详见 HANDOVER §6.9）
+
+1. **`RectMode` 不看 `mouseEnabled`** —— `ViewBox.mouseDragEvent`（0.13.7，第 1332 行）
+   在 `RectMode` 下直接走 `showAxRect`，`setMouseEnabled(y=False)` 只影响平移。
+   按轴框选必须覆写 `showAxRect`，且**锁定分支要 `padding=0`**（默认 2% 边距会把被锁
+   的轴一起撑开）。
+2. **`clipToView=True` 让 `autoRange()` 只看可见点** —— 缩放一次后「适应数据范围/复位」
+   再也回不到全量视野（实测设 20–30° 后 autoRange 原封不动）。改按数据包围盒
+   `data_bounds()` 直接 `setRange`。
+3. **`AxisItem` 的宽度有两个真相** —— `setWidth()` 设 `fixedWidth`（约束），`width()`
+   返回当前几何宽；布局未跑时用它做幂等判断会反复重设。
+4. **模型 reset 未必发 `currentRowChanged`** —— `set_candidates()` 换数据后预览行会
+   指向不存在的相，改为末尾显式发一次空信号。
+5. **主题切换只刷视图会留一条浅色分区** —— 主窗口原先把 `apply_theme_colors()` 打在
+   `pattern_view` 上，改走 `pattern_panel`（视图 + 分区一起换色）。
+
+### 验证
+
+- `ruff check .` → all passed；`mypy xinmatch/core` → 99 files 无问题；
+  `tests/test_version_consistency.py` → 5/5（版本号 bump 到 **3.6.2**）。
+- **新增回归 38 项**：`tests/ui/test_plot_toolbar.py` 20（图标集合 / 互斥可取消 /
+  复位·平移·步进缩放 / 按轴框选 / 十字线可见性 / 控制条隐藏但仍驱动 / 轴左键循环·
+  右键菜单）、`tests/ui/test_stick_lane.py` 13（一峰一线 / 强度模式 / 等高模式 /
+  空态隐藏 / 候选行置顶 / 像素级对齐 / d 值换算 / 左轴宽度 / 条目转行数据）、
+  `tests/ui/test_sequential_ui.py` +5（已确认相入区 / 颜色一致 / 候选预览 /
+  取消只清预览 / 换候选清预览）。
+- **全量回归 1809 = 1804 passed / 4 skipped / 1 xfailed / 0 F / 0 E**（18m 43s），
+  `--collect-only` 求和 **1809** 精确对账（基线 1771 + 38 = 1809）。
+  **注意**：本次 `exit code` 为 1，原因是 pytest 退出时清理临时目录触发沙箱
+  safe-delete 钩子（57 个文件 > 阈值 50，日志末尾多一行 `[safe-delete]` JSON）；
+  按项目口径以**进度行字符统计 + collect 对账**判绿，F/E 均为 0。
+- **版本号**：`pyproject.toml` / `_FALLBACK_VERSION` / `iss AppVersion` 同步 3.6.2。
+  **二进制未构建**（v3.6.2 的 exe/zip 还没有），`dist/` 里仍是 v3.6.1 两个产物
+  —— 它们**不含**本次谱图区改动。人工双击验收清单见 HANDOVER §8.3.1。
