@@ -51,7 +51,7 @@
 | FoM (Figure of Merit) | FoM 品质因数（`core/search/fom_criteria.py`）[x] | 品质因数 | 五分量（峰位/强度/半高宽/晶胞/密度…） |
 | candidate list | 候选列表（UI 表格）[x] | 候选相列表 | 参考软件 FoM 排序；XinMatch 同 |
 | Selection of Matching Entries | 候选选择/过滤（元素限制等）[x] | 匹配条目选择 | Restraints 加权评分 |
-| Restraints | 限制条件（UI「限制条件」页；元素过滤）[x] | 约束（元素/组合/性质） | 三态红/黄/绿加权 |
+| Restraints | 限制条件（UI「限制条件」页；元素过滤）[x] | 约束（元素/组合/性质） | 四态：必有 / 含有 / 可能 / 没有（+ 不限制），可叠闭环 |
 | text fragment searching / formula sum | 化学式/文本检索 [x] | 化学式/文本匹配 | formula sum 校验 XinMatch 在条目解析校验 [x] |
 | entry number | 条目号（COD entry id）[x] | 参考数据库条目号 | XinMatch 用 COD id；参考软件用 PDF/COD 双编号 |
 | PDF quality marks | COD 质量标记（品质过滤）[x] | 数据库质量标记 | XinMatch 用 COD 品质字段 |

@@ -182,7 +182,7 @@ Legend: ⬜ not started · 🟡 in progress · ✅ done
 | T13.1 | Main window skeleton (menu/toolbar/statusbar/dock panels) | ✅ |
 | T13.2 | Pattern view (pyqtgraph, multi-pattern, zoom/trace) | ✅ |
 | T13.3 | Peak / candidate / match list tables | ✅ (`ui/tables.py`：Peak/Candidate/Match 三表 QTableView，排序/右键菜单/双击选中信号，已挂载进候选/峰列表/匹配 dock) |
-| T13.4 | Periodic table element selector (3-state) | ✅ (`ui/periodic_table.py`：118 元素红/黄/绿三态循环 + Toggle 启用开关，语义对齐 core 三态元素过滤；已挂载"限制条件"页) |
+| T13.4 | Periodic table element selector (4-state + closed world) | ✅ (`ui/periodic_table.py`：118 元素不限制/含有/可能/没有/必有五态循环 + Toggle 启用开关 + 闭环开关 + 补轻元素，语义对齐 `element_constraint_sets()`；已挂载"限制条件"页。v3.6.3 由三态扩展) |
 | T13.5 | Dialogs (import / experiment / options) | ✅ (`ui/dialogs/`：导入选项/实验详情/13 类选项/颜色线型四对话框，统一 YAML 配置 load/save；选项与颜色对话框已接线到"设置"菜单) |
 | T13.6 | Shortcut mapping | ✅ (`ui/shortcuts.py`：67 条对照 function_keys.md 全量映射，QAction 方式已安装到主窗口并验证触发) |
 | T13.7 | Themes | ✅ (`ui/theme.py`：浅/深主题语义令牌 + QPalette/QSS，对比度断言两主题无不可读控件；图标用 Qt 标准图标；主窗口"设置"菜单可切换) |
@@ -2395,3 +2395,114 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 - **版本号**：`pyproject.toml` / `_FALLBACK_VERSION` / `iss AppVersion` 同步 3.6.2。
   **二进制未构建**（v3.6.2 的 exe/zip 还没有），`dist/` 里仍是 v3.6.1 两个产物
   —— 它们**不含**本次谱图区改动。人工双击验收清单见 HANDOVER §8.3.1。
+
+## 元素限定四态 + 闭环：口径对齐 PolyXRD（2026-11-09）✅ 已完成 → 发布为 v3.6.3
+
+用户原话：
+
+> 元素周期表的元素限定逻辑参考 `D:\Project\XRD\PolyXRD` 实现
+
+### 为什么改
+
+三态（必含 / 排除 / 不限制）有两个真实短板，用户在实际使用中都会撞上：
+
+1. **没有「至少含一个」**。想表达「样品是 MgO 或 CaO 或 CaCO3 这一族」，
+   只能把 Mg/Ca/C/O 全标「必含」—— 而那是 AND 语义，结果只剩 CaMg(CO3)2，
+   恰好把最常见的单组分相挡在门外。
+2. **没有闭环**。「只允许样品里检出的这几个元素」只能写成「其余 113 个元素
+   全部标为没有」（v1.4 的「其余元素排除」快速录入）。这写法本身没错，
+   但打开周期表弹窗会看到 113 个红框，反而看不出自己选了什么；
+   而且「标一个必有 + 顺手打开闭环」这种最自然的操作根本不存在。
+
+### 四态语义（逐条对齐 PolyXRD `elements_match_filter`）
+
+记 S = 物相元素集，P/H/M/E = 必有/含有/可能/没有：
+
+| 类别 | 判定式 | 含义 | 预筛落地 |
+|---|---|---|---|
+| 必有 P | `P ⊆ S` | 每个都必须出现（AND） | `elements_allowed` |
+| 含有 H | `S ∩ H ≠ ∅` | 至少含其中一个（OR） | `elements_any`（**新增通路**） |
+| 可能 M | 无强制条件 | 只放宽闭环允许池 | 只参与池计算 |
+| 没有 E | `S ∩ E = ∅` | 含任一即淘汰 | `elements_excluded` |
+
+* **必有已满足时不再要求「含有」** —— 否则纯金属这类单元素相永远进不了候选。
+* **闭环**：`P∪H∪M` 非空时未标状态的元素一律视为「没有」，等价于
+  `S ⊆ P∪H∪M`；三者全空 = 全库检索，只勾「没有」= 开放世界。
+
+### 落地位置
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| 模型 | `core/model/restraints.py` | `ElementState` +`HAS`/`MAYBE`（旧值不变）、`Restraints.closed_world`、`passes_elements(closed_world=)` 重写、`has_any()`/`maybe()` |
+| 换算 | `core/model/element_symbols.py` | **新增 `element_constraint_sets()`** —— 四态 + 闭环 → `(必含全部, 至少含一个, 必须不含)` 的唯一换算点；`LIGHT_ELEMENTS` |
+| 预筛 | `core/db/reader_v3.py` | `prescreen(elements_any=)`、`element_union_filter()`（`element_filter` 的 OR 对偶） |
+| SQL | `core/db/query_filter.py` | `search_by_elements(any_of=)`、`search_combined` 转发 |
+| 检索链 | `core/search/search_match.py`、`core/search/restraints_apply.py`、`core/db/search_v3.py` | 三处都改调 `element_constraint_sets()` |
+| 基准 | `tools/bench_iucr.py` | `_pools()` 改调同一换算点（原来自己拆 REQUIRED/EXCLUDE） |
+| GUI | `ui/periodic_table.py` | 五态循环（必有置末位）、四态视觉、图例、`grouped()`、`apply_light_elements()`、闭环复选框 + 常显提示、「补轻元素」按钮、摘要四态着色 |
+| 接线 | `ui/main_window.py` | `_current_restraints()` 带上 `closed_world`；四处文案改「必有/没有」 |
+
+### 本轮踩到的坑
+
+1. **`min-width` 作用于内容矩形，而边框宽度逐态不同**。旧代码三态统一 2 px，
+   `min_w = cell_w − 4` 恰好成立；改成 1/2/3 px 后，同一个 `min_w` 会让
+   「不限制」的 `minimumSize()` 比 `setFixedSize()` 小 4 px，布局一重算就把
+   按钮压小、符号被裁。按**本态宽度**扣减才是 QSS 的真实语义。
+2. **「必有已满足则丢弃含有」必须落在换算点**，不能只写在 `passes_elements`。
+   预筛会把 `elements_allowed` 与 `elements_any` 取交集，只在单条判据里放行，
+   端到端仍被 AND 一次 —— 现象是「我明明写了必有 O，只含 O 的相却不见了」。
+3. **`elements_any` 的未知元素方向与 `elements_allowed` 相反**。后者遇到库里
+   没有的元素要返回全 `False`（不可能满足），前者它只是没有发言权（不可能担保），
+   必须跳过。方向搞反，一个拼错的符号会静默清空结果。
+4. **字典模型让 PolyXRD 的「重叠优先级」不可达**。`Restraints.elements` 是
+   `{符号: 状态}`，一个元素只有一个状态；照抄去重只会留下无测试覆盖的死分支。
+   已删掉去重代码，改在 docstring 说明这条差异。
+5. **补集写法与闭环写法等价，但不是处处逐位相同**。唯一差异是元素集为空的
+   退化物相（闭环形式还要求至少命中一个允许池元素）。真实库无零元素物相，
+   检索上等价；两条路径由 `test_closed_world_equals_the_complement_restraint` 钉住。
+6. **`.pytest_cache/v/cache/lastfailed` 会误导**。里面残留旧目录结构的条目
+   （`tests/ui/test_smpf_kalpha2.py` 等文件已不存在），`--lf` 只会选中确实还在
+   的那些。判绿仍按进度行字符统计 + `--collect-only` 对账。
+7. **safe-delete 钩子会在 `[100%]` 之后截断 pytest 汇总段**，`-q` 的
+   `=== FAILURES ===` 与末行统计可能不落盘。本轮第一次全量回归就是这样：
+   日志里只剩进度行和一个孤零零的 `F`，只能靠「按进度行数 F/E」定位，
+   再单文件复跑确认。所以**必须**把进度行字符统计当主判据。
+
+### 验证
+
+- `ruff check .` → all passed；`mypy xinmatch/core` → 99 files 无问题；
+  `tests/test_version_consistency.py` → 5/5（版本号 bump 到 **3.6.3**）。
+- **新增回归 55 项**：`tests/model/test_element_filter_four_state.py` 25
+  （PolyXRD 的 11 条语义断言 + 换算点 + 序列化兼容 + 与补集写法等价）、
+  `tests/db/test_prescreen_element_any.py` 17（并集语义 / 未知元素方向 /
+  预筛交集 / HAS·MAYBE·闭环端到端）、`tests/ui/test_periodic_table.py` +10
+  （五态循环 / tooltip 全循环 / 四态视觉可分 / 图例 / grouped / 补轻元素 /
+  闭环开关与提示）、`tests/ui/test_element_restraints.py` +3（闭环传进
+  Restraints / 快速录入不误开闭环）。
+- **旧用法逐位不变**：`closed_world` 默认 `False`、`HAS`/`MAYBE` 不被旧存档使用，
+  所以只标必有/没有时判据与 v3.6.2 完全一致（`test_three_state_behaviour_is_bit_identical`）；
+  快速录入生成的 113 个 `EXCLUDE` 与闭环写法换算出同一个 `elements_excluded`，
+  **基准数字（真实谱相 30/43 等）不需要重跑**。
+
+### 追加：物相鉴定默认改用 FPFM 全谱拟合（2026-11-09，v3.6.3）
+
+用户附工具栏截图提出：「**默认使用 FPFM 法 用来进行物相鉴定**」。
+
+| 项 | 改动 |
+|---|---|
+| 默认值 | `DEFAULT_SEARCH_MODE = SEARCH_MODE_FPFM_FULL`（`ui/main_window.py`）；`MainWindow._search_mode` 起始值同步 |
+| 下拉框 | 选项顺序**不变**（「峰列表 FoM」仍是第 0 项），选中项由 `findData(DEFAULT_SEARCH_MODE)` 决定 —— 不依赖「第 0 项恰好是默认」的隐式约定，按 index 切换的旧测试不漂移 |
+| 常显提示 | FPFM 检索链（`core/search/fpfm.py`）**没有 `restraints` 形参**，元素四态 / 闭环到不了预筛。默认改成 FPFM 后「设了样品元素却不生效」会成为常态，所以工具栏「样品元素」按钮在有约束 + FPFM 时追加 `｜FPFM 下不生效`，切换模式时刷新；切回峰列表 FoM 自动消失。检索时原有 8 秒状态栏提示保留 |
+| 文案 | `_run_search_match` docstring、`_MODULE_TIPS["search_match"]`、README、发布说明同步 |
+
+**这是界面默认值变更，不是 FPFM 内核改动**：两种模式的检索链本身一行未动，
+用户仍可随时切回寻峰模式（**元素限定只在峰列表 FoM 生效**）。
+
+#### 回归
+
+- `tests/ui/test_search_mode.py` +3：默认值为 FPFM 且下拉框选中项一致、
+  多窗口默认值一致、可一键切回 FoM、有约束时 FPFM 常显提示 / 切回即消失。
+- `test_unified_entry_runs_both_modes` 改为**显式** `setCurrentIndex(0)` 再跑
+  FoM 那一半（原测试依赖「默认 = 峰列表 FoM」，这是最容易被默认值改动带崩的一处）。
+- 全量回归 **1867 = 1862 passed / 4 skipped / 1 xfailed / 0 F / 0 E**
+  （基线 1809 + 元素四态 55 + 默认模式 3），`--collect-only` 求和 **1867** 精确对账。

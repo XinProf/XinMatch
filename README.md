@@ -8,7 +8,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.6.2.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.6.3.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
 > multi-phase identification** (confirm a phase → re-search on the remaining
 > unexplained peaks → confirm the next) + true March-Dollase preferred
@@ -45,6 +45,19 @@ workflows, published algorithms and open reference data (COD).
 >   not deprecated;
 > * still mountable from any folder (设置→参考数据库…, or
 >   `xinmatch libraries --add <path>`), `.xinDB` only.
+>
+> **v3.6.3** 把元素限定改成**四态 + 闭环**（口径对齐姊妹项目 PolyXRD，接口只增不改）：
+> ① 元素状态由「必含 / 排除 / 不限制」扩为「**必有**」（AND）、「**含有**」（OR，至少含一个）、
+> 「**可能**」（只放宽允许池）、「**没有**」+ 不限制，点击顺序把过滤最狠的「必有」放末位；
+> ② 新增**闭环开关**「限定在所选元素内」——未标状态的元素一律视为「没有」，
+> 于是「只允许样品里检出的这几个元素」不必再点 113 个按钮；③ 预筛新增 `elements_any`
+> 通路（原来只有「必须全含」与「含任一即淘汰」），四态的换算收敛到 `element_constraint_sets()`
+> 一处；④ 面板加「补轻元素」一键把 O/C/H/N/S 标为「含有」。旧存档、旧用法行为逐位不变
+> （闭环默认关闭），基准数字不动。
+> ⑤ **物相鉴定默认改用 FPFM 全谱拟合（不寻峰）**，下拉框仍可一键切回「峰列表 FoM（寻峰）」。
+> ⚠️ 注意：FPFM 检索链不接受元素限制条件，**要用元素限定请切回峰列表 FoM**；
+> 工具栏「样品元素」按钮在有约束 + FPFM 时会常显「｜FPFM 下不生效」提示。
+> 详见 [docs/RELEASE-NOTES-v3.6.3.md](docs/RELEASE-NOTES-v3.6.3.md)。
 >
 > **v3.6.2** 改的是谱图区交互（接口与数据格式均无变更）：
 > ① 谱图下方新增**参考线分区**——候选列表高亮哪个相，就在谱图正下方画出它的峰位
