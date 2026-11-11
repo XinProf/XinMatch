@@ -26,7 +26,6 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from scipy.interpolate import interp1d
 
 logger = logging.getLogger(__name__)
 
@@ -232,6 +231,11 @@ def interpolate_background(
     np.ndarray
         Interpolated background at *two_theta*.
     """
+    # 延迟导入：本模块在 GUI 启动链上（auto_pipeline），而 interp1d 会把
+    # scipy.interpolate 整条链（含 spline/linalg）带进内存；只有手动背景
+    # 控制点这条冷路径真的需要它。
+    from scipy.interpolate import interp1d
+
     control_points = np.asarray(control_points, dtype=np.float64)
     if control_points.ndim != 2 or control_points.shape[1] != 2:
         raise ValueError("control_points must have shape (N, 2)")

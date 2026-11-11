@@ -27,7 +27,6 @@ Chap. 4).
 from __future__ import annotations
 
 import numpy as np
-from scipy.optimize import minimize
 
 from xinmatch.core.model import Entry, Pattern
 from xinmatch.core.peak.shapes import pseudo_voigt
@@ -169,6 +168,9 @@ def fit_scale_shift(
         scale, shift = params
         fitted = scale * shifted_reference(float(shift))
         return float(np.sum((y - fitted) ** 2))
+
+    # 延迟导入：只在真的做 Nelder-Mead 拟合时才拉 scipy.optimize。
+    from scipy.optimize import minimize
 
     res = minimize(
         objective,

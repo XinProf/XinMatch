@@ -19,7 +19,6 @@ an ``np.ndarray`` of the same length — no GUI involvement.
 from __future__ import annotations
 
 import numpy as np
-from scipy.signal import savgol_filter
 
 
 def smooth(
@@ -58,6 +57,11 @@ def smooth(
     ValueError
         If *method* is unknown or the window is invalid.
     """
+    # 延迟导入：scipy.signal 单独就要 ~0.2 s，而本模块在 GUI 启动链上
+    # （main_window → auto_pipeline → smoothing）。首次调用后 import 命中
+    # sys.modules，重复调用只是一次字典查找。
+    from scipy.signal import savgol_filter
+
     intensity = np.asarray(intensity, dtype=np.float64)
     if intensity.ndim != 1:
         raise ValueError("intensity must be a 1-D array")

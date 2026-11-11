@@ -34,7 +34,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from PySide6 import QtCore, QtWebEngineWidgets, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 # The id→path helpers live in core (shared with CLI / batch / GSAS-II
 # pipelines); this module re-exports them so existing imports keep working.
@@ -227,6 +227,11 @@ class StructureViewDialog(QtWidgets.QDialog):
         self._info = QtWidgets.QLabel("尚未加载结构。")
         self._info.setStyleSheet("color: #444; padding: 2px;")
         layout.addWidget(self._info)
+
+        # 延迟导入：QtWebEngineWidgets 要初始化 Chromium（实测 ~0.13 s 导入 +
+        # 常驻内存），而 3D 视图是 P3 功能、打开对话框才需要。放模块顶层会让
+        # 每次启动都白付这笔钱。
+        from PySide6 import QtWebEngineWidgets
 
         self._web = QtWebEngineWidgets.QWebEngineView(self)
         layout.addWidget(self._web, 1)

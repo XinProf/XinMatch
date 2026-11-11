@@ -52,8 +52,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy.ndimage import grey_opening
-from scipy.signal import savgol_filter
 
 from xinmatch.core.model import Pattern
 from xinmatch.core.preprocess.background import estimate_background
@@ -139,6 +137,11 @@ def degree_of_crystallinity(
     -------
     DOCResult
     """
+    # 延迟导入：scipy.ndimage / scipy.signal 各自要 ~0.2 s，而 DOC 是偶发调用的
+    # 定量子功能，不值得占启动预算。
+    from scipy.ndimage import grey_opening
+    from scipy.signal import savgol_filter
+
     two_theta = np.asarray(two_theta, dtype=np.float64)
     intensity = np.asarray(intensity, dtype=np.float64)
     if step is None:

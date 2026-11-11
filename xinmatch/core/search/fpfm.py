@@ -76,7 +76,6 @@ import time
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy.optimize import least_squares
 
 from xinmatch.core.cancel import check_cancelled
 from xinmatch.core.model import CellParams, Entry, Pattern
@@ -782,6 +781,10 @@ def fit_candidate(
         ym = y[mask]
         r[mask] = (ym - yc[mask]) / np.sqrt(ym)
         return r
+
+    # 延迟导入：scipy.optimize 启动成本 ~0.27 s，而 main_window 在导入期就
+    # 拉本模块（默认检索模式是 FPFM）；真正拟合候选时才付这笔钱。
+    from scipy.optimize import least_squares
 
     try:
         sol = least_squares(

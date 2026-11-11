@@ -93,6 +93,27 @@ def test_unknown_icon_name_falls_back(qapp):
     assert not ico.isNull()
 
 
+def test_icon_is_cached_per_body_and_theme(qapp):
+    """同一 (图形本体, theme) 只渲染一次；换主题或清缓存后必须重新产出。
+
+    这是启动性能优化（v3.6.4）的钉子：主窗口构造期 ``icon()`` 被调用 29 次，
+    没有缓存时同名图标会重复渲染 5 档尺寸 × 8 倍高清。
+    """
+    from xinmatch.ui import icons
+
+    icons.clear_icon_cache()
+    first = icons.icon("open", "light")
+    again = icons.icon("open", "light")
+    assert first is again  # 命中缓存，返回同一对象
+    other_theme = icons.icon("open", "dark")
+    assert other_theme is not first  # 主题不同 → 不同条目
+    # 别名（模块 id 与图标名指向同一图形）共享同一份渲染
+    icons.clear_icon_cache()
+    assert icons.icon("search_match", "light") is icons.icon("search", "light")
+    icons.clear_icon_cache()
+    assert icons.icon("open", "light") is not first  # 清缓存后重新渲染
+
+
 def test_both_themes_defined_with_semantic_tokens():
     assert set(THEMES) == {"light", "dark"}
     common = set(THEMES["light"]) & set(THEMES["dark"])

@@ -23,7 +23,6 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.optimize import least_squares
 
 from xinmatch.core.index.lattice import compute_d
 from xinmatch.core.model.entry import CellParams, Entry
@@ -286,6 +285,9 @@ class RietveldRefinement:
         bounds_hi = np.array(
             [1e6, 2.0, 1e4, 1e4, 1e4, 170.0, 170.0, 170.0, 10.0, 10.0, 10.0]
         )
+
+        # 延迟导入：精修是长任务、不在启动路径上，scipy.optimize 到用时再拉。
+        from scipy.optimize import least_squares
 
         result = least_squares(
             self._residuals,

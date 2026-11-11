@@ -32,7 +32,6 @@ non-physical width (fall back to parabola, then to ``x[idx]``).
 from __future__ import annotations
 
 import numpy as np
-from scipy.optimize import least_squares
 
 from xinmatch.core.peak.shapes import gaussian
 
@@ -148,6 +147,10 @@ def refine_peak_position(
             out[:, 2] = d_amp
             out[:, 3] = 1.0
             return out
+
+        # 延迟导入：scipy.optimize 会把 linalg / stats 整条链带进来（~0.27 s），
+        # 而本模块在 GUI 启动链上。只有 gaussian 分支真的做拟合时才需要它。
+        from scipy.optimize import least_squares
 
         try:
             sol = least_squares(

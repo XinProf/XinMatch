@@ -380,6 +380,22 @@ _CONTENT_RATIO = 0.74
 #: 高清渲染倍率：先按 8× 渲染测包围盒，再缩回目标尺寸，边缘更精确。
 _HI_DPI = 8
 
+#: QIcon 缓存：``(图形本体, theme) → QIcon``。
+#:
+#: 生成一个 QIcon 要渲染 5 档尺寸、每档再按 :data:`_HI_DPI` 高清渲染并对透明
+#: 画布扫描包围盒。实测单个 ``MainWindow()`` 调用 :func:`icon` 29 次，按
+#: ``(图形本体, theme)`` 去重后只有 24 个唯一组合 —— 即 5 次（17 %）是纯重复；
+#: 多窗口、切换主题、重开对话框时收益更大。key 用**图形本体**而不是名字，是因为
+#: 模块 id 与图标名可能指向同一图形（如 ``data_import`` 与 ``import``）。
+#: 切换主题因 key 含 theme 自然失效。真正的大头开销在 :func:`_alpha_bbox`
+#: 的逐像素扫描，已单独改成 C 级字节操作（见该函数 docstring）。
+_ICON_CACHE: dict[tuple[str, str], QtGui.QIcon] = {}
+
+
+def clear_icon_cache() -> None:
+    """清空 :data:`_ICON_CACHE`（测试切换调色板后需要重渲染时调用）。"""
+    _ICON_CACHE.clear()
+
 
 def resolve_icon_name(name: str) -> str | None:
     """把图标名或模块 id 解析为受支持的图标名。
@@ -427,6 +443,11 @@ def _alpha_bbox(img: QtGui.QImage) -> QtCore.QRect | None:
 
     逐行扫描 alpha 通道（ARGB32 内存布局下 alpha 位于每 4 字节的第 4 个），
     只记录占用的行与每行首尾列，避免逐像素 Python 调用。
+
+    行内首尾非零 alpha 用 ``bytes.lstrip/rstrip`` 求（C 级扫描），而不是
+    ``enumerate`` 逐字节比较 + 列表推导 —— 后者在 8× 高清画布（384 px）上是
+    每图 5 档尺寸 × 384 行的纯 Python 循环，实测占图标总耗时的大头
+    （0.23 s → 约 0.01 s，包围盒逐位不变，370 组图标/主题/尺寸对照验证）。
     """
     if img.isNull():
         return None
@@ -447,16 +468,17 @@ def _alpha_bbox(img: QtGui.QImage) -> QtCore.QRect | None:
         base = y * stride
         row = data[base : base + row_len]
         alpha = row[3::4]
-        if not any(alpha):
+        if not alpha.strip(b"\x00"):
             continue
         if y < min_y:
             min_y = y
         max_y = y
-        xs = [i for i, a in enumerate(alpha) if a]
-        if xs[0] < min_x:
-            min_x = xs[0]
-        if xs[-1] > max_x:
-            max_x = xs[-1]
+        xs_left = width - len(alpha.lstrip(b"\x00"))
+        xs_right = len(alpha.rstrip(b"\x00")) - 1
+        if xs_left < min_x:
+            min_x = xs_left
+        if xs_right > max_x:
+            max_x = xs_right
     if max_x < 0 or max_y < 0:
         return None
     return QtCore.QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
@@ -508,11 +530,18 @@ def icon(name: str, theme: str = "light") -> QtGui.QIcon:
         theme: ``"light"`` 或 ``"dark"``，选择主体 / 点缀配色。
 
     Returns:
-        内置多尺寸（16/20/24/32/48）归一化 pixmap 的 ``QIcon``。
+        内置多尺寸（16/20/24/32/48）归一化 pixmap 的 ``QIcon``。同一
+        ``(图形本体, theme)`` 只渲染一次，后续调用直接命中 :data:`_ICON_CACHE`
+        （``QIcon`` 是隐式共享的值类型，多处 ``setIcon`` 互不影响）。
     """
     resolved = resolve_icon_name(name)
     body = _BODIES[resolved] if resolved is not None else _FALLBACK_BODY
+    key = (body, theme)
+    cached = _ICON_CACHE.get(key)
+    if cached is not None:
+        return cached
     ic = QtGui.QIcon()
     for size in _ICON_PIXMAP_SIZES:
         ic.addPixmap(_normalized_pixmap(body, theme, size))
+    _ICON_CACHE[key] = ic
     return ic

@@ -22,7 +22,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.optimize import least_squares
 
 from xinmatch.core.model import Peak
 from xinmatch.core.peak.shapes import SHAPE_FUNCTIONS
@@ -161,6 +160,9 @@ def fit_profile(
     def residuals(params: np.ndarray) -> np.ndarray:
         calc = _build_model(two_theta, params, n_peaks, shape, has_eta)
         return np.asarray(weight * (obs - calc), dtype=np.float64)
+
+    # 延迟导入：scipy.optimize 启动成本 ~0.27 s，本模块可能被 GUI 提前导入。
+    from scipy.optimize import least_squares
 
     result = least_squares(
         residuals,

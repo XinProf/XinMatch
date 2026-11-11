@@ -32,7 +32,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy.optimize import least_squares
 
 from xinmatch.core.model.entry import Entry
 from xinmatch.core.model.pattern import Pattern
@@ -173,6 +172,9 @@ class _ParameterLockedRefinement(RietveldRefinement):
                 eps = 1e-12 * max(abs(v), 1.0)
                 bounds_lo[i] = v - eps
                 bounds_hi[i] = v + eps
+
+        # 延迟导入：turn-on 精修属长任务，scipy.optimize 到用时再拉。
+        from scipy.optimize import least_squares
 
         result = least_squares(
             self._residuals,
