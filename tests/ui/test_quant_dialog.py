@@ -92,6 +92,23 @@ def test_calc_invalid_rir_warns(qapp, monkeypatch):
     assert shown and not dlg._apply_button.isEnabled()
 
 
+def test_calc_missing_rir_cell_warns_not_crash(qapp, monkeypatch):
+    """RIR 单元格为 ``None``（行未填 / 刚被清除）→ 警告返回，不抛 AttributeError。"""
+    from PySide6 import QtWidgets
+
+    peaks, phases = _fixture()
+    dlg = QuantDialog(phases, peaks)
+    dlg._table.takeItem(0, 2)  # item() 之后返回 None
+    assert dlg._table.item(0, 2) is None
+    shown: list[str] = []
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox, "warning",
+        lambda *a, **k: shown.append(a[1]),
+    )
+    dlg._run_calc()  # 不得抛异常
+    assert shown and not dlg._apply_button.isEnabled()
+
+
 def test_calc_all_zero_intensity_prompts(qapp, monkeypatch):
     from PySide6 import QtWidgets
 

@@ -882,7 +882,9 @@ class PatternPanel(QtWidgets.QWidget):
         return self.lane.rows()
 
     def _refresh_lane(self) -> None:
-        rows = ([self._candidate_row] if self._candidate_row is not None else [])
+        rows: list = (
+            [self._candidate_row] if self._candidate_row is not None else []
+        )
         rows = rows + list(self._confirmed_rows)
         self.lane.set_rows(rows)
 

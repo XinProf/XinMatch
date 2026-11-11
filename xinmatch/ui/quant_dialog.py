@@ -124,8 +124,13 @@ class QuantDialog(QtWidgets.QDialog):
             eid = phase.entry.entry_id
             if self._main_intensity[eid] <= 0:
                 continue  # 无已匹配实验峰的相不参与计算
+            # ``item()`` 在行还没填/刚被 clearContents 时返回 ``None``；旧代码
+            # 直接 .text() 只 catch (TypeError, ValueError)，真遇到 None 会抛
+            # AttributeError 逃出槽函数（mypy union-attr 也是这一处）。
+            rir_item = self._table.item(row, _COL_RIR)
+            rir_text = rir_item.text() if rir_item is not None else ""
             try:
-                rir = float(self._table.item(row, _COL_RIR).text())
+                rir = float(rir_text)
             except (TypeError, ValueError):
                 QtWidgets.QMessageBox.warning(
                     self, "RIR 无效",
