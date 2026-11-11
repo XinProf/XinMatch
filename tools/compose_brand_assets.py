@@ -2,12 +2,19 @@
 
 The splash is a static PNG shipped in ``assets/`` and shown by
 ``xinmatch.ui.app._maybe_show_splash``; this script makes it reproducible so a
-logo refresh or a version bump does not need hand-editing the bitmap.
+logo refresh does not need hand-editing the bitmap.
 
-Layout (2730×1536, same as the artwork):
+Design decision (2026-11-11): the splash is **version-agnostic** — no version
+string is baked in, so the same bitmap is reused across releases (the About
+box / installer already show the exact version). The output is a compact
+**800×600** PNG (the old 2730×1536 was ~2.6 MB and dominated the repo's largest
+tracked file); the backdrop is cover-resized (no aspect distortion) to fill the
+frame.
+
+Layout (800×600):
 
 * backdrop  — the crystal/pattern illustration, untouched
-* bottom-left — ``XinMatch`` wordmark + version + a hairline accent rule
+* bottom-left — ``XinMatch`` wordmark + a short accent rule + tagline
 * bottom-right — the logo plate, with a soft glow so it separates from the
   dark backdrop
 
@@ -41,6 +48,17 @@ def _font(kind: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
+def _cover_resize(img: Image.Image, tw: int, th: int) -> Image.Image:
+    """Resize *img* so it covers (tw, th) then center-crop — no distortion."""
+    src_w, src_h = img.size
+    scale = max(tw / src_w, th / src_h)
+    new_w, new_h = int(round(src_w * scale)), int(round(src_h * scale))
+    resized = img.resize((new_w, new_h), Image.LANCZOS)
+    left = (new_w - tw) // 2
+    top = (new_h - th) // 2
+    return resized.crop((left, top, left + tw, top + th))
+
+
 def _plate_with_glow(logo: Image.Image, size: int) -> Image.Image:
     """Resize the logo plate and add a soft outer glow on a padded canvas."""
     plate = logo.convert("RGBA").resize((size, size), Image.LANCZOS)
@@ -61,17 +79,15 @@ def main() -> None:
     ap.add_argument("--backdrop", type=Path, default=Path("assets/splash_backdrop.png"))
     ap.add_argument("--logo", type=Path, default=Path("assets/logo_transparent.png"))
     ap.add_argument("--out", type=Path, default=Path("assets/splash.png"))
-    ap.add_argument("--version", default=None,
-                    help="版本字符串；缺省读 xinmatch.__version__")
+    ap.add_argument("--size", default="800x600",
+                    help="输出尺寸 WxH（默认 800x600，紧凑且不变形）")
     args = ap.parse_args()
 
-    version = args.version
-    if version is None:
-        from xinmatch import __version__
+    tw, th = (int(x) for x in args.size.lower().split("x"))
+    if tw <= 0 or th <= 0:
+        raise SystemExit(f"--size 必须是正数 WxH，收到 {args.size!r}")
 
-        version = __version__
-
-    base = Image.open(args.backdrop).convert("RGBA")
+    base = _cover_resize(Image.open(args.backdrop).convert("RGBA"), tw, th)
     w, h = base.size
     logo = Image.open(args.logo)
 
@@ -81,7 +97,7 @@ def main() -> None:
     margin = int(h * 0.075)
     base.alpha_composite(plate, (w - plate.width - margin, h - plate.height - margin))
 
-    # ---- left side: wordmark + version ------------------------------------
+    # ---- left side: wordmark + accent rule + tagline ----------------------
     # 左下角先压一层柔和暗角，避免文字压在亮峰上（原插画该处有强峰与高光）。
     scrim = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     sd = ImageDraw.Draw(scrim)
@@ -94,26 +110,22 @@ def main() -> None:
 
     draw = ImageDraw.Draw(base)
     size_name = int(h * 0.125)
-    size_ver = int(h * 0.052)
-    size_tag = int(h * 0.034)
+    size_tag = int(h * 0.045)
     x = int(w * 0.055)
     y_name = int(h * 0.615)
     draw.text((x, y_name), "XinMatch", font=_font("bold", size_name),
               fill=(255, 255, 255, 245))
-    # 版本 + 细横线
-    y_ver = y_name + int(size_name * 1.16)
-    draw.line([(x + 2, y_ver - int(size_ver * 0.55)),
-               (x + 2 + int(w * 0.055), y_ver - int(size_ver * 0.55))],
+    # 装饰性短横线（品牌强调，非版本号）。
+    y_rule = y_name + int(size_name * 1.16)
+    draw.line([(x + 2, y_rule), (x + 2 + int(w * 0.055), y_rule)],
               fill=(120, 190, 255, 220), width=max(2, h // 400))
-    draw.text((x + 2, y_ver), f"v{version}", font=_font("regular", size_ver),
-              fill=(198, 226, 255, 235))
-    draw.text((x + 2, y_ver + int(size_ver * 1.5)),
+    draw.text((x + 2, y_rule + int(size_tag * 0.5)),
               "Powder XRD phase identification", font=_font("regular", size_tag),
-              fill=(176, 205, 232, 232))
+              fill=(198, 226, 255, 235))
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     base.convert("RGB").save(args.out, optimize=True)
-    print(f"splash -> {args.out}  ({w}x{h}, version={version})")
+    print(f"splash -> {args.out}  ({w}x{h}, version-agnostic)")
 
 
 if __name__ == "__main__":

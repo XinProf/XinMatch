@@ -13,7 +13,7 @@
 #define AppName "XinMatch"
 ; 构建脚本用 /DAppVersion= 覆盖；不使用覆盖时以此默认值为准（须与 pyproject 同步）
 #ifndef AppVersion
-#define AppVersion "3.6.3"
+#define AppVersion "3.6.4"
 #endif
 
 [Setup]
@@ -22,8 +22,8 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher=XinMatch Contributors
-AppPublisherURL=https://github.com/PolyXRD/XinMatch
-AppSupportURL=https://github.com/PolyXRD/XinMatch
+AppPublisherURL=https://github.com/XinProf/XinMatch
+AppSupportURL=https://github.com/XinProf/XinMatch
 AppComments=Open-source powder XRD phase analysis platform
 DefaultDirName={autopf}\XinMatch
 SetupIconFile=..\assets\icons\logo.ico

@@ -1,8 +1,8 @@
 """Five-round binary robustness gate for a XinMatch release.
 
-Runs against the *shipped* artifacts (Setup exe + Internal zip), never against
-the source tree.  Writes a JSON report with a pass/fail per round so release
-notes can quote real numbers.
+Runs against the *shipped* artifacts (Setup exe + Portable zip, both the
+release variant), never against the source tree.  Writes a JSON report with a
+pass/fail per round so release notes can quote real numbers.
 
 Rounds
   1  SHA-256 of both artifacts + SHA256SUMS.txt round-trip
@@ -143,7 +143,7 @@ def round2(zipf: Path, work: Path) -> dict:
     helpr = run([str(exe), "import", "--help"], env=clean_env(),
                 cwd=work, timeout=120)
     ok = all((
-        cp["rc"] == 0, exe.is_file(), db is not None, marker == "internal",
+        cp["rc"] == 0, exe.is_file(), db is not None, marker == "release",
         libs["rc"] == 0, bundled is not None,
         helpr["rc"] == 0, logo_ok,
     ))
@@ -194,8 +194,8 @@ def round3(work: Path) -> dict:
     out["repeats"] = repeats
     out["ok"] = all((
         out["hooks"]["REG"]["rc"] == 0,
-        isinstance(reg, dict) and reg.get("variant") == "internal"
-        and reg.get("registration_enabled") is False,
+        isinstance(reg, dict) and reg.get("variant") == "release"
+        and reg.get("registration_enabled") is True,
         out["hooks"]["LIBS"]["rc"] == 0,
         isinstance(libs, list) and len(libs) > 0,
         out["hooks"]["ABOUT"]["rc"] == 0,
