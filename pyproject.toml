@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xinmatch"
-version = "3.6.3"
+version = "3.6.4"
 description = "XinMatch — Open-source powder XRD phase analysis platform (clean-room implementation guided by publicly documented XRD phase-analysis workflows)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,12 +36,24 @@ gui = [
     "PySide6>=6.5",        # Qt6 GUI (LGPL)
     "pyqtgraph>=0.13",     # high-performance pattern plotting
 ]
+report = [
+    # 报告图形导出 (core/report/figure_export.py)。缺了它，tests/report 里的
+    # 42 项会被 importorskip 静默跳过——这是 2026-11-11 排查出的覆盖盲区。
+    "matplotlib>=3.7",
+    # 注：PDF 报告（core/report/render.py::render_pdf）走 weasyprint，刻意**不**
+    # 放进本 extra：它在 Windows 上依赖 GTK 运行时，装不上就是一堆报错。
+    # 该函数已按可选后端处理（缺库时抛出带 `pip install weasyprint` 提示的
+    # RuntimeError），对应测试保持 importorskip 跳过。
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "hypothesis>=6.80",
     "ruff>=0.1",
     "mypy>=1.6",
+    # 报告图形导出是可选运行时依赖（见 [report]）；测试套件里有 42 项用它，
+    # 缺了会被 importorskip 静默跳过（2026-11-11 实测：本机 42 条恒 skip）。
+    "matplotlib>=3.7",
 ]
 
 [project.scripts]

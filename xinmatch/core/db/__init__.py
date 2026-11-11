@@ -7,7 +7,7 @@ schema
 build_cod
     Insert :class:`~xinmatch.core.model.Entry` objects into the database.
 user_db
-    User-database (UDB) workflows.
+    User-database (UDB) workflows — v3-native：产出可直接检索的 ``.xinDB``。
 index_build
     Build inverted indexes (element sets, d-spacing range).
 query_peaks
@@ -33,12 +33,13 @@ from .query_filter import (
 from .query_peaks import search_by_d, search_by_d_with_intensity
 from .schema import SCHEMA_SQL, create_tables, enable_wal
 from .user_db import (
-    add_entries,
-    add_entry,
-    count_entries,
-    create_user_database,
-    list_entries,
-    remove_entry,
+    add_cif_files,
+    ensure_registered,
+    list_user_entries,
+    rebuild,
+    remove_entries,
+    user_entry_count,
+    user_library_path,
 )
 
 __all__ = [
@@ -49,13 +50,14 @@ __all__ = [
     # insert
     "insert_entry",
     "insert_entries",
-    # user db
-    "create_user_database",
-    "add_entry",
-    "add_entries",
-    "remove_entry",
-    "list_entries",
-    "count_entries",
+    # user db（v3 原生：.xinDB）
+    "add_cif_files",
+    "ensure_registered",
+    "list_user_entries",
+    "user_entry_count",
+    "user_library_path",
+    "rebuild",
+    "remove_entries",
     # indexes
     "build_element_index",
     "build_d_index",

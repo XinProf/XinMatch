@@ -2525,3 +2525,91 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 发布按 §8.3 三步走：空 draft → `gh release upload --clobber` 单件上传 → `--draft=false --latest`，
 未触发「大附件随 `release create` 一次性上传会崩并回滚整个 draft」的坑。
 `dist/` 中 v3.6.1 旧产物保留但不随 Release 分发，**不含** v3.6.2 / v3.6.3 的改动。
+
+## 用户数据库（user_db）接通 v3 检索链（2026-11-11）✅ 已完成
+
+15 个模块动作里的最后一个占位项。此前 `core/db/user_db.py` 是 Phase 5 / T5.6
+的 v2 实现（写 `entries` + `peaks` 行表），**v3.0.0 删掉 v2 reader 之后那种
+文件没有任何检索路径能读** —— 「能建库、不能检索」的死路，所以不是"接线"
+而是"重写 + 接线"。
+
+| 项 | 改动 |
+|---|---|
+| 核心层 | `core/db/user_db.py` 整文件重写：直接产出 `~/.xinmatch/UserDB.xinDB`（`XinDBWriter`，`top_k=TOP_K`、`tier=0`、`cif_source="user"`），落库后 `add_external_library` 自动挂进注册表，Search-Match 立即可命中 |
+| 唯一真相源 | 源清单 `~/.xinmatch/user_db.json`（`entry_id → 原始 CIF 绝对路径`）。增删只改清单再**整库原子重建**（`os.replace`），删条目不必理解列存布局；失败时删半成品，绝不让坏库覆盖上一个可用库 |
+| 幂等 | `entry_id = "UDB-" + sha1(abs_path)[:8].upper()`：同一份 CIF 重复导入无新条目；CIF 改名算新条目（改名通常意味着另一份数据） |
+| 空库处理 | 清单空 / 全部解析失败 ⇒ 删库文件 + 注销注册表，不留「0 相库」在库列表里 |
+| 失败可见 | 单相失败只进 `skipped`（`(路径, 原因)`），不中止整库；条目仍留在清单里，修好源文件重建即可，不必重新导入 |
+| GUI | 新增 `ui/user_db_dialog.py`（表格：ID / 化学式 / 矿物名 / 空间群 / 峰数；添加 CIF…（多选）/ 删除选中 / 重建库 / 打开库目录）；按钮路径走 `run_with_busy`（几百份 CIF 每相 10–30 ms，同步跑会假死并诱发重复点击），`add_paths` / `remove_entry_ids` / `rebuild_now` 为同步 API 供测试与脚本 |
+| 接线 | `main_window._build_actions` 里 `user_db` 从 `_placeholder` 分支改为 `_open_user_db_dialog`；对话框**延迟导入**（`user_db` 会把 gemmi / 峰引擎拉进 import 链，不能在 `main_window` 顶层加回来）；`library_changed` 信号 → `_resync_active_library_scale()` 刷新大库提示 |
+| 静态检查 | `ruff check .` all passed；`mypy xinmatch` **134 文件 0 错** |
+| 回归 | `tests/db` **211 项（201 passed / 10 skipped / 0 F / 0 E）**；`tests/ui` **422 项（418 + 4 skipped / 0 F / 0 E）**，两份子集 exit=0 |
+| 启动链体检 | `import main_window` 后 `sys.modules` 里 `scipy` / `matplotlib` / `QtWebEngineWidgets` 全不在（批次 A 的懒加载没被破坏），`xinmatch.ui.user_db_dialog` 也不在 —— 延迟导入生效。⚠️ 本轮机器负载高（同命令 0.89–2.93 s 抖动），**绝对耗时不可比**，只认结构性证据 |
+
+**语义细节（本轮实测踩到的）**：坏 CIF 会**留在清单里**，所以每次重建都会
+再次被跳过 —— 对话框底部「以下 N 份文件仍在清单中但未能入库」是**常显**的
+（不是"上一次操作的残留"）。第一版测试按"清空"写，跑出来才确认语义应是
+"常显 + 删掉该条目后消失"，已按真实语义改文案与用例。
+
+**顺带清账**：`test_module_wiring.py` 的「仍占位」清单一直是手写的（HANDOVER
+§612 记过两次踩坑）。现在 `user_db` 接通后清单为空，改为
+`test_no_module_action_is_placeholder`：遍历 `MODULES` 触发全部动作，断言
+`_placeholder` **一次都没被调用**（新增模块忘了接线时会直接红）。
+
+**未做（用户未要求）**：CLI 的 `xinmatch userdb add/list/remove`。
+
+**端到端闭环证据（不是"表建好了"而是"检索得通"）**：导 3 相 →
+`open_library(ext_…)` → 用 CaF2 自己的结构算峰铺合成谱（Cu Kα1，加 0.5% 底噪）
+→ FPFM：
+
+| 候选 | rwp | FoM |
+|---|---|---|
+| **CaF2（目标，Top-1）** | **0.0285** | **0.8922** |
+| Si | 0.3294 | 0.2678 |
+| Al2O3 | 0.7938 | 0.0418 |
+
+**顺带发现一个不属于本模块的数值边界（未改，留待裁定）**：观测谱若含**精确 0
+或次正规强度**点，`fpfm.compute_rwp` 的 `w = 1/ym` 会溢出成 `inf`，随后
+`inf × 0 → NaN`，`rwp=NaN → FoM=0`，整库检索"全 0 分"。复现路径与 user_db
+无关（`tests.xindb_support.write_xindb` + `search_match_fpfm` 同样复现）；
+加 1e-6 底噪即恢复正常（rwp 0.66），加 0.5% 底噪得 0.0285。
+真实测量谱带计数噪声通常不会命中，但**背景扣除后剧烈裁剪过的谱可能出现精确 0**。
+修复方向（若要做）只能是给 `w` 加下限或先对观测谱取 `max(y, ε)`，属改 FoM
+数值口径，须按基准三把尺子做 A/B，不能顺手改。
+
+---
+
+## 后续计划（v3.6.4 之后的待办，待用户裁定）
+
+本轮把 user_db 接进了 v3 检索链并打通端到端，但有三类收尾**用户未要求、本次未做**，列在此处作为下一步清单：
+
+### 1. CLI 暴露用户库操作（未做）
+目前 user_db 只走 GUI 对话框（`ui/user_db_dialog.py`）与 core API。CLI 尚**没有** `xinmatch userdb add|list|remove` 子命令。
+- 入口在 `xinmatch/cli/main.py`；新增子命令壳 + 调用 `core/db/user_db` 的
+  `add_cif_files` / `list_user_entries` / `remove_entries` / `rebuild` 即可。
+- 判定：是否要 CLI 取决于"无头批量导入"是不是真需求（CI / 服务器跑库）。
+
+### 2. v2 遗留链其余模块是否随 user_db 一并迁走（待裁定）
+`user_db.py` 已重写；但 `core/db/` 下仍残留一批 v2 时期的模块：
+`schema` / `manager` / `query_peaks` / `query_filter` / `index_build` /
+`build_cod` / `restraints_apply`（约 1,500 行）。
+- 这些模块在 v3.0.0 之后是否还有调用方、是否死代码，需要一次**只读引用扫描**确认。
+- 若确认无人调用 → 按项目红线"自行删除过程代码"清理；若有调用 → 单独评估迁移成本。
+- **不要**在本仓做大规模删除前先跑 `grep` 确认引用面，避免误删仍被 import 的文件。
+
+### 3. FPFM `compute_rwp` 对 0 / 次正规强度点溢出 → 全 0 分（发现未改）
+观测谱若含**精确 0 或次正规强度**点，`fpfm.compute_rwp` 里 `w = 1/ym` 会溢出成
+`inf`，随后 `inf × 0 → NaN`，`rwp=NaN → FoM=0`，**整库候选全 0 分**（见上节
+"端到端闭环证据"下的数值边界说明）。
+- 复现与 user_db 无关（`tests.xindb_support.write_xindb` + `search_match_fpfm`
+  同样复现）；加 1e-6 底噪即恢复（rwp 0.66），加 0.5% 底噪得 0.0285。
+- 真实测量谱带计数噪声一般不命中，但**背景扣除后剧烈裁剪**的谱可能出现精确 0。
+- 修法只能是给 `w` 加下限或先对观测谱 `max(y, ε)`，**属改 FoM 数值口径**。
+- 处置：**必须按基准三把尺子（合成 / 真实谱 / IUCr）做 A/B**，确认涨/跌两侧再落地，
+  **不能顺手改**。建议作为独立小任务排入下一轮，不在 user_db 这条线里夹带。
+
+### 4.（已决，仅记录）发布形态
+v3.6.4 **不构建二进制、不挂 GitHub Release**（用户本轮回话只要求源码 + 文档推
+`origin` 并打 `v3.6.4` tag）。若后续要补 Setup exe，沿用 v3.6.3 的 5 轮稳健性验收
+流程（SHA-256 / 便携 / 冻结 GUI 冒烟 / 静默安装 / 启动验证），且 EXE 发布前必须
+人工双击验收。

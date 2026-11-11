@@ -389,6 +389,9 @@ class MainWindow(QtWidgets.QMainWindow):
             elif mod_id == "reference_db":
                 # 多库挂载：参考数据库模块动作打开库选择对话框（持久化）。
                 action.triggered.connect(self._open_library_dialog)
+            elif mod_id == "user_db":
+                # 用户数据库：管理自建参考相（导入 CIF → 直接产出 .xinDB 并挂载）。
+                action.triggered.connect(self._open_user_db_dialog)
             elif mod_id == "search_match":
                 # Search-Match 真实接线：寻峰 → 检索 → 候选列表 / 峰列表。
                 action.triggered.connect(self._run_search_match)
@@ -918,6 +921,27 @@ class MainWindow(QtWidgets.QMainWindow):
                         "（全库合成谱 Top-1 7/13 → 12/13，见基准报告 §23）。",
                         15000,
                     )
+
+    def _open_user_db_dialog(self) -> None:
+        """用户数据库：管理自建参考相（导入 CIF → ``.xinDB`` → 自动挂载）。
+
+        延迟导入：``user_db`` 会把 ``gemmi`` / 峰引擎拉进 import 链，而这只在
+        用户真去管理自建库时才需要（启动链刚做完一轮懒加载瘦身，别在
+        ``main_window`` 顶层把它加回来）。
+        """
+        from xinmatch.ui.user_db_dialog import UserDbDialog
+
+        dialog = UserDbDialog(self)
+        # 库内容变了就同步一次「当前库」的相数与大库提示：用户库默认很小，
+        # 这里主要是让状态栏/元素约束提示不至于停在旧相数上。
+        dialog.library_changed.connect(self._resync_active_library_scale)
+        dialog.exec()
+
+    def _resync_active_library_scale(self) -> None:
+        """按当前选中库重读注册表，刷新大库提示（用户库增删后调用）。"""
+        config = load_config()
+        selected = (config.get("reference_db") or {}).get("selected_library_id")
+        self._set_active_library_scale(selected)
 
     def _open_library_with_index(self, library_id: str):
         """Open *library_id* and return its :class:`XinDBReader`.

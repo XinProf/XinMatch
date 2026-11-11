@@ -56,7 +56,7 @@ from xinmatch.core.search import search_match as _search_match
 #: 于是 About 对话框与 ``.xinm`` manifest 里都写成 1.7.1。发布包的版本号只能
 #: 由打包脚本决定，不能让开发机的残留元数据决定。``xinmatch.spec`` 在构建时
 #: 断言本常量与 ``APP_VERSION`` 一致，忘记同步会直接构建失败。
-_FALLBACK_VERSION = "3.6.3"
+_FALLBACK_VERSION = "3.6.4"
 
 
 def _resolve_version() -> str:

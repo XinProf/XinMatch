@@ -35,14 +35,14 @@ def test_every_module_action_appears_in_a_menu(qapp):
         assert action in menu_actions, f"module action {action.text()} missing from menus"
 
 
-def test_placeholder_action_writes_status_bar(qapp):
-    # search_match / data_import / raw_processing / peak_list / restraints /
-    # rietveld / data_export 已接真实能力（批次 1 / 2 接线），
-    # 改测仍为占位的模块动作（用户数据库）。
+def test_user_db_action_opens_dialog(qapp, monkeypatch):
+    # 2026-11-11：用户数据库接通后，15 个模块动作**全部**有了真实入口，
+    # 原先"改测仍为占位的模块"的用例已无对象 —— 改钉接线本身。
     win = MainWindow()
-    win.show()
+    calls: list[bool] = []
+    monkeypatch.setattr(win, "_open_user_db_dialog", lambda: calls.append(True))
     win.module_actions["user_db"].trigger()
-    assert "用户数据库" in win.statusBar().currentMessage()
+    assert calls == [True]
 
 
 def test_dock_panels_present(qapp):

@@ -7,12 +7,15 @@ HANDOVER §7.2 P2「GUI 剩余向导 / 主题」拆解后的第一批：不改�
 * ``raw_processing`` → 聚合菜单（背景扣除 / 平滑 / Kα2 剥离 / 重置，无新逻辑）；
 * ``peak_list``      → ``_detect_peaks``（与工具栏「峰检测」同槽）；
 * ``restraints``     → ``_focus_restraints``（右侧坞的限制条件页翻到最前）；
-* ``rietveld``       → ``_open_refinement_wizard``（与精修向导 Ctrl+Shift+W 同槽）。
+* ``rietveld``       → ``_open_refinement_wizard``（与精修向导 Ctrl+Shift+W 同槽）；
+* ``user_db``        → ``_open_user_db_dialog``（2026-11-11：自建库管理，v3 原生
+  ``.xinDB``，见 ``user_db_dialog.py`` / ``tests/db/test_user_db.py``）。
 
-仍占位：``user_db``（无对应 core 能力，需求待定）。其余模块已在批次 2–6
-接成真实对话框 / 聚合菜单，各自的单测见 ``test_export_menu.py`` /
-``test_profile_fit_dialog.py`` / ``test_quant_dialog.py`` /
-``test_microstructure_dialog.py`` / ``test_indexing_wizard.py``。
+至此 15 个模块动作**全部**接线（``data_export`` / ``raw_processing`` 走聚合
+菜单），``_placeholder`` 只剩兜底作用，由 ``test_no_module_action_is_placeholder``
+守住。其余模块的单测见 ``test_export_menu.py`` / ``test_profile_fit_dialog.py`` /
+``test_quant_dialog.py`` / ``test_microstructure_dialog.py`` /
+``test_indexing_wizard.py`` / ``test_user_db_dialog.py``。
 """
 
 from __future__ import annotations
@@ -81,17 +84,54 @@ def test_raw_processing_menu_aggregates_preprocess_actions(qapp):
     assert actions[3] is win.reset_action
 
 
-def test_still_placeholder_modules_announce(qapp):
-    """未接线的模块动作仍然只做占位播报，不抛异常。
+def test_user_db_action_opens_dialog(qapp, monkeypatch):
+    """``user_db`` → ``_open_user_db_dialog``（自建库管理，2026-11-11 接线）。
 
-    清单是手写的：**每接通一个模块动作都要从这里删掉对应条目**，并跑本文件。
-    2026-11-07 踩过——批次 4 接了 ``quant_analysis`` 但没跑本文件，清单里
-    的陈旧条目一直红着没人发现（HANDOVER §6.6）。
+    对话框本体走 ``run_with_busy`` + 真实写库，单测不在这里展开（见
+    ``test_user_db_dialog.py``），此处只钉动作接线。
     """
     win = MainWindow()
-    win.show()
-    for mod_id, label in (
-        ("user_db", "用户数据库"),
-    ):
-        _trigger(win, mod_id)
-        assert label in win.statusBar().currentMessage(), mod_id
+    calls: list[bool] = []
+    monkeypatch.setattr(win, "_open_user_db_dialog", lambda: calls.append(True))
+    _trigger(win, "user_db")
+    assert calls == [True]
+
+
+def test_no_module_action_is_placeholder(qapp, monkeypatch):
+    """15 个模块动作全部接线完毕，没有任何一个还落在 ``_placeholder``。
+
+    ``_placeholder`` 保留为"以后新增模块忘了接线"的兜底，本用例保证它现在
+    **不会**被任何模块触发。手写清单是刻意的：新增模块若忘了接线，这里会红。
+    """
+    from unittest.mock import patch
+
+    from xinmatch.ui.main_window import MODULES
+
+    win = MainWindow()
+    handlers = (
+        "_open_data_file",
+        "_detect_peaks",
+        "_focus_restraints",
+        "_open_refinement_wizard",
+        "_open_profile_fit",
+        "_run_search_match",
+        "_run_report_preview",
+        "_open_library_dialog",
+        "_open_user_db_dialog",
+        "_open_indexing_wizard",
+        "_open_quant_dialog",
+        "_open_microstructure",
+        "_open_options_dialog",
+    )
+    hits: list[str] = []
+    for name in handlers:
+        monkeypatch.setattr(
+            win, name, (lambda n: lambda *a, **k: hits.append(n))(name)
+        )
+    with patch.object(win, "_placeholder") as placeholder:
+        for mod_id, _label, _anchor in MODULES:
+            if mod_id in ("data_export", "raw_processing"):
+                continue  # 这两个走 setMenu 的聚合菜单，没有独立槽
+            _trigger(win, mod_id)
+    placeholder.assert_not_called()
+    assert len(hits) == len(handlers), f"有模块没被触发：{sorted(set(handlers) - set(hits))}"
