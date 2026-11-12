@@ -231,6 +231,7 @@ def _search_match_v3(
     window_deg: float = 0.3,
     top_n: int = 20,
     recall_min_matches: int = 2,
+    candidate_limit: int | None = None,
 ) -> list[CandidateResult]:
     """v3 分支：委托给 :func:`search_v3.search_match_v3`。
 
@@ -239,8 +240,14 @@ def _search_match_v3(
     四态（必有 / 含有 / 可能 / 没有）+ 闭环一次折算成预筛的三个集合，
     与 SQL 直查、基准脚本共用同一份口径。晶系/年份这类谓词 v3 的预筛矩阵
     不表达，留给调用方在结果上二次过滤（GUI 目前不启用这些谓词）。
+
+    ``candidate_limit`` 是预筛后送去打分池的相数上限（v3 默认
+    :data:`~xinmatch.core.db.search_v3.DEFAULT_CANDIDATE_LIMIT`，即 1000）。
+    多相噪声谱上这个池会被"匹配计数高但无意义"的致密卡挤满、真值相整批进不了
+    打分（实测见 :mod:`tools.bench_shijk`），此时调用方可显式放大；
+    默认 ``None`` 保持既有行为逐位不变。
     """
-    from xinmatch.core.db.search_v3 import search_match_v3
+    from xinmatch.core.db.search_v3 import DEFAULT_CANDIDATE_LIMIT, search_match_v3
 
     allowed: set[str] | None = None
     any_of: set[str] | None = None
@@ -254,10 +261,14 @@ def _search_match_v3(
         # 闭环开启时这里已经被补成了「允许池之外的 118-n 个元素」。
         excluded = banned or None
 
+    # 显式 None 直接取 v3 的默认常量：调用方不传时行为与改动前逐位一致。
+    limit = DEFAULT_CANDIDATE_LIMIT if candidate_limit is None else int(candidate_limit)
+
     result = search_match_v3(
         exp_peaks,
         reader,
         wavelength,
+        candidate_limit=limit,
         window_deg=window_deg,
         top_n=top_n,
         min_match=max(2, int(recall_min_matches)),
@@ -283,6 +294,7 @@ def search_match(
     recall_max_candidates: int = 3000,
     recall_strongest_peak: bool = True,
     recall_strongest_k: int = 5,
+    candidate_limit: int | None = None,
 ) -> list[CandidateResult]:
     """Run a full peak-based search-match (Phase 6 / T6.4).
 
@@ -382,6 +394,14 @@ def search_match(
         3-1/4-1 were recalled 0 times at K=1; K=5 recalls them (Al₂O₃
         cards at candidate rank 14/15/52, match 5–6).  Ignored when
         ``recall_strongest_peak=False``.
+    candidate_limit:
+        **v3 库（``.xinDB``）专用**：预筛后送去 FoM 打分的相数上限。
+        ``None``（默认）取 :data:`~xinmatch.core.db.search_v3.DEFAULT_CANDIDATE_LIMIT`
+        （1000），因此不传该参数的既有调用逐位不变。噪声峰多的多相谱上，
+        预筛按"命中强峰计数"排序，150 线的致密假卡靠噪声也能排到真值相前面，
+        1000 个名额会被它们挤满、真值相根本进不了打分（ShiJK 7 条 MAUD 谱实测：
+        池 1000 时相位级 Top-20 9/33，池 20000 时 15/33，代价 0.5 s → 5.3 s）。
+        放大它是**召回/时延的显式取舍**，不是无条件调优；v2（``.polyDB``）路径不受影响。
 
     Returns
     -------
@@ -391,6 +411,8 @@ def search_match(
     # v3.0.0：列存 .xinDB 走专门的检索管线（向量化预筛 + 峰批量解码）。
     # 放在最前面而不是在各个分支里判断，是因为 v3 根本没有 peaks 行表，
     # 下面任何一条 SQL 路径都不可能对它工作。
+    if candidate_limit is not None and int(candidate_limit) <= 0:
+        raise ValueError(f"candidate_limit must be positive, got {candidate_limit!r}")
     if _is_v3_reader(conn):
         return _search_match_v3(
             exp_peaks,
@@ -400,6 +422,7 @@ def search_match(
             window_deg=window_deg,
             top_n=top_n,
             recall_min_matches=recall_min_matches,
+            candidate_limit=candidate_limit,
         )
 
     # Step 1 — candidate generation.

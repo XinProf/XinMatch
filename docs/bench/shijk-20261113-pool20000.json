@@ -1,0 +1,393 @@
+{
+  "patterns": "D:\\test_XRD\\ShiJK-Refinement",
+  "library": "D:\\XinMatch-DataBase\\data\\COD-Inorg-20261020.xinDB",
+  "candidate_limit": 20000,
+  "fetch": 200,
+  "rounds": 6,
+  "metrics": {
+    "entry": {
+      "top1": 0,
+      "top3": 1,
+      "top5": 3,
+      "top10": 9,
+      "top20": 9,
+      "n": 33
+    },
+    "phase": {
+      "top1": 7,
+      "top3": 7,
+      "top5": 8,
+      "top10": 11,
+      "top20": 15,
+      "n": 33
+    },
+    "seq": {
+      "hit": 16,
+      "n": 33
+    },
+    "sample_top1": {
+      "entry": 0,
+      "phase": 7,
+      "n": 7
+    }
+  },
+  "samples": [
+    {
+      "sample": "ShiJiKong1#1##20260123-124003_100",
+      "n_points": 5751,
+      "n_peaks": 118,
+      "truths": [
+        {
+          "entry_id": "96-900-1849",
+          "formula": "C Mg O3",
+          "cif": "1Entry_96-900-1850.cif",
+          "rank_entry": 65,
+          "rank_phase": 30
+        },
+        {
+          "entry_id": "96-702-2027",
+          "formula": "C Ca O3",
+          "cif": "2Entry_96-702-2028.cif",
+          "rank_entry": 187,
+          "rank_phase": 19
+        },
+        {
+          "entry_id": "96-900-3508",
+          "formula": "C2 Ca Mg O6",
+          "cif": "3Entry_96-900-3509.cif",
+          "rank_entry": 7,
+          "rank_phase": 7
+        },
+        {
+          "entry_id": "96-900-9666",
+          "formula": "O2 Si",
+          "cif": "4Entry_96-900-9667.cif",
+          "rank_entry": 27,
+          "rank_phase": 1
+        },
+        {
+          "entry_id": "96-900-8229",
+          "formula": "O2 Si",
+          "cif": "5Entry_96-900-8230.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        }
+      ],
+      "sequential": [
+        "96-201-4944",
+        "96-900-3518",
+        "96-101-1097",
+        "96-400-3907",
+        "96-231-0758",
+        "96-900-0380"
+      ],
+      "seq_hit": 3,
+      "top1_entry": false,
+      "top1_phase": true
+    },
+    {
+      "sample": "ShiJiKong2#1##20260123-160849_100",
+      "n_points": 5751,
+      "n_peaks": 158,
+      "truths": [
+        {
+          "entry_id": "96-500-0035",
+          "formula": "O2 Si",
+          "cif": "1Entry_96-500-0036.cif",
+          "rank_entry": 2,
+          "rank_phase": 1
+        },
+        {
+          "entry_id": "96-901-5929",
+          "formula": "O2 Ti",
+          "cif": "2Entry_96-901-5930.cif",
+          "rank_entry": 7,
+          "rank_phase": 6
+        },
+        {
+          "entry_id": "96-100-0059",
+          "formula": "Al2 O3",
+          "cif": "3Entry_96-100-0060.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-900-1681",
+          "formula": "O2 Ti0.992",
+          "cif": "4Entry_96-900-1682.cif",
+          "rank_entry": 59,
+          "rank_phase": 59
+        }
+      ],
+      "sequential": [
+        "96-900-8213",
+        "96-101-1159",
+        "96-900-1681",
+        "96-900-7498",
+        "96-223-5282",
+        "96-410-3157"
+      ],
+      "seq_hit": 4,
+      "top1_entry": false,
+      "top1_phase": true
+    },
+    {
+      "sample": "ShiJiKong3#1##20260126-130900_100",
+      "n_points": 5751,
+      "n_peaks": 151,
+      "truths": [
+        {
+          "entry_id": "96-100-0043",
+          "formula": "Ca F2",
+          "cif": "1Entry_96-100-0044.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-152-6860",
+          "formula": "O2 Si",
+          "cif": "2Entry_96-152-6861.cif",
+          "rank_entry": 6,
+          "rank_phase": 1
+        },
+        {
+          "entry_id": "96-901-5929",
+          "formula": "O2 Ti",
+          "cif": "3Entry_96-901-5930.cif",
+          "rank_entry": 5,
+          "rank_phase": 5
+        },
+        {
+          "entry_id": "96-900-9672",
+          "formula": "Al2 O3",
+          "cif": "4Entry_96-900-9673.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-900-4141",
+          "formula": "O2 Ti",
+          "cif": "5Entry_96-900-4142.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        }
+      ],
+      "sequential": [
+        "96-411-7365",
+        "96-101-1159",
+        "96-200-6048",
+        "96-200-4239",
+        "96-720-9303",
+        "96-810-1058"
+      ],
+      "seq_hit": 1,
+      "top1_entry": false,
+      "top1_phase": true
+    },
+    {
+      "sample": "ShiJiKong4b#1##20260202-133922_100",
+      "n_points": 5751,
+      "n_peaks": 131,
+      "truths": [
+        {
+          "entry_id": "96-900-9687",
+          "formula": "O2 Si",
+          "cif": "1-cristobalite-Entry_96-900-9688.cif",
+          "rank_entry": 9,
+          "rank_phase": 7
+        },
+        {
+          "entry_id": "96-210-1168",
+          "formula": "Fe2 O3",
+          "cif": "2-hematite-Entry_96-210-1169.cif",
+          "rank_entry": 4,
+          "rank_phase": 1
+        },
+        {
+          "entry_id": "96-901-6706",
+          "formula": "C Ca O3",
+          "cif": "3-calcite-Entry_96-901-6707.cif",
+          "rank_entry": 31,
+          "rank_phase": 12
+        },
+        {
+          "entry_id": "96-710-3014",
+          "formula": "O2 Si",
+          "cif": "4-quartz-Entry_96-710-3015.cif",
+          "rank_entry": 192,
+          "rank_phase": 119
+        },
+        {
+          "entry_id": "96-900-0837",
+          "formula": "Al3 H2 K O12 Si3",
+          "cif": "5-muscovite-Entry_96-900-0838.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        }
+      ],
+      "sequential": [
+        "96-901-5964",
+        "96-433-5227",
+        "96-154-8781",
+        "96-901-7563",
+        "96-153-9354",
+        "96-704-0176"
+      ],
+      "seq_hit": 1,
+      "top1_entry": false,
+      "top1_phase": true
+    },
+    {
+      "sample": "ShiJiKong5b#2##20260205-105133_100",
+      "n_points": 4501,
+      "n_peaks": 116,
+      "truths": [
+        {
+          "entry_id": "96-900-9230",
+          "formula": "Al2 H4 O9 Si2",
+          "cif": "1-kaolinite-Entry_96-900-9231.cif",
+          "rank_entry": null,
+          "rank_phase": 15
+        },
+        {
+          "entry_id": "96-221-1652",
+          "formula": "Fe H O2",
+          "cif": "2-goethite-Entry_96-221-1653.cif",
+          "rank_entry": 23,
+          "rank_phase": 1
+        },
+        {
+          "entry_id": "96-900-1878",
+          "formula": "Ca5 F O12 P3",
+          "cif": "3-fluorapatite-Entry_96-900-1879.cif",
+          "rank_entry": 54,
+          "rank_phase": 54
+        },
+        {
+          "entry_id": "96-101-1176",
+          "formula": "O2 Si",
+          "cif": "4-quartz-Entry_96-101-1177.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-100-0048",
+          "formula": "Al2 Ca2 O7 Si",
+          "cif": "5-gehlenite-Entry_96-100-0049.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        }
+      ],
+      "sequential": [
+        "96-100-8768",
+        "96-900-1878",
+        "96-433-7787",
+        "96-210-7766",
+        "96-202-1031",
+        "96-900-9985"
+      ],
+      "seq_hit": 2,
+      "top1_entry": false,
+      "top1_phase": true
+    },
+    {
+      "sample": "ShiJiKong6b#1##20260203-163034_100",
+      "n_points": 5751,
+      "n_peaks": 119,
+      "truths": [
+        {
+          "entry_id": "96-900-9234",
+          "formula": "Al2 H4 O9 Si2",
+          "cif": "1-kaolinite-Entry_96-900-9235.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-710-3014",
+          "formula": "O2 Si",
+          "cif": "2-quartz-Entry_96-710-3015.cif",
+          "rank_entry": 9,
+          "rank_phase": 1
+        },
+        {
+          "entry_id": "96-900-3520",
+          "formula": "C Ca0.5 Mg0.5 O3",
+          "cif": "3-dolomite-Entry_96-900-3521.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-901-7338",
+          "formula": "O2 Si",
+          "cif": "4-cristobalite-Entry_96-901-7339.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        }
+      ],
+      "sequential": [
+        "96-901-2600",
+        "96-901-7766",
+        "96-900-1004",
+        "96-901-3502",
+        "96-154-1965",
+        "96-432-0904"
+      ],
+      "seq_hit": 3,
+      "top1_entry": false,
+      "top1_phase": true
+    },
+    {
+      "sample": "ShiJiKong7#1##20260128-165226_100",
+      "n_points": 5751,
+      "n_peaks": 151,
+      "truths": [
+        {
+          "entry_id": "96-900-9230",
+          "formula": "Al2 H4 O9 Si2",
+          "cif": "1 Entry_96-900-9231.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-100-0043",
+          "formula": "Ca F2",
+          "cif": "2 Entry_96-100-0044.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        },
+        {
+          "entry_id": "96-900-9666",
+          "formula": "O2 Si",
+          "cif": "3 Entry_96-900-9667.cif",
+          "rank_entry": 10,
+          "rank_phase": 1
+        },
+        {
+          "entry_id": "96-900-3520",
+          "formula": "C Ca0.5 Mg0.5 O3",
+          "cif": "4 Entry_96-900-3521.cif",
+          "rank_entry": null,
+          "rank_phase": 19
+        },
+        {
+          "entry_id": "96-900-8233",
+          "formula": "O2 Si",
+          "cif": "5 Entry_96-900-8234.cif",
+          "rank_entry": null,
+          "rank_phase": null
+        }
+      ],
+      "sequential": [
+        "96-901-2600",
+        "96-433-0278",
+        "96-901-7766",
+        "96-230-0449",
+        "96-224-0310",
+        "96-154-1178"
+      ],
+      "seq_hit": 2,
+      "top1_entry": false,
+      "top1_phase": true
+    }
+  ]
+}

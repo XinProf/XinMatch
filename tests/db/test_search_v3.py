@@ -152,3 +152,43 @@ def test_search_match_dispatches_reader_to_v3(tiny_library) -> None:
 
     assert candidates
     assert candidates[0].entry.entry_id == source.entry_id
+
+
+def test_search_match_plumbs_candidate_limit_to_v3(tiny_library, monkeypatch) -> None:
+    """``search_match`` 必须把 ``candidate_limit`` 透传给 v3 预筛。
+
+    不传时取 :data:`~xinmatch.core.db.search_v3.DEFAULT_CANDIDATE_LIMIT`（1000），
+    所以既有调用（GUI / 三把尺子）的行为逐位不变；显式给值才放大打分池。
+    放大池的**效果**由 ``tools/bench_shijk.py`` 在真实谱上度量（池 1000 → 20000：
+    相位级 Top-20 9/33 → 15/33），这里只钉住参数通路，避免"改了个没人用的形参"。
+    """
+    from xinmatch.core.db import search_v3 as sv3
+
+    lib, source = tiny_library
+    peaks = _peaks_from_d(source.d_spacings.tolist(), source.intensities.tolist())
+    seen: dict[str, object] = {}
+    real = sv3.search_match_v3
+
+    def _spy(*args: object, **kwargs: object):
+        seen.clear()
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(sv3, "search_match_v3", _spy)
+
+    with XinDBReader(lib) as reader:
+        search_match(peaks, reader, WL, top_n=5)
+        assert seen["candidate_limit"] == sv3.DEFAULT_CANDIDATE_LIMIT
+
+        search_match(peaks, reader, WL, top_n=5, candidate_limit=5000)
+        assert seen["candidate_limit"] == 5000
+
+
+def test_search_match_rejects_non_positive_candidate_limit(tiny_library) -> None:
+    lib, source = tiny_library
+    peaks = _peaks_from_d(source.d_spacings.tolist(), source.intensities.tolist())
+
+    with XinDBReader(lib) as reader:
+        for bad in (0, -1):
+            with pytest.raises(ValueError, match="candidate_limit"):
+                search_match(peaks, reader, WL, top_n=5, candidate_limit=bad)
