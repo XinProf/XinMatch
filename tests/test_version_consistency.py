@@ -1,4 +1,4 @@
-"""版本号「一个真相源」检查：pyproject ↔ ``__init__`` ↔ Inno Setup ↔ spec。
+"""版本号「一个真相源」检查：pyproject ↔ ``__init__`` ↔ Inno Setup ↔ spec ↔ README/CHANGELOG。
 
 历史包袱（3.4.x 实测）：同一个版本号在四处各写一遍，然后各自漂移 ——
 ``pyproject.toml`` 写着 3.4.1，``__init__._FALLBACK_VERSION`` 是 3.4.0，
@@ -93,4 +93,36 @@ def test_spec_derives_app_version_instead_of_literal() -> None:
     )
     assert "def _pyproject_version" in text, (
         "xinmatch.spec 缺少 _pyproject_version() —— 版本号无法从 pyproject 推导"
+    )
+
+
+def test_readme_and_changelog_announce_pyproject_version() -> None:
+    """发版三件套（README / README-CN / CHANGELOG）必须报同一个版本。
+
+    用户约定（2026-11-12）：每次发 Release 同步更新 README 与 changelog。这条
+    约定靠记忆执行必然漂 —— v3.7.0 发布时 README 的版本行还停在 v3.6.3、下载
+    链接指向旧仓库。所以把它做成门：三处任一落后于 ``pyproject.toml`` 就失败。
+    """
+    version = _pyproject_version()
+
+    for name in ("README.md", "README-CN.md"):
+        text = (REPO / name).read_text(encoding="utf-8")
+        m = re.search(r"✅\s*\*\*v(\d+\.\d+\.\d+)", text)
+        assert m, f"{name} 找不到 `✅ **vX.Y.Z.**` 版本行"
+        assert m.group(1) == version, (
+            f"{name} 版本行报 {m.group(1)!r}，与 pyproject {version!r} 不同步"
+        )
+        links = re.findall(r"/releases/tag/v(\d+\.\d+\.\d+)", text)
+        assert links, f"{name} 缺指向 GitHub Release 的下载链接"
+        stale = sorted({v for v in links if v != version})
+        assert not stale, (
+            f"{name} 的下载链接仍指向旧 tag {stale}，应改为 v{version}"
+        )
+
+    changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
+    entries = re.findall(r"^##\s*\[(\d+\.\d+\.\d+)\]", changelog, re.MULTILINE)
+    assert entries, "CHANGELOG.md 里没有任何 `## [x.y.z]` 条目"
+    assert entries[0] == version, (
+        f"CHANGELOG.md 最新条目是 {entries[0]!r}，与 pyproject {version!r} 不同步；"
+        "发版时要把 `## [未发布]` 改成 `## [x.y.z] — 日期`"
     )

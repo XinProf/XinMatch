@@ -8,90 +8,18 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.6.3.** Core computation kernel + full GUI + dual-mode search-match
-> (peak-list FoM / FPFM full-profile fitting (Full Pattern Fitting Match, formerly SMPF)) + **sequential
-> multi-phase identification** (confirm a phase → re-search on the remaining
-> unexplained peaks → confirm the next) + true March-Dollase preferred
-> orientation modeling + GSAS-II refinement pipeline + quantitative Rietveld
-> (main-phase wt% < 3 on certified samples) are complete and packaged
-> (Windows installer / portable). v3.2.0 adds **phase-level identity**
-> (`core/search/phase_key.py`): the candidate list folds cards that describe
-> the same phase into one row (expandable, with each card's unit cell one
-> hover away), and the benchmark is scored both per entry and per phase —
-> same library, phase-level Top-1 goes from 7/13 to **10/13** simply because
-> "found the right phase on a sibling card" is no longer counted as a miss.
-> It also ships the refreshed logo/icon set and a regenerated splash.
-> v3.3.0 adds **sparse-phase marks** in the residual candidate list: a card
-> whose strongest reference line sits on a strong leftover peak, that is
-> positionally accurate and coherent over its own reflections, is flagged
-> with `★` (the FoM counts *how many* peaks a candidate explains, so a
-> 6-line metal is always outvoted by a 150-reflection card). The mark is
-> informational only — ranking is unchanged, because the same rule also
-> flags a wrong phase on real data (see `docs/基准报告-物相检索-v3.md` §11.5).
-> v3.4.0 adds **phase-analysis export** (`文件 → 导出物相分析（.xinm）…`):
-> the anchor pattern, the selected phases' COD CIFs and their metadata are
-> packed into a self-contained zip that the sister project
-> [XinRefinement](../XinRefinement) imports in one click to start
-> full-profile refinement — no re-importing the pattern, no hunting CIFs in
-> the 522 K-file COD archive. Format contract: `docs/JOINT_PLAN_xinm_xinr.md`.
-> v3.0.0 replaced the last legacy reference
-> formats with the single **v3 columnar `.xinDB`** layout and ships the
-> **COD-Inorg** library as the built-in default:
+> ✅ **v3.7.0.** 计算内核 + 完整 GUI + 双模式检索（峰列表 FoM / FPFM 全谱拟合，原 SMPF）+
+> **序贯多相鉴定** + 真实 March-Dollase 择优取向建模 + GSAS-II 精修链 + Rietveld 定量
+> （认证样品主相 wt% 误差 < 3）。参考库统一为 **v3 列式 `.xinDB`** 单一格式，**COD-Inorg**
+> 作为内置默认库随包发布——开箱可用，也可从任意目录挂载。
 >
-> * default library = `COD-Inorg-<snapshot>.xinDB`, bundled at `data/` in the
->   portable build → **works out of the box**, no separate download needed;
-> * one reader, one search path (`search_match_v3`); the v2 SQLite
->   (`cod_inorganics.db`), PolyXRD-dump and PDF-2 readers were **deleted**,
->   not deprecated;
-> * still mountable from any folder (设置→参考数据库…, or
->   `xinmatch libraries --add <path>`), `.xinDB` only.
+> **本版（v3.7.0）**——工具链修复与基准设施，检索算法与文件格式均未改动：合成谱尺子恢复并
+> 改用与检索同源的库重新生成；`tools/bench_three_rulers.py` 一条命令跑齐三把尺子并给出
+> 涨 / 跌 / 平；修掉两处路径缺陷（生成器卡片库、COD `cif/` 根目录探测）。
 >
-> **v3.6.3** 把元素限定改成**四态 + 闭环**（口径对齐姊妹项目 PolyXRD，接口只增不改）：
-> ① 元素状态由「必含 / 排除 / 不限制」扩为「**必有**」（AND）、「**含有**」（OR，至少含一个）、
-> 「**可能**」（只放宽允许池）、「**没有**」+ 不限制，点击顺序把过滤最狠的「必有」放末位；
-> ② 新增**闭环开关**「限定在所选元素内」——未标状态的元素一律视为「没有」，
-> 于是「只允许样品里检出的这几个元素」不必再点 113 个按钮；③ 预筛新增 `elements_any`
-> 通路（原来只有「必须全含」与「含任一即淘汰」），四态的换算收敛到 `element_constraint_sets()`
-> 一处；④ 面板加「补轻元素」一键把 O/C/H/N/S 标为「含有」。旧存档、旧用法行为逐位不变
-> （闭环默认关闭），基准数字不动。
-> ⑤ **物相鉴定默认改用 FPFM 全谱拟合（不寻峰）**，下拉框仍可一键切回「峰列表 FoM（寻峰）」。
-> ⚠️ 注意：FPFM 检索链不接受元素限制条件，**要用元素限定请切回峰列表 FoM**；
-> 工具栏「样品元素」按钮在有约束 + FPFM 时会常显「｜FPFM 下不生效」提示。
-> **下载**：[GitHub Release v3.6.3](https://github.com/PolyXRD/XinMatch/releases/tag/v3.6.3)
-> （Windows 安装包，内置 COD-Inorg 默认库，开箱即可检索）；详见
-> [docs/RELEASE-NOTES-v3.6.3.md](docs/RELEASE-NOTES-v3.6.3.md)。
->
-> **v3.6.2** 改的是谱图区交互（接口与数据格式均无变更）：
-> ① 谱图下方新增**参考线分区**——候选列表高亮哪个相，就在谱图正下方画出它的峰位
-> 与强度（一行一相、左标化学式、横坐标与谱图联动对齐），已确认的相也全部列进去，
-> 一眼看出「哪些峰还没被任何相匹配」；勾选框可切「只看角度位置 / 同时看强度」；
-> ② 顶部「X 轴 / Y 轴 / 适应数据范围」控制条隐藏但功能保留，切换到**点击坐标轴**上
-> （左键循环、右键菜单）；③ 谱图上方加了一排**快捷图标**（复位 / 横向框选 / 纵向框选 /
-> 区域放大 / 左右平移 / 步进缩放 / 十字线），参考姊妹项目 XinRefinement 的实现移植。
-> 详见 [docs/RELEASE-NOTES-v3.6.2.md](docs/RELEASE-NOTES-v3.6.2.md)。
->
-> **v3.6.1** 是纯缺陷修复版，修三处实测报障，接口与数据格式均无变更：
-> ① 谱图图例每条曲线**出现两次**（pyqtgraph 的 `PlotItem.addItem()` 已自动加图例，
-> 代码又手动加了一次 —— 曲线一直只有 1 条，重复的是图例行）；
-> ② Rietveld 精修向导**整窗白屏 + 卡死**（精修在 GUI 线程同步跑 GSAS-II 子进程
-> 导致「(未响应)」，同时「开始精修」按钮会滑到「下一步」的位置，连点就误触），
-> 现改为后台线程 + 动作按钮移入页面内部；③ 列表「晶系」列把**六方相标成单斜**
-> （只按「非 90° 角个数」判据，而六方唯一的非直角就是 γ=120°），已补 `H`/`R` 判据。
-> 详见 [docs/RELEASE-NOTES-v3.6.1.md](docs/RELEASE-NOTES-v3.6.1.md)。
->
-> **v3.6.0** 补的是「能点但没反应」：15 个功能模块里有 11 个菜单动作只在状态栏
-> 播一句「模块骨架已就位」，而 `core.quant` / `core.micro` / `core.index` 早已
-> 完成。现在它们全部接上真实对话框 —— Profile Fitting（F5，谱形四选一 + Rwp +
-> 曲线叠加）、RIR 定量（绝热法，wt% 写回匹配列表）、Scherrer / Williamson-Hall
-> 微结构（D / ε / R²）、Treor90 / DicVol06 指标化（候选单胞表）、数据导出聚合
-> 菜单（谱图 ASCII + 三张表 CSV + `.xinm` + CIF）。顺带：候选列表默认显示
-> 50 行（族级覆盖 81/98 → **89/98**，计算成本为零）；峰位精修换 LM，
-> 207 峰预处理 **35.2 s → 0.35 s**、CLI 端到端 **36 s → 2.3 s**；元素周期表
-> 重做尺寸与三态编码（不再被全局 QSS 裁字）。检索默认行为逐项不变；详见
-> [docs/RELEASE-NOTES-v3.6.0.md](docs/RELEASE-NOTES-v3.6.0.md)。
->
-> See [docs/ROADMAP_v3.md](docs/ROADMAP_v3.md) for the full implementation plan and
-> [docs/STATUS.md](docs/STATUS.md) for current progress.
+> **[下载 v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0)** ·
+> [变更记录](CHANGELOG.md) · [本版说明](docs/RELEASE-NOTES-v3.7.0.md) ·
+> [状态](docs/STATUS.md) · [路线图](docs/ROADMAP_v3.md)
 
 ## What XinMatch does
 
@@ -231,13 +159,8 @@ v1.7.0 起同时产出两个二进制。**v3.0.0 起两个版本都内置默认�
 | **正式版**（release） | `XinMatch-Setup-<v>.exe`（安装时可选择安装位置） | **有**：每次启动检查注册状态 | `已注册：<单位部门名称>` / `未注册` |
 | **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | **红色加粗** `内部评估版本` |
 
-**v3.4.0 发布产物**：
-
-| 附件 | 体积 | SHA-256（前 16 位） |
-|---|---|---|
-| `XinMatch-Setup-3.4.0.exe`（正式版安装包，内置 COD-Inorg 库） | 242.4 MiB | `4962defa7d0e4cf7…` |
-| `XinMatch-Internal-3.4.0.zip`（便携包 = 内部评估版，红字标识，内置 COD-Inorg 库） | 351.4 MiB | `fb82ce897bf4227a…` |
-| `SHA256SUMS.txt` | — | — |
+**当前版本**：[v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0) —— `XinMatch-Setup-3.7.0.exe`，
+243.4 MiB。各版本的体积、哈希与说明见 [CHANGELOG.md](CHANGELOG.md) 与 `docs/RELEASE-NOTES-<version>.md`。
 
 参考库本版未变更，两个二进制均内置 `COD-Inorg-20261020.xinDB`（重建版，78,035 相）。
 `.xinm` 导出需与 **XinRefinement 1.1.0** 配套使用。
