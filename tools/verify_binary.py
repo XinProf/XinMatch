@@ -31,10 +31,12 @@ import os
 import subprocess
 import sys
 import time
+import zipfile
 from pathlib import Path
 
-SEVENZIP = r"C:\Program Files\7-Zip\7z.exe"
-SAMPLE = Path(r"D:\Project\XRD\test_xrd\txt\5-1.txt")
+# 便携包解压用标准库 zipfile：本机没装 7-Zip 时不再因外部依赖缺席直接
+# FileNotFoundError（2026-11-12 v3.7.0 构建实测：C:\Program Files\7-Zip 不存在）。
+SAMPLE = Path(r"D:\test_XRD\temp\smz xrd analysis\5-1.txt")
 REPO = Path(__file__).resolve().parents[1]
 EXE_NAME = "XinMatch.exe"
 DB_GLOB = "COD-Inorg-*.xinDB"
@@ -119,7 +121,10 @@ def round1(setup: Path, zipf: Path, work: Path) -> dict:
 def round2(zipf: Path, work: Path) -> dict:
     dest = work / "portable"
     dest.mkdir(parents=True, exist_ok=True)
-    cp = run([SEVENZIP, "x", "-y", f"-o{dest}", str(zipf)], timeout=300)
+    with zipfile.ZipFile(zipf) as zf:
+        bad_member = zf.testzip()
+        zf.extractall(dest)
+    extract_rc = 0 if bad_member is None else 1
     exe = dest / EXE_NAME
     db = find_one(dest / "data", DB_GLOB)
     marker = None
@@ -143,12 +148,12 @@ def round2(zipf: Path, work: Path) -> dict:
     helpr = run([str(exe), "import", "--help"], env=clean_env(),
                 cwd=work, timeout=120)
     ok = all((
-        cp["rc"] == 0, exe.is_file(), db is not None, marker == "release",
+        extract_rc == 0, exe.is_file(), db is not None, marker == "release",
         libs["rc"] == 0, bundled is not None,
         helpr["rc"] == 0, logo_ok,
     ))
     return {
-        "ok": ok, "extract_rc": cp["rc"], "exe": exe.is_file(),
+        "ok": ok, "extract_rc": extract_rc, "exe": exe.is_file(),
         "bundled_db": db.name if db else None,
         "bundled_db_bytes": db.stat().st_size if db else None,
         "variant": marker, "logo_matches_source": logo_ok,
