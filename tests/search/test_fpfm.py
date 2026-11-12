@@ -140,6 +140,35 @@ def test_fom_in_unit_interval_and_monotonic():
     assert compute_fom(float("inf"), 0.25) == 0.0
 
 
+@pytest.mark.parametrize("tiny", [np.nextafter(0.0, 1.0), 1e-300, 1e-200, 1e-100])
+def test_rwp_tiny_intensity_points_do_not_poison_fom(tiny: float):
+    """Regression: subnormal/tiny positive intensities made ``1/y`` overflow,
+    giving Rwp=NaN/astronomic and FoM=0 for *every* candidate (STATUS v3.6.4
+    follow-up item 3).  Those points must be ignored, not weighted infinitely.
+    """
+    rng = np.random.default_rng(7)
+    fitted = np.abs(rng.normal(100.0, 20.0, 1000)) + 1.0
+    observed = fitted.copy()
+    observed[::10] = tiny
+    rwp, rexp, gof = compute_rwp(observed, fitted)
+    assert math.isfinite(rwp), f"rwp must stay finite, got {rwp}"
+    assert rwp < 1e-6
+    assert math.isfinite(gof)
+    assert compute_fom(rwp, 0.25) > 0.99
+
+
+def test_rwp_relative_floor_is_noop_on_normal_spectra():
+    """The floor must not change Rwp on ordinary data (A/B: 237/237 identical)."""
+    rng = np.random.default_rng(11)
+    y = np.abs(rng.normal(500.0, 120.0, 2000)) + 5.0
+    yc = y * 0.97 + 2.0
+    mask = y > 0.0
+    ym, ycm = y[mask], yc[mask]
+    w = 1.0 / ym
+    expected = math.sqrt(float(np.sum(w * (ym - ycm) ** 2)) / float(np.sum(w * ym ** 2)))
+    assert compute_rwp(y, yc)[0] == expected
+
+
 # --------------------------------------------------------------------------- #
 # Per-candidate refinement recovery
 # --------------------------------------------------------------------------- #

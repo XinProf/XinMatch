@@ -562,6 +562,18 @@ def _reflection_windows(
 # --------------------------------------------------------------------------- #
 # Goodness-of-fit metrics
 # --------------------------------------------------------------------------- #
+
+#: Points below this fraction of the pattern maximum carry no counting
+#: information: the Poisson weight ``1/y`` overflows for subnormal intensities
+#: (``inf * 0 -> NaN``) or dominates the sum for merely tiny ones (``y=1e-300``
+#: gives ``w=1e300``), which turns Rwp into NaN/astronomic and FoM into 0 for
+#: *every* candidate.  Excluding them is a no-op on normal data: the IUCr scans
+#: have min positive intensity >= 9.8e-5 of their maximum.  Verified A/B
+#: (2026-11-12): 237/237 normal spectra bit-identical, 4/4 boundary spectra
+#: recovered (FoM 0 -> 1), up=4 down=0.
+RWP_MIN_REL_INTENSITY = 1e-9
+
+
 def compute_rwp(
     observed: np.ndarray,
     calculated: np.ndarray,
@@ -577,12 +589,18 @@ def compute_rwp(
                  = \\sqrt{\\frac{N}{\\sum y_i}},
         \\qquad \\mathrm{GOF} = R_{wp}/R_{exp}
 
-    Only points with ``y_i > 0`` are used.  Returns ``(inf, inf, inf)`` when
-    no positive points remain.
+    Only points with ``y_i > RWP_MIN_REL_INTENSITY * max(y)`` are used — the
+    ``y_i > 0`` rule plus a relative floor that keeps ``1/y`` finite and bounded.
+    Returns ``(inf, inf, inf)`` when no usable points remain.
     """
     y = np.asarray(observed, dtype=np.float64)
     yc = np.asarray(calculated, dtype=np.float64)
-    mask = y > 0.0
+    if y.size:
+        y_max = float(np.max(y))
+        floor = RWP_MIN_REL_INTENSITY * y_max if math.isfinite(y_max) else 0.0
+    else:
+        floor = 0.0
+    mask = y > floor
     if not np.any(mask):
         return float("inf"), float("inf"), float("inf")
     ym = y[mask]

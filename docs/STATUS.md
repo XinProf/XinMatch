@@ -2579,17 +2579,37 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 
 ---
 
-## 后续计划（v3.6.4 之后的待办，待用户裁定）
+## 后续计划（v3.6.4 之后；2026-11-12 已推进，状态按实测复位）
 
-本轮把 user_db 接进了 v3 检索链并打通端到端，但有三类收尾**用户未要求、本次未做**，列在此处作为下一步清单：
+> **2026-11-12 状态复位**：用户补齐 IUCr 数据（38 扫描）与 PDF2 库后要求「按计划推进」，
+> 三项已逐项处理，**不再按原「待裁定」状态读**。详细证据见
+> `docs/基准报告-物相检索-v3.md` §38。
+>
+> | 项 | 原状态 | 本轮结论 |
+> |---|---|---|
+> | 1. CLI userdb | 未做 | ✅ 已落地 `userdb list/add/remove/rebuild` + 4 条隔离测试，与 GUI 共用 `core/db/user_db` |
+> | 2. v2 遗留链 | 待裁定 | ✅ 只读引用扫描完成，**裁定不删**（7 个模块里 5 个仍被生产代码 import） |
+> | 3. FPFM 0 强度点 | 发现未改 | ✅ 已落地相对强度下限护栏；A/B 正常谱 237/237 逐位相同（涨 0 / 跌 0）、边界谱涨 4 / 跌 0 |
+> | 4. 数据补齐（本轮追加） | IUCr 已补 / PDF2 已入库 | ✅ PDF2 已挂到本机注册表（163,834 相，未入 Git）；真实谱 13 组在 `D:\test_XRD\temp\smz xrd analysis` 找回并完成基准回归，**三把尺子已有两把可用**（合成仍缺） |
+>
+> **口径更正（重要）**：原第 3 项写「必须按三把尺子做 A/B」——但 `compute_rwp`
+> 只在 FPFM 模式使用，三把尺子的 bench 脚本全是 peaks 模式，**检不出该修复**；
+> 且精确 0 点已被 `mask = y > 0` 排除、无害，真凶是次正规/极小正强度点。
+> 本轮改用零副作用护栏（不改变任何正常点 FoM 口径），故不属于「改 FoM 口径」，
+> 无需等三把尺子齐备。另：合成谱输入文件仍缺；真实谱已找回并回归，
+> 详见基准报告 §38.1 / §38.4。**按配置认、不按文件名认**：本轮真实谱数字用
+> `bench_real_samples` 当前默认配置（`top_n=20 / rounds=3 / prescreen_order=intensity /
+> family_slots=None`），与 v3.2.0 时代的历史基线不可混算（见 §38.4）。
 
-### 1. CLI 暴露用户库操作（未做）
+本轮把 user_db 接进了 v3 检索链并打通端到端，但有三类收尾**用户未要求、本次未做**，列在此处作为下一步清单（原始记录保留，状态以上表为准）：
+
+### 1. CLI 暴露用户库操作（✅ 2026-11-12 已落地）
 目前 user_db 只走 GUI 对话框（`ui/user_db_dialog.py`）与 core API。CLI 尚**没有** `xinmatch userdb add|list|remove` 子命令。
 - 入口在 `xinmatch/cli/main.py`；新增子命令壳 + 调用 `core/db/user_db` 的
   `add_cif_files` / `list_user_entries` / `remove_entries` / `rebuild` 即可。
 - 判定：是否要 CLI 取决于"无头批量导入"是不是真需求（CI / 服务器跑库）。
 
-### 2. v2 遗留链其余模块是否随 user_db 一并迁走（待裁定）
+### 2. v2 遗留链其余模块是否随 user_db 一并迁走（✅ 已裁定：不删）
 `user_db.py` 已重写；但 `core/db/` 下仍残留一批 v2 时期的模块：
 `schema` / `manager` / `query_peaks` / `query_filter` / `index_build` /
 `build_cod` / `restraints_apply`（约 1,500 行）。
@@ -2597,7 +2617,7 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 - 若确认无人调用 → 按项目红线"自行删除过程代码"清理；若有调用 → 单独评估迁移成本。
 - **不要**在本仓做大规模删除前先跑 `grep` 确认引用面，避免误删仍被 import 的文件。
 
-### 3. FPFM `compute_rwp` 对 0 / 次正规强度点溢出 → 全 0 分（发现未改）
+### 3. FPFM `compute_rwp` 对 0 / 次正规强度点溢出 → 全 0 分（✅ 2026-11-12 已落地）
 观测谱若含**精确 0 或次正规强度**点，`fpfm.compute_rwp` 里 `w = 1/ym` 会溢出成
 `inf`，随后 `inf × 0 → NaN`，`rwp=NaN → FoM=0`，**整库候选全 0 分**（见上节
 "端到端闭环证据"下的数值边界说明）。
@@ -2607,9 +2627,19 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 - 修法只能是给 `w` 加下限或先对观测谱 `max(y, ε)`，**属改 FoM 数值口径**。
 - 处置：**必须按基准三把尺子（合成 / 真实谱 / IUCr）做 A/B**，确认涨/跌两侧再落地，
   **不能顺手改**。建议作为独立小任务排入下一轮，不在 user_db 这条线里夹带。
+- **2026-11-12 结案**：改用「算术不变、仅排除 `y < 1e-9·max(y)` 无信息点」的护栏
+  （`fpfm.py` / `pfsm.py` 同改），不引入 eps、不动任何正常点，故**不属于改 FoM 口径**，
+  原「必须等三把尺子」的前提消解。A/B：正常谱 237/237 逐位相同（涨 0 / 跌 0），
+  边界谱 4/4 恢复（涨 4 / 跌 0）。IUCr peaks 基准回归与历史基线一致；
+  真实谱 13 组已在 `D:\test_XRD\temp\smz xrd analysis` 找回并完成回归
+  （**三把尺子已有两把可用**，合成尺子仍缺）。两把尺子均为 peaks 口径，
+  对本修复零影响属预期；详见基准报告 §38.4。
 
-### 4.（已决，仅记录）发布形态
-v3.6.4 **不构建二进制、不挂 GitHub Release**（用户本轮回话只要求源码 + 文档推
-`origin` 并打 `v3.6.4` tag）。若后续要补 Setup exe，沿用 v3.6.3 的 5 轮稳健性验收
-流程（SHA-256 / 便携 / 冻结 GUI 冒烟 / 静默安装 / 启动验证），且 EXE 发布前必须
-人工双击验收。
+### 4.（已决，2026-11-11 状态复位）发布形态
+原记录「v3.6.4 不构建二进制」**已过期**：用户后续明确要求构建，
+`XinMatch-Setup-3.6.4.exe`（243.3 MB）与 `XinMatch-Portable-3.6.4.zip`（354.5 MB）
+已于 2026-11-11 构建，5 轮稳健性验收全过（SHA-256 / 便携解压+冻结 CLI /
+冻结 GUI 自测 / 静默安装 / 安装后检索命中刚玉 FoM≈0.85），源码与文档已推
+`origin/master`（`e107a97`）、`v3.6.4` tag 已打。
+**仍未挂 GitHub Release**；EXE 发布前必须人工双击验收（红线未变）。
+另：splash 已改 800×600 且不再烤版本号（version-agnostic）。

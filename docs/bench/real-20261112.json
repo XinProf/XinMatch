@@ -1,0 +1,960 @@
+{
+  "patterns": "D:\\test_XRD\\temp\\smz xrd analysis",
+  "library": "D:\\XinMatch-DataBase\\data\\COD-Inorg-20261020.xinDB",
+  "top_n": 20,
+  "rounds": 3,
+  "config": {
+    "prescreen_order": "intensity",
+    "family_slots": null
+  },
+  "notes": "组成级口径：同组成的多晶型（石英/方石英、锐钛矿/金红石）合并为一个真值相；掺杂固溶体无法表示，已列入 EXCLUDED 且不计入相召回分母。",
+  "notes_fine": "矿物名级口径（细）：有矿物名的卡按名判定（多晶型不再合并），无名的卡回落到组成比；真值相含同一组成的两种多晶型时，无名卡不计入任一侧；NCM811 判「必含 Li/Ni/O、其余元素只允许 Co/Mn 掺杂」的层状家族，Biotite/Hornblende 仅按矿物名判定。分母 50 个相（组成级 43 个 + 此前被排除的 7 个），两个口径不可混算。",
+  "excluded": {
+    "1-2": "NCM811 Li(Ni0.8Co0.1Mn0.1)O2 —— 掺杂固溶体，库内各卡的元素集互不相同",
+    "7-2/Biotite": "K(Mg,Fe)3AlSi3O10(OH)2 —— 固溶体，Mg/Fe 比随卡片变化",
+    "7-2/Hornblende": "角闪石 —— 固溶体，元素集随卡片变化"
+  },
+  "totals": {
+    "samples": 12,
+    "top1": 10,
+    "top5": 12,
+    "top5_all_phases": 2,
+    "phase_recall": [
+      20,
+      43
+    ],
+    "full_recovery": 4
+  },
+  "totals_oracle": {
+    "samples": 0,
+    "top1": 0,
+    "top5": 0,
+    "phase_recall": [
+      0,
+      0
+    ],
+    "phase_recall_family": [
+      0,
+      0
+    ],
+    "full_recovery": 0
+  },
+  "totals_fine": {
+    "samples": 13,
+    "top1": 12,
+    "top5": 13,
+    "top5_all_phases": 2,
+    "phase_recall": [
+      21,
+      50
+    ],
+    "phase_recall_family": [
+      22,
+      50
+    ],
+    "full_recovery": 4
+  },
+  "rows": [
+    {
+      "sample": "1-1",
+      "n_peaks": 112,
+      "truth": [
+        "LiFePO4"
+      ],
+      "top1": "96-400-1847",
+      "top1_formula": "Fe Li O4 P",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true
+      ],
+      "phase_in_top_family": [
+        true
+      ],
+      "phase_in_top5": [
+        true
+      ],
+      "n_families": 65,
+      "sequential_found": [
+        "96-400-1847",
+        "96-722-2394",
+        "96-153-3298"
+      ],
+      "sequential_hit_phase": 1,
+      "coverage": 0.9614,
+      "fine_truth": [
+        "Triphylite"
+      ],
+      "fine_phase_in_top": [
+        true
+      ],
+      "fine_phase_in_top_family": [
+        true
+      ],
+      "fine_phase_in_top5": [
+        true
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 1,
+      "fine_top1_mineral": null,
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "1-2",
+      "n_peaks": 130,
+      "truth": [],
+      "top1": "96-152-0787",
+      "top1_formula": "Li1.01 Mn0.1 Ni0.89 O2",
+      "hit_top1": false,
+      "hit_top5": false,
+      "phase_in_top": [],
+      "phase_in_top_family": [],
+      "phase_in_top5": [],
+      "n_families": 61,
+      "sequential_found": [
+        "96-152-0787",
+        "96-900-7843",
+        "96-210-6463"
+      ],
+      "sequential_hit_phase": 0,
+      "coverage": 0.9927,
+      "fine_truth": [
+        "NCM811"
+      ],
+      "fine_phase_in_top": [
+        true
+      ],
+      "fine_phase_in_top_family": [
+        true
+      ],
+      "fine_phase_in_top5": [
+        true
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 1,
+      "fine_top1_mineral": null,
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "2-1",
+      "n_peaks": 76,
+      "truth": [
+        "ZnO",
+        "CaCO3"
+      ],
+      "top1": "96-157-7381",
+      "top1_formula": "O Zn",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true,
+        true
+      ],
+      "phase_in_top_family": [
+        true,
+        true
+      ],
+      "phase_in_top5": [
+        true,
+        false
+      ],
+      "n_families": 56,
+      "sequential_found": [
+        "96-157-7381",
+        "96-900-9668",
+        "96-900-2286"
+      ],
+      "sequential_hit_phase": 2,
+      "coverage": 0.9688,
+      "fine_truth": [
+        "Zincite",
+        "Calcite"
+      ],
+      "fine_phase_in_top": [
+        true,
+        true
+      ],
+      "fine_phase_in_top_family": [
+        true,
+        true
+      ],
+      "fine_phase_in_top5": [
+        true,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 2,
+      "fine_top1_mineral": "hexagonal",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "2-2",
+      "n_peaks": 125,
+      "truth": [
+        "TiO2"
+      ],
+      "top1": "96-720-6075",
+      "top1_formula": "O2 Ti",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true
+      ],
+      "phase_in_top_family": [
+        true
+      ],
+      "phase_in_top5": [
+        true
+      ],
+      "n_families": 76,
+      "sequential_found": [
+        "96-720-6075",
+        "96-900-1680",
+        "96-152-1178"
+      ],
+      "sequential_hit_phase": 1,
+      "coverage": 0.9872,
+      "fine_truth": [
+        "Anatase",
+        "Rutile"
+      ],
+      "fine_phase_in_top": [
+        true,
+        false
+      ],
+      "fine_phase_in_top_family": [
+        true,
+        false
+      ],
+      "fine_phase_in_top5": [
+        true,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 2,
+      "fine_top1_mineral": "Anatase",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "3-1",
+      "n_peaks": 208,
+      "truth": [
+        "ZnO",
+        "Al2O3",
+        "CaF2"
+      ],
+      "top1": "96-230-0450",
+      "top1_formula": "O Zn",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true,
+        false,
+        false
+      ],
+      "phase_in_top_family": [
+        true,
+        false,
+        false
+      ],
+      "phase_in_top5": [
+        true,
+        false,
+        false
+      ],
+      "n_families": 65,
+      "sequential_found": [
+        "96-230-0112",
+        "96-200-2669",
+        "96-200-3326"
+      ],
+      "sequential_hit_phase": 1,
+      "coverage": 0.9902,
+      "fine_truth": [
+        "Zincite",
+        "Corundum",
+        "Fluorite"
+      ],
+      "fine_phase_in_top": [
+        true,
+        false,
+        false
+      ],
+      "fine_phase_in_top_family": [
+        true,
+        false,
+        false
+      ],
+      "fine_phase_in_top5": [
+        true,
+        false,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 0,
+      "fine_top1_mineral": "zincite",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "3-2",
+      "n_peaks": 207,
+      "truth": [
+        "ZnO",
+        "Al2O3",
+        "CaF2"
+      ],
+      "top1": "96-230-0450",
+      "top1_formula": "O Zn",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true,
+        true,
+        true
+      ],
+      "phase_in_top_family": [
+        true,
+        true,
+        true
+      ],
+      "phase_in_top5": [
+        true,
+        false,
+        true
+      ],
+      "n_families": 49,
+      "sequential_found": [
+        "96-230-0112",
+        "96-230-0375",
+        "96-230-0449"
+      ],
+      "sequential_hit_phase": 3,
+      "coverage": 0.9431,
+      "fine_truth": [
+        "Zincite",
+        "Corundum",
+        "Fluorite"
+      ],
+      "fine_phase_in_top": [
+        true,
+        true,
+        true
+      ],
+      "fine_phase_in_top_family": [
+        true,
+        true,
+        true
+      ],
+      "fine_phase_in_top5": [
+        true,
+        false,
+        true
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 2,
+      "fine_top1_mineral": "zincite",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "4-1",
+      "n_peaks": 174,
+      "truth": [
+        "ZnO",
+        "Al2O3",
+        "CaF2",
+        "Brucite"
+      ],
+      "top1": "96-230-0450",
+      "top1_formula": "O Zn",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true,
+        false,
+        false,
+        false
+      ],
+      "phase_in_top_family": [
+        true,
+        false,
+        false,
+        false
+      ],
+      "phase_in_top5": [
+        true,
+        false,
+        false,
+        false
+      ],
+      "n_families": 54,
+      "sequential_found": [
+        "96-230-0112",
+        "96-230-0449",
+        "96-771-5182"
+      ],
+      "sequential_hit_phase": 2,
+      "coverage": 0.8099,
+      "fine_truth": [
+        "Zincite",
+        "Corundum",
+        "Fluorite",
+        "Brucite"
+      ],
+      "fine_phase_in_top": [
+        true,
+        false,
+        false,
+        false
+      ],
+      "fine_phase_in_top_family": [
+        true,
+        false,
+        false,
+        false
+      ],
+      "fine_phase_in_top5": [
+        true,
+        false,
+        false,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 1,
+      "fine_top1_mineral": "zincite",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "5-1",
+      "n_peaks": 118,
+      "truth": [
+        "SiO2",
+        "CaCO3",
+        "Magnesite",
+        "Dolomite"
+      ],
+      "top1": "96-210-0189",
+      "top1_formula": "C Ca O3",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        false,
+        true,
+        false,
+        false
+      ],
+      "phase_in_top_family": [
+        false,
+        true,
+        false,
+        false
+      ],
+      "phase_in_top5": [
+        false,
+        true,
+        false,
+        false
+      ],
+      "n_families": 71,
+      "sequential_found": [
+        "96-201-4944",
+        "96-900-3518",
+        "96-101-1097"
+      ],
+      "sequential_hit_phase": 2,
+      "coverage": 0.7368,
+      "fine_truth": [
+        "Quartz",
+        "Cristobalite",
+        "Calcite",
+        "Magnesite",
+        "Dolomite"
+      ],
+      "fine_phase_in_top": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "fine_phase_in_top_family": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "fine_phase_in_top5": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 2,
+      "fine_top1_mineral": null,
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "5-2",
+      "n_peaks": 152,
+      "truth": [
+        "SiO2",
+        "CaCO3",
+        "Hematite",
+        "Muscovite"
+      ],
+      "top1": "96-154-7349",
+      "top1_formula": "C Ca O",
+      "hit_top1": false,
+      "hit_top5": true,
+      "phase_in_top": [
+        true,
+        true,
+        true,
+        false
+      ],
+      "phase_in_top_family": [
+        true,
+        true,
+        true,
+        false
+      ],
+      "phase_in_top5": [
+        false,
+        true,
+        false,
+        false
+      ],
+      "n_families": 84,
+      "sequential_found": [
+        "96-702-0139",
+        "96-901-5964",
+        "96-900-5485"
+      ],
+      "sequential_hit_phase": 2,
+      "coverage": 0.7157,
+      "fine_truth": [
+        "Quartz",
+        "Cristobalite",
+        "Calcite",
+        "Hematite",
+        "Muscovite"
+      ],
+      "fine_phase_in_top": [
+        false,
+        false,
+        true,
+        true,
+        false
+      ],
+      "fine_phase_in_top_family": [
+        false,
+        false,
+        true,
+        true,
+        false
+      ],
+      "fine_phase_in_top5": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "fine_hit_top1": false,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 2,
+      "fine_top1_mineral": null,
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "5-2b",
+      "n_peaks": 131,
+      "truth": [
+        "SiO2",
+        "CaCO3",
+        "Hematite",
+        "Muscovite"
+      ],
+      "top1": "96-901-5964",
+      "top1_formula": "Fe2 O3",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true,
+        true,
+        true,
+        false
+      ],
+      "phase_in_top_family": [
+        true,
+        true,
+        true,
+        false
+      ],
+      "phase_in_top5": [
+        false,
+        false,
+        true,
+        false
+      ],
+      "n_families": 50,
+      "sequential_found": [
+        "96-901-5964",
+        "96-433-5227",
+        "96-154-8781"
+      ],
+      "sequential_hit_phase": 1,
+      "coverage": 0.747,
+      "fine_truth": [
+        "Quartz",
+        "Cristobalite",
+        "Calcite",
+        "Hematite",
+        "Muscovite"
+      ],
+      "fine_phase_in_top": [
+        false,
+        true,
+        true,
+        true,
+        false
+      ],
+      "fine_phase_in_top_family": [
+        false,
+        true,
+        true,
+        true,
+        false
+      ],
+      "fine_phase_in_top5": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 1,
+      "fine_top1_mineral": "Hematite",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "5-3",
+      "n_peaks": 149,
+      "truth": [
+        "SiO2",
+        "Gehlenite",
+        "Fluorapatite",
+        "Goethite",
+        "Kaolinite"
+      ],
+      "top1": "96-901-0407",
+      "top1_formula": "Co0.03 Fe0.97 H O2",
+      "hit_top1": false,
+      "hit_top5": true,
+      "phase_in_top": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "phase_in_top_family": [
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "phase_in_top5": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "n_families": 74,
+      "sequential_found": [
+        "96-100-8768",
+        "96-901-7766",
+        "96-230-0274"
+      ],
+      "sequential_hit_phase": 1,
+      "coverage": 0.6682,
+      "fine_truth": [
+        "Quartz",
+        "Gehlenite",
+        "Fluorapatite",
+        "Goethite",
+        "Kaolinite"
+      ],
+      "fine_phase_in_top": [
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "fine_phase_in_top_family": [
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "fine_phase_in_top5": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 2,
+      "fine_top1_mineral": "Goethite",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "7-1",
+      "n_peaks": 184,
+      "truth": [
+        "SiO2",
+        "Boehmite",
+        "TiO2",
+        "Goethite",
+        "Kaolinite",
+        "Gibbsite",
+        "Hematite"
+      ],
+      "top1": "96-154-4375",
+      "top1_formula": "Al H3 O3",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "phase_in_top_family": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "phase_in_top5": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "n_families": 90,
+      "sequential_found": [
+        "96-154-4375",
+        "96-210-8027",
+        "96-201-7181"
+      ],
+      "sequential_hit_phase": 2,
+      "coverage": 0.7478,
+      "fine_truth": [
+        "Quartz",
+        "Boehmite",
+        "Anatase",
+        "Goethite",
+        "Kaolinite",
+        "Gibbsite",
+        "Hematite"
+      ],
+      "fine_phase_in_top": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "fine_phase_in_top_family": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "fine_phase_in_top5": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 2,
+      "fine_top1_mineral": "gibbsite",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    },
+    {
+      "sample": "7-2",
+      "n_peaks": 199,
+      "truth": [
+        "SiO2",
+        "Feldspar",
+        "Albite",
+        "Clinochlore",
+        "Zircon"
+      ],
+      "top1": "96-901-3321",
+      "top1_formula": "O2 Si",
+      "hit_top1": true,
+      "hit_top5": true,
+      "phase_in_top": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "phase_in_top_family": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "phase_in_top5": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "n_families": 61,
+      "sequential_found": [
+        "96-901-3321",
+        "96-411-3420",
+        "96-901-1423"
+      ],
+      "sequential_hit_phase": 1,
+      "coverage": 0.9155,
+      "fine_truth": [
+        "Quartz",
+        "Feldspar",
+        "Albite",
+        "Clinochlore",
+        "Zircon",
+        "Biotite",
+        "Hornblende"
+      ],
+      "fine_phase_in_top": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "fine_phase_in_top_family": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "fine_phase_in_top5": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "fine_hit_top1": true,
+      "fine_hit_top5": true,
+      "fine_sequential_hit_phase": 1,
+      "fine_top1_mineral": "Quartz",
+      "oracle_phase_in_top": [],
+      "oracle_phase_in_top_family": [],
+      "oracle_hit_top1": false,
+      "oracle_hit_top5": false,
+      "oracle_sequential_hit_phase": 0
+    }
+  ]
+}

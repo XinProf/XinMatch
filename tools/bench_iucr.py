@@ -21,7 +21,7 @@ dataset measures *detection versus abundance* rather than one aggregate score.
 
 Data
 ----
-``D:\\Project\\XRD\\XRData\\IUCr\\txt`` — 38 two-column ASCII scans at 0.02°
+``D:\\test_XRD\\IUCr\\txt`` — 38 two-column ASCII scans at 0.02°
 steps.  Ground truth is ``IUCr物相说明-en.txt`` (weighed + XRF, both listed;
 this script scores against **weighed**, the value that describes what was put
 in the sample).
@@ -80,8 +80,8 @@ folding it into a recall ratio would hide it.
 Usage::
 
     python -m tools.bench_iucr \\
-        --patterns D:\\Project\\XRD\\XRData\\IUCr\\txt \\
-        --library D:\\Project\\XRD\\XinMatch-DataBase\\data\\COD-Inorg-20261020.xinDB \\
+        --patterns D:\\test_XRD\\IUCr\\txt \\
+        --library D:\\XinMatch-DataBase\\data\\COD-Inorg-20261020.xinDB \\
         --out .scratch/bench_iucr_cod_inorg.json
 """
 

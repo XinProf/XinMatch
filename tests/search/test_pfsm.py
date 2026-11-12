@@ -124,6 +124,17 @@ def test_rwp_no_positive_points_returns_inf():
     assert compute_rwp(y, np.zeros_like(y)) == float("inf")
 
 
+def test_rwp_subnormal_intensity_points_are_ignored():
+    """Same guard as fpfm.compute_rwp: 1/y must not overflow (see fpfm tests)."""
+    rng = np.random.default_rng(7)
+    fitted = np.abs(rng.normal(100.0, 20.0, 1000)) + 1.0
+    observed = fitted.copy()
+    observed[::10] = np.nextafter(0.0, 1.0)
+    rwp = compute_rwp(observed, fitted)
+    assert np.isfinite(rwp)
+    assert rwp < 1e-6
+
+
 # --------------------------------------------------------------------------- #
 # pfsm_score
 # --------------------------------------------------------------------------- #

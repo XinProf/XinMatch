@@ -39,6 +39,14 @@ from xinmatch.core.db.multi_db import (
     open_search_database,
     remove_external_library,
 )
+from xinmatch.core.db.user_db import (
+    UserDbResult,
+    add_cif_files,
+    list_user_entries,
+    rebuild,
+    remove_entries,
+    user_library_path,
+)
 from xinmatch.core.instrument.collector import DataPoint  # no serial import
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model import Peak, Restraints
@@ -636,6 +644,76 @@ def cmd_libraries(args: argparse.Namespace) -> dict[str, Any]:
     return {"action": action, **payload, "libraries": records}
 
 
+def _userdb_payload(result: UserDbResult) -> dict[str, Any]:
+    """Serialise a :class:`UserDbResult` for both JSON and text output."""
+    return {
+        "added": list(result.added),
+        "removed": list(result.removed),
+        "skipped": [list(item) for item in result.skipped],
+        "total": result.total,
+        "library_path": str(result.library_path),
+        "library_id": result.library_id,
+    }
+
+
+def cmd_userdb(args: argparse.Namespace) -> dict[str, Any]:
+    """``xinmatch userdb`` — headless management of user reference phases.
+
+    Actions: ``list`` (default-free explicit), ``add`` (import CIFs),
+    ``remove`` (drop by entry_id), ``rebuild`` (rebuild from the manifest).
+    All state lives in ``core/db/user_db`` — the GUI dialog and this command
+    share the exact same functions, so there is no second implementation.
+    """
+    action = args.ud_action
+
+    if action == "list":
+        entries = list_user_entries()
+        records = [
+            {
+                "entry_id": e.entry_id,
+                "formula": e.formula,
+                "mineral_name": e.mineral_name,
+                "space_group": e.space_group,
+                "n_peaks": e.n_peaks,
+            }
+            for e in entries
+        ]
+        if not getattr(args, "as_json", False):
+            print(f"{'ENTRY_ID':<40} {'PEAKS':>6}  FORMULA / NAME / SPACE GROUP")
+            for rec in records:
+                label = " / ".join(
+                    str(rec[k]) for k in ("formula", "mineral_name", "space_group")
+                    if rec[k]
+                )
+                print(f"{rec['entry_id']:<40} {rec['n_peaks']:>6}  {label}")
+            print(f"用户库：{user_library_path()}  相数={len(records)}")
+            args._output_printed = True
+        return {"action": "list", "total": len(records),
+                "library_path": str(user_library_path()), "entries": records}
+
+    if action == "add":
+        result = add_cif_files(args.cif_files)
+    elif action == "remove":
+        result = remove_entries(args.entry_ids)
+    else:  # rebuild
+        result = rebuild()
+
+    payload = {"action": action, **_userdb_payload(result)}
+    if not getattr(args, "as_json", False):
+        print(f"动作：{action}  用户库相数：{result.total}  库文件：{result.library_path}")
+        if result.library_id:
+            print(f"挂载 id：{result.library_id}")
+        if result.added:
+            print(f"新增 {len(result.added)}：{', '.join(result.added)}")
+        if result.removed:
+            print(f"移除 {len(result.removed)}：{', '.join(result.removed)}")
+        # skipped 必须显式逐条打印（解析失败绝不静默）。
+        for src, reason in result.skipped:
+            print(f"跳过 {src}：{reason}", file=sys.stderr)
+        args._output_printed = True
+    return payload
+
+
 def cmd_instrument_scan(args: argparse.Namespace) -> dict[str, Any]:
     """``xinmatch instrument scan`` — enumerate visible serial ports.
 
@@ -768,7 +846,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "XinMatch — powder XRD phase analysis. Subcommands: import, "
             "process, search, quantify, report, run, batch, libraries, "
-            "instrument."
+            "userdb, instrument."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1003,6 +1081,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(p_lib)
     p_lib.set_defaults(func=cmd_libraries)
+
+    # --- userdb (headless user reference phases) ---
+    p_userdb = sub.add_parser(
+        "userdb",
+        help="Manage user reference phases (CIF -> .xinDB) without the GUI.",
+        description=(
+            "Headless user-database management.  Shares the exact same core "
+            "functions as the GUI dialog (core/db/user_db.py)."
+        ),
+    )
+    ud_sub = p_userdb.add_subparsers(dest="ud_action", required=True)
+    p_ud_list = ud_sub.add_parser("list", help="List phases in the user library.")
+    p_ud_add = ud_sub.add_parser("add", help="Import CIF files (idempotent).")
+    p_ud_add.add_argument("cif_files", nargs="+", metavar="CIF",
+                          help="CIF file paths to register.")
+    p_ud_remove = ud_sub.add_parser("remove", help="Remove phases by entry_id.")
+    p_ud_remove.add_argument("entry_ids", nargs="+", metavar="ENTRY_ID",
+                             help="entry_id values to drop.")
+    p_ud_rebuild = ud_sub.add_parser(
+        "rebuild", help="Rebuild the user library from its manifest.")
+    for _p in (p_ud_list, p_ud_add, p_ud_remove, p_ud_rebuild):
+        _add_json_flag(_p)
+        _p.set_defaults(func=cmd_userdb)
 
     # --- instrument (T14.4) ---
     p_inst = sub.add_parser(

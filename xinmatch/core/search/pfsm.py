@@ -31,6 +31,10 @@ import numpy as np
 from xinmatch.core.model import Entry, Pattern
 from xinmatch.core.peak.shapes import pseudo_voigt
 
+#: See ``xinmatch.core.search.fpfm.RWP_MIN_REL_INTENSITY``: a relative intensity
+#: floor that keeps the Poisson weight ``1/y`` finite.  No-op on normal data.
+RWP_MIN_REL_INTENSITY = 1e-9
+
 __all__ = [
     "compute_reference_pattern",
     "fit_scale_shift",
@@ -200,9 +204,9 @@ def compute_rwp(
                               {\\sum w_i\\, y_i^2}},
         \\qquad w_i = 1 / y_i
 
-    Points with non-positive observed intensity are excluded (their
-    weight would be infinite and they carry no signal).  If no positive
-    points remain, ``inf`` is returned.
+    Points whose intensity is below ``RWP_MIN_REL_INTENSITY * max(y)`` are
+    excluded: they carry no counting signal and their ``1/y`` weight would be
+    infinite (or astronomically large).  If none remain, ``inf`` is returned.
 
     The reference software feature: the Rwp value whose *reduction* drives PFSM ranking.
 
@@ -220,7 +224,12 @@ def compute_rwp(
     """
     y = np.asarray(pattern_intensity, dtype=np.float64)
     yc = np.asarray(fitted_intensity, dtype=np.float64)
-    mask = y > 0.0
+    if y.size:
+        y_max = float(np.max(y))
+        floor = RWP_MIN_REL_INTENSITY * y_max if np.isfinite(y_max) else 0.0
+    else:
+        floor = 0.0
+    mask = y > floor
     if not np.any(mask):
         return float("inf")
     ym = y[mask]

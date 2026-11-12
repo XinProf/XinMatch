@@ -1,0 +1,1555 @@
+{
+  "dataset": "IUCr CPD",
+  "patterns": "D:\\test_XRD\\IUCr\\txt",
+  "library": "D:\\XinMatch-DataBase\\data\\COD-Inorg-20261020.xinDB",
+  "library_entry_count": 78035,
+  "top_n": 20,
+  "rounds": 8,
+  "config": {
+    "prescreen_order": "intensity",
+    "family_slots": null,
+    "raw_peaks": false,
+    "modes": [
+      "plain",
+      "elements"
+    ]
+  },
+  "notes_fine": "主口径 = 矿物名级：卡有可用矿物名就按名判定，无名的卡才回落到组成比。本数据集的天然多相样品（尤其 BAUXITE）真值相都落在同组成多晶型族里，组成级无法区分它们，故以矿物名级为准、组成级只作并列对照。",
+  "notes_coarse": "对照口径 = 组成级：同组成的多晶型/异构相不区分。它与矿物名级的偏差**方向必须实测，不能推理**：实测（COD-Inorg，给元素，族级）矿物名级 45/48、组成级 44/48，唯一差异是组成级漏掉 CPD-2 的 Brucite（库内 Brucite 多为氘代，元素集含 D，而比值口径要求元素集相等）。上一版这里写的是「双向偏差、BAUXITE 的 Boehmite 被组成级误判命中」——那条在族级口径修好（族内任一成员命中即算命中，见 §29）之后不再成立：矿物名级现在也命中 Boehmite，所谓「误判」其实是族级只看代表卡造成的**假差异**。两个口径仍然只能并列、不可互相替代。",
+  "excluded": {
+    "SILICA": "非晶硅石标样：背景 912 / 峰高 985（7251 点里 267 个「峰」全是噪声），无周期性晶格可检索 → 不计入相召回，只作非晶样本记录",
+    "MANNITOL": "COD-Full 里无甘露醇卡；同组成 C6H14O6 的 7 张全是山梨醇/无名卡（异构体）",
+    "SUCROSE": "COD-Full 里无蔗糖卡；同组成 C12H22O11 的 14 张全是乳糖/海藻糖（异构体）",
+    "VALINE": "真值为 DL-Valine（外消旋）；COD-Full 只有 L-Valine 1 张，手性不同即是不同晶相",
+    "STARCH": "淀粉是半结晶聚合物，COD 不收录；同组成 C6H10O5 的 13 张是糖酐等小分子",
+    "NIZATIDI": "COD-Full 里化学式 C12H21N5O2S2 为 0 张 → 真值在库内不可达",
+    "PHARM1GR": "说明文件只给出药物组 5 个候选相，未指明本谱含哪些、含量多少 → 真值不完整",
+    "PHARM2GR": "说明文件只给出药物组 5 个候选相，未指明本谱含哪些、含量多少 → 真值不完整",
+    "GRANODIO": "天然花岗闪长岩，说明文件明写「True values not known」→ 无真值可评"
+  },
+  "library_coverage": {
+    "MANNITOL": 0,
+    "SUCROSE": 0,
+    "VALINE": 0,
+    "STARCH": 0,
+    "NIZATIDI": 0
+  },
+  "totals": {
+    "plain": {
+      "samples": 19,
+      "phases": 48,
+      "top1": 17,
+      "top5": 18,
+      "all5": 6,
+      "card": 26,
+      "fam": 27,
+      "seq": 37,
+      "wt_sum": 1870.5000000000002,
+      "wt_hit": 1455.62,
+      "trunc": 19,
+      "c_card": 0,
+      "c_fam": 0
+    },
+    "elements": {
+      "samples": 19,
+      "phases": 48,
+      "top1": 18,
+      "top5": 18,
+      "all5": 6,
+      "card": 39,
+      "fam": 45,
+      "seq": 45,
+      "wt_sum": 1870.5000000000002,
+      "wt_hit": 1860.3200000000004,
+      "trunc": 3,
+      "c_card": 0,
+      "c_fam": 0
+    }
+  },
+  "wt_buckets": {
+    "plain": {
+      "<5%": {
+        "phases": 7,
+        "card": 1,
+        "family": 1,
+        "seq": 2
+      },
+      "5-20%": {
+        "phases": 11,
+        "card": 4,
+        "family": 4,
+        "seq": 7
+      },
+      "20-50%": {
+        "phases": 15,
+        "card": 7,
+        "family": 8,
+        "seq": 15
+      },
+      ">=50%": {
+        "phases": 8,
+        "card": 8,
+        "family": 8,
+        "seq": 8
+      }
+    },
+    "elements": {
+      "<5%": {
+        "phases": 7,
+        "card": 3,
+        "family": 5,
+        "seq": 4
+      },
+      "5-20%": {
+        "phases": 11,
+        "card": 7,
+        "family": 10,
+        "seq": 11
+      },
+      "20-50%": {
+        "phases": 15,
+        "card": 14,
+        "family": 15,
+        "seq": 15
+      },
+      ">=50%": {
+        "phases": 8,
+        "card": 8,
+        "family": 8,
+        "seq": 8
+      }
+    }
+  },
+  "rows": [
+    {
+      "sample": "BAUXITE",
+      "file": "BAUXITE_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 184,
+      "truth": [
+        "Gibbsite",
+        "Boehmite",
+        "Hematite",
+        "Goethite",
+        "Quartz",
+        "Kaolinite",
+        "Anatase"
+      ],
+      "wt_pct": [
+        54.9,
+        14.93,
+        10.0,
+        9.98,
+        5.16,
+        3.02,
+        2.0
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "phase_in_top_family": [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "sequential_hit_phase": 2,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-154-4375",
+        "top1_mineral": "gibbsite",
+        "top1_formula": "Al H3 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true,
+          true,
+          false,
+          false,
+          false
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "sequential_hit_phase": 5,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-154-4375",
+        "top1_mineral": "gibbsite",
+        "top1_formula": "Al H3 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "BRUCITE",
+      "file": "BRUCITE.txt",
+      "suffix": "(bare)",
+      "n_peaks": 215,
+      "truth": [
+        "Brucite"
+      ],
+      "wt_pct": [
+        100.0
+      ],
+      "plain": {
+        "hit_top1": false,
+        "hit_top5": false,
+        "phase_in_top": [
+          false
+        ],
+        "phase_in_top_family": [
+          false
+        ],
+        "phase_in_top5": [
+          false
+        ],
+        "sequential_masks": [
+          false
+        ],
+        "sequential_hit_phase": 0,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-701-8278",
+        "top1_mineral": "from C:/GSASSoln/MIL-53(Sc)/JMEX256/300C/Rebin/P21CNEW1F.cif",
+        "top1_formula": "C8 O5 Sc",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": false,
+        "hit_top5": false,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          false
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 412,
+        "truncated": false,
+        "top1": "96-156-6658",
+        "top1_mineral": null,
+        "top1_formula": "D2 O",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CORUNDUM",
+      "file": "CORUNDUM.txt",
+      "suffix": "(bare)",
+      "n_peaks": 185,
+      "truth": [
+        "Corundum"
+      ],
+      "wt_pct": [
+        100.0
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0375",
+        "top1_mineral": null,
+        "top1_formula": "Al2 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 89,
+        "truncated": false,
+        "top1": "96-230-0375",
+        "top1_mineral": null,
+        "top1_formula": "Al2 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1A",
+      "file": "CPD-1A_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 243,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        1.15,
+        4.04,
+        94.81
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          false,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          false,
+          true
+        ],
+        "sequential_masks": [
+          false,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 2,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0449",
+        "top1_mineral": "fluorite",
+        "top1_formula": "Ca F2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          false,
+          true
+        ],
+        "sequential_masks": [
+          false,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 2,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0449",
+        "top1_mineral": "fluorite",
+        "top1_formula": "Ca F2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1B",
+      "file": "CPD-1B_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 162,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        94.31,
+        1.36,
+        4.33
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          false,
+          false
+        ],
+        "phase_in_top_family": [
+          true,
+          false,
+          false
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          false,
+          true
+        ],
+        "sequential_hit_phase": 2,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0375",
+        "top1_mineral": null,
+        "top1_formula": "Al2 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          false,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0375",
+        "top1_mineral": null,
+        "top1_formula": "Al2 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1C",
+      "file": "CPD-1C_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 210,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        5.04,
+        93.59,
+        1.36
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          false
+        ],
+        "phase_in_top_family": [
+          false,
+          true,
+          false
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          false
+        ],
+        "sequential_hit_phase": 2,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1D",
+      "file": "CPD-1D_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 216,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        13.53,
+        32.89,
+        53.58
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          false,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          true
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          true
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1E",
+      "file": "CPD-1E_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 173,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        55.12,
+        15.25,
+        29.62
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          true
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0449",
+        "top1_mineral": "fluorite",
+        "top1_formula": "Ca F2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          true
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0449",
+        "top1_mineral": "fluorite",
+        "top1_formula": "Ca F2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1F",
+      "file": "CPD-1F.txt",
+      "suffix": "(bare)",
+      "n_peaks": 180,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        27.06,
+        55.22,
+        17.72
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          false
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          false
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1G",
+      "file": "CPD-1G.txt",
+      "suffix": "(bare)",
+      "n_peaks": 174,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        31.37,
+        34.21,
+        34.42
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          false
+        ],
+        "phase_in_top_family": [
+          false,
+          true,
+          false
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-1H",
+      "file": "CPD-1H.txt",
+      "suffix": "(bare)",
+      "n_peaks": 195,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        35.12,
+        30.19,
+        34.69
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          false
+        ],
+        "phase_in_top_family": [
+          false,
+          true,
+          false
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          true
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-2",
+      "file": "CPD-2_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 174,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite",
+        "Brucite"
+      ],
+      "wt_pct": [
+        21.27,
+        19.94,
+        22.53,
+        36.26
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          false,
+          true,
+          false,
+          false
+        ],
+        "phase_in_top_family": [
+          false,
+          true,
+          false,
+          false
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 4,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0450",
+        "top1_mineral": "zincite",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true,
+          false
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 4,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0450",
+        "top1_mineral": "zincite",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-3",
+      "file": "CPD-3_raw.txt",
+      "suffix": "_raw",
+      "n_peaks": 205,
+      "truth": [
+        "Corundum",
+        "Zincite",
+        "Fluorite"
+      ],
+      "wt_pct": [
+        30.79,
+        19.68,
+        20.06
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          false,
+          true,
+          true
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 366,
+        "truncated": false,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-4",
+      "file": "CPD-4.txt",
+      "suffix": "(bare)",
+      "n_peaks": 197,
+      "truth": [
+        "Corundum",
+        "Magnetite",
+        "Zircon"
+      ],
+      "wt_pct": [
+        50.46,
+        19.64,
+        29.9
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          false,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          false,
+          true
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          false,
+          true
+        ],
+        "sequential_hit_phase": 2,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0448",
+        "top1_mineral": "corundum",
+        "top1_formula": "Al2 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true,
+          false,
+          true
+        ],
+        "phase_in_top_family": [
+          true,
+          true,
+          true
+        ],
+        "phase_in_top5": [
+          true,
+          false,
+          false
+        ],
+        "sequential_masks": [
+          true,
+          true,
+          true
+        ],
+        "sequential_hit_phase": 3,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0448",
+        "top1_mineral": "corundum",
+        "top1_formula": "Al2 O3",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "CPD-Y2O3",
+      "file": "CPD-Y2O3.txt",
+      "suffix": "(bare)",
+      "n_peaks": 141,
+      "truth": [
+        "Y2O3"
+      ],
+      "wt_pct": [
+        100.0
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-153-7882",
+        "top1_mineral": null,
+        "top1_formula": "O3 Y2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 34,
+        "truncated": false,
+        "top1": "96-153-7882",
+        "top1_mineral": null,
+        "top1_formula": "O3 Y2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "FLUORITE",
+      "file": "FLUORITE.txt",
+      "suffix": "(bare)",
+      "n_peaks": 272,
+      "truth": [
+        "Fluorite"
+      ],
+      "wt_pct": [
+        100.0
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0449",
+        "top1_mineral": "fluorite",
+        "top1_formula": "Ca F2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 35,
+        "truncated": false,
+        "top1": "96-230-0449",
+        "top1_mineral": "fluorite",
+        "top1_formula": "Ca F2",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "MAGNETIT",
+      "file": "MAGNETIT.txt",
+      "suffix": "(bare)",
+      "n_peaks": 277,
+      "truth": [
+        "Magnetite"
+      ],
+      "wt_pct": [
+        100.0
+      ],
+      "plain": {
+        "hit_top1": false,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          false
+        ],
+        "sequential_hit_phase": 0,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0615",
+        "top1_mineral": null,
+        "top1_formula": "Fe2 O4 Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 319,
+        "truncated": false,
+        "top1": "96-900-5837",
+        "top1_mineral": "Magnetite",
+        "top1_formula": "Fe3 O4",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "ZINCITE",
+      "file": "ZINCITE.txt",
+      "suffix": "(bare)",
+      "n_peaks": 209,
+      "truth": [
+        "Zincite"
+      ],
+      "wt_pct": [
+        100.0
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 38,
+        "truncated": false,
+        "top1": "96-230-0112",
+        "top1_mineral": "zinc_oxide",
+        "top1_formula": "O Zn",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    },
+    {
+      "sample": "ZIRCON",
+      "file": "ZIRCON.txt",
+      "suffix": "(bare)",
+      "n_peaks": 178,
+      "truth": [
+        "Zircon"
+      ],
+      "wt_pct": [
+        100.0
+      ],
+      "plain": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 1000,
+        "truncated": true,
+        "top1": "96-500-0119",
+        "top1_mineral": "Zircon",
+        "top1_formula": "Zr Si O4",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      },
+      "elements": {
+        "hit_top1": true,
+        "hit_top5": true,
+        "phase_in_top": [
+          true
+        ],
+        "phase_in_top_family": [
+          true
+        ],
+        "phase_in_top5": [
+          true
+        ],
+        "sequential_masks": [
+          true
+        ],
+        "sequential_hit_phase": 1,
+        "prescreened": 485,
+        "truncated": false,
+        "top1": "96-500-0119",
+        "top1_mineral": "Zircon",
+        "top1_formula": "Zr Si O4",
+        "coarse_phase_in_top": null,
+        "coarse_phase_in_top_family": null
+      }
+    }
+  ]
+}
