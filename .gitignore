@@ -89,3 +89,5 @@ tests/fixtures/cod/**
 data/cod_inorganics.bak-*.db
 data/*.db.bak-*
 
+# Offline registration key injected at build time; never commit
+registration_secret.txt
