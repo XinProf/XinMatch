@@ -1,76 +1,95 @@
-## XinMatch v3.1.0 — 序贯物相鉴定：确认一相 → 剩余峰再检索 → 再确认
+## XinMatch v3.1.0 — Sequential phase identification: confirm one phase → re-search the remaining peaks → confirm again
 
-> 基线 `v3.0.0`｜本次为**小版本**（功能新增，无破坏性变更）：参考库格式、检索引擎、
-> FoM 权重、命令与配置全部不变；旧工程/旧库照常使用。
+> Baseline `v3.0.0`. This is a **minor** release (new capability, no breaking change):
+> reference-library format, search engine, FoM weights, command line and configuration are all
+> unchanged; old projects and libraries keep working.
 
-### 一、要解决的问题
+### 1. Problem to solve
 
-单次 search-match 只给一张排行榜。多相样品里，主相的强线会一直主导 FoM：确认主相后
-再检索，排行榜前排还是主相同族卡片，次相被压在 20 名之外；用户只能手工在峰列表里
-"排除已解释的峰"，且排除是凭感觉的，无法与候选卡片对应。
+A single search-match run gives one ranking. In a multi-phase sample the main phase's strong
+lines keep dominating the FoM: search again after confirming it and the top of the list is still
+the main phase's sibling cards, while minor phases stay beyond rank 20. The only workaround was
+to manually "exclude the peaks already explained" in the peak list — by feel, and with no way to
+tie the exclusions back to candidate cards.
 
-v3.1.0 把"逐相确认"做成闭环：**每次确认都用剩余未解释峰重新检索**，让排行榜回答
-"还剩下什么"。
+v3.1.0 closes the loop on "confirm phase by phase": **every confirmation re-searches against the
+remaining unexplained peaks**, so the ranking answers "what is left".
 
-### 二、核心能力
+### 2. Core capabilities
 
-| 能力 | 说明 |
+| Capability | Description |
 |---|---|
-| 确认即检索 | 候选列表双击 / 回车 / 右键「确认为匹配物相」/ 底部「确认该相」按钮，四种入口等价 |
-| 剩余峰 = 实测峰 − 已确认相贡献 | 每相按其参考强度表与实测强度最小二乘定出计数域比例因子 `scale`（counts / 单位相对强度），逐峰扣除 |
-| 三态峰状态 | **已解释**（残差 ≤ 该峰自身 5%）、**未解释**（显著但仍未被解释）、**低强度不计**（< 全谱最强峰的 1%，不参与检索） |
-| 剩余峰检索 | `search_residual()` 在剩余峰上跑**同一个** FoM 引擎（不是另写一套打分），并自动剔除已确认条目 |
-| 可回滚 | 撤销上一相 / 双击匹配列表行 / 移出指定相 / 清空匹配列表 → 残差整体重算 |
-| 目视核对 | 谱图区按相叠加参考线条（高度 = 该相声称贡献的计数），线条 vs 实测峰是否吻合一眼可见；峰列表「关联」列同步打勾 |
+| Confirm and search | Double-click / Enter / right-click "Confirm as matched phase" / the bottom "Confirm this phase" button — all four entries are equivalent |
+| Remaining peaks = observed peaks − confirmed-phase contributions | For each phase a least-squares fit of its reference intensity table against observed intensities gives a count-domain scale factor `scale` (counts / unit relative intensity), subtracted peak by peak |
+| Three-state peak status | **Explained** (residual ≤ 5 % of that peak), **unexplained** (significant but not yet explained), **low intensity, not counted** (< 1 % of the strongest peak in the pattern; excluded from search) |
+| Residual search | `search_residual()` runs **the same** FoM engine over the remaining peaks (not a second scoring implementation) and automatically drops already-confirmed entries |
+| Rollback | Undo the last phase / double-click a match-list row / remove a specific phase / clear the match list → the whole residual is recomputed |
+| Visual check | The pattern area overlays reference sticks per phase (height = the counts that phase claims to contribute), so agreement or disagreement with observed peaks is visible at a glance; the peak list's "linked" column ticks in step |
 
-### 三、关键设计决定（以及为什么）
+### 3. Key design decisions (and why)
 
-1. **整体重建，而不是增量更新**
-   `SequentialIdentifier` 每次变更都从**原始峰列表**重算全部层：相关性 → 比例因子 →
-   残差 → 掩码。理由：第 B 相的比例因子是在 A 相扣完之后拟合的，撤掉 A 必须允许 B 的
-   数值改变。增量更新会累积浮点漂移、留下过期相关峰，撤销路径也写不干净。
-   代价是每相一次相关性遍历（µs 级），换来的是"状态 = f(原始峰, 相序列)"这一条不变式。
+1. **Full rebuild rather than incremental update**
+   `SequentialIdentifier` recomputes every layer from the **original peak list** on each change:
+   correlations → scale factors → residual → mask. The reason: phase B's scale factor was fitted
+   after phase A was subtracted, so removing A must be allowed to change B's value. Incremental
+   updates accumulate floating-point drift, leave stale correlated peaks behind, and cannot keep
+   the undo path clean. The cost is one correlation pass per phase (microseconds), in exchange for
+   the invariant "state = f(original peaks, phase sequence)".
 
-2. **比例因子在计数域拟合，不复用 FoM 的 `i_scale`**
-   `CandidateResult.i_scale` 是两侧各自归一化到 100 后的 LSQ 形状因子（理想值 ≈ 1.0），
-   **不能**用来从实测峰里扣计数。序贯模块自己按
-   `scale = Σ(I_residual·r)/Σ(r²)`（`r = I_ref/I_ref,max`）在计数域拟合，
-   结果才有"counts / 单位相对强度"的量纲。
+2. **The scale factor is fitted in the count domain, not reused from the FoM's `i_scale`**
+   `CandidateResult.i_scale` is the LSQ shape factor after both sides are normalized to 100
+   (ideal ≈ 1.0) and **cannot** be used to subtract counts from observed peaks. The sequential
+   module fits its own in the count domain with `scale = Σ(I_residual·r)/Σ(r²)`
+   (`r = I_ref/I_ref,max`), which is what gives the result the dimension "counts / unit relative
+   intensity".
 
-3. **低强度峰单列一档，而不是硬算作"已解释"**
-   实测教训（synth_02，见验收文档）：两相都确认后仍有 32/51 个峰"未解释"，而强度已解释
-   92%——剩下的是噪声小鼓包；第三轮检索于是把噪声匹配成 `Fe0.75V0.25` 这类垃圾候选。
-   把 < 1% 的峰标成"不计"（既不算解释、也不算剩余），既诚实又让第三轮返回空列表。
+3. **Low-intensity peaks get their own state instead of being forced into "explained"**
+   A measured lesson (synth_02, see the acceptance document): after confirming both phases,
+   32/51 peaks were still "unexplained" while 92 % of the intensity was explained — the rest were
+   small noise bumps, and the third round then matched that noise into junk candidates such as
+   `Fe0.75V0.25`. Marking peaks below 1 % as "not counted" (neither explained nor remaining) is
+   both honest and makes the third round return an empty list.
 
-4. **"部分解释"的峰保留残差强度**
-   重叠峰（主相 + 未确认相）扣除主相贡献后残差为正，仍留在剩余集合，强度按差值下调；
-   不会被"位置撞上就算解释"吞掉。这是多相样品里次相常出现在主相强线位置时的关键。
+4. **Partially explained peaks keep their residual intensity**
+   For an overlapping peak (main phase + unconfirmed phase), subtracting the main phase's
+   contribution leaves a positive residual that stays in the remaining set with its intensity
+   lowered accordingly; it is not swallowed by "the position coincided, so it counts as
+   explained". This is decisive when a minor phase sits on the main phase's strong lines.
 
-### 四、界面
+### 4. UI
 
-* 候选列表面板新增一行操作条：`确认该相（加入匹配列表）` / `撤销上一相` / `清空匹配列表` + 残差读数
-  （`已确认 N 相 ｜ 剩余 X/Y 峰 ｜ 已解释 Z% 强度 ｜ K 个低强度峰不计`）。
-* 匹配列表（Match List）由确认动作填充，双击即回滚该相。
-* 峰列表「关联」列：被确认相位置相关的峰打 ✓。
-* 谱图区：每相叠加一组参考线条，颜色与候选行色块同序。
-* FPFM 模式没有峰列表：首次确认时惰性按当前谱做一次寻峰，再进入序贯流程（状态栏提示）。
-* 每次整谱检索（含峰检测、FPFM 检索）都**重置**序贯上下文——新检索代表新一轮分析。
+* The candidate-list panel gains an action row: `Confirm this phase (add to match list)` /
+  `Undo the last phase` / `Clear match list` plus residual readouts
+  (`N phases confirmed | X/Y peaks remaining | Z% of intensity explained | K low-intensity peaks not counted`).
+* The Match List is filled by confirmations; double-clicking rolls that phase back.
+* The peak list's "linked" column: peaks positionally related to a confirmed phase get a ✓.
+* Pattern area: one set of reference sticks overlaid per phase, colours in the same order as the
+  candidate rows' colour chips.
+* FPFM mode has no peak list: the first confirmation lazily runs one peak search on the current
+  pattern and then enters the sequential flow (with a status-bar note).
+* Every full-pattern search (including peak detection and FPFM search) **resets** the sequential
+  context — a new search means a new round of analysis.
 
-### 五、兼容性
+### 5. Compatibility
 
-* 无新增依赖；`.xinDB` / 旧 SQLite 库都能用（走既有 `search_match` 分派）。
-* 不改变 `search_match` / `rank_candidates` / FoM 的任何数值口径：序贯只是"换一个峰集合再算一次"。
-* `CandidateTable` 右键菜单的「选中/取消选中」项改为「确认为匹配物相（加入匹配列表）」，
-  `toggle_selection` 信号保留（外部脚本不受影响）。
-* `Phase.scale_factor` / `Phase.correlations` 在序贯流程里被写回真实值，精修向导 / 报告 /
-  CIF 导出读取的下游字段因此是自洽的。
+* No new dependencies; both `.xinDB` and legacy SQLite libraries work (through the existing
+  `search_match` dispatch).
+* No numeric criterion of `search_match` / `rank_candidates` / the FoM changes: sequential is
+  just "run it again on a different peak set".
+* The `CandidateTable` context-menu item "select/deselect" became "Confirm as matched phase (add
+  to match list)"; the `toggle_selection` signal is kept (external scripts unaffected).
+* `Phase.scale_factor` / `Phase.correlations` are written back with real values during the
+  sequential flow, so the downstream fields read by the refinement wizard / reports / CIF export
+  are self-consistent.
 
-### 六、验收
+### 6. Verification
 
-* 全量回归（本机终态）：**1452 passed / 5 skipped / 0 failed**，849 s（14m09s），EXIT=0。
-* 新增测试：`tests/search/test_sequential.py`（18 项，纯合成、手算可对）、
-  `tests/ui/test_sequential_ui.py`（17 项，offscreen 界面闭环）。
-* 真实库多相样品（默认 COD 无机库 71k）：两相样品 **3/3 完整回收**（synth_02 / 04 / 12，
-  两轮内定住两个相）；三相样品 synth_01 回收 2/3（ZnO 未召回，属基座召回限制）。
+* Full regression (final state on this machine): **1452 passed / 5 skipped / 0 failed**, 849 s
+  (14m09s), EXIT=0.
+* New tests: `tests/search/test_sequential.py` (18 items, pure synthetic, verifiable by hand),
+  `tests/ui/test_sequential_ui.py` (17 items, offscreen UI loop).
+* Multi-phase samples against the real library (default COD inorganic library, 71k): two-phase
+  samples **3/3 fully recovered** (synth_02 / 04 / 12, both phases pinned within two rounds);
+  the three-phase sample synth_01 recovered 2/3 (ZnO not recalled, a limitation of base recall).
 
-细节与数据见 `docs/序贯物相鉴定-v3.1.0.md`。
+Details and data in `docs/序贯物相鉴定-v3.1.0.md`.

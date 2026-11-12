@@ -1,185 +1,244 @@
-# 变更记录（Changelog）
+# Changelog
 
-XinMatch 每个已发布版本的变更要点。只写**用户可感知**的变化；实现细节、验证数据与踩坑记录
-在 `docs/RELEASE-NOTES-<version>.md` 与本文件末尾的链接里。
+What changed in each released version of XinMatch. Only **user-visible** changes are listed
+here; implementation detail, verification data and the traps hit along the way live in
+`docs/RELEASE-NOTES-<version>.md` and in the index at the end of this file.
 
-## 维护约定（发版时同步）
+## Maintenance rules (applied on every release)
 
-1. 开发期把改动累积在 `## [未发布]` 下，打 tag 时改名为 `## [x.y.z] — YYYY-MM-DD`；
-2. **同一次发版必须同时更新三处**：本文件、`README.md` + `README-CN.md` 的版本行与下载链接、
-   `docs/RELEASE-NOTES-<version>.md`；三处的版本号必须与 tag 逐字一致；
-3. 版本号真相源仍是 `pyproject.toml`（`xinmatch.spec` 从它推导，iss 默认值由构建脚本覆盖），
-   本文件标题里的版本号不得领先于它；
-4. 分类用 新增 / 改动 / 修复 / 数据 / 发布；跨版本重复的说明不复制，指回首次引入的版本。
+1. Accumulate work under `## [Unreleased]` while developing, and rename it to
+   `## [x.y.z] — YYYY-MM-DD` when tagging.
+2. **A release updates three places together**: this file, the version line and download link in
+   `README.md` + `README-CN.md`, and `docs/RELEASE-NOTES-<version>.md`. All three version numbers
+   must match the tag verbatim.
+3. The version still has a single source of truth, `pyproject.toml` (`xinmatch.spec` derives from
+   it; the iss default is overridden by the build script). The version in this file's headings
+   must never run ahead of it.
+4. Categories: Added / Changed / Fixed / Data / Release. Do not repeat explanations across
+   versions — point back to the release that introduced them.
 
-## [未发布]
+## [Unreleased]
 
-（暂无）
+(Nothing yet.)
 
 ## [3.7.0] — 2026-11-12
 
-**新增**
-- `tools/bench_three_rulers.py`：一条命令跑齐三把基准尺子（合成谱 / 真实谱 / IUCr），
-  输出 26 项统一指标；`--baseline` 逐项给出涨跌并把「涨 / 跌 / 平」分列，
-  `--fail-on-down` 可作发布前的回归门。
-- CLI `xinmatch userdb list / add / remove / rebuild`，与 GUI 共用 `core/db/user_db` 同一实现。
+**Added**
+- `tools/bench_three_rulers.py`: runs all three benchmark rulers (synthetic / real-sample / IUCr)
+  in one command and reports 26 unified metrics; `--baseline` gives per-metric deltas split into
+  up / down / flat, and `--fail-on-down` turns a regression into a release gate.
+- CLI `xinmatch userdb list / add / remove / rebuild`, sharing the same `core/db/user_db`
+  implementation as the GUI.
 
-**改动**
-- 合成谱基准尺子重建：13 组 / 24 相，改用 `--peak-source v3` 与检索库同源。
+**Changed**
+- Synthetic ruler rebuilt: 13 groups / 24 phases, regenerated with `--peak-source v3` so the
+  intensities come from the same library the search uses.
 
-**修复**
-- 合成谱生成器 `CARD_DB` 硬编码迁移前的绝对路径（已不存在），改为仓库相对路径；
-  三个取卡函数在缺库时早退，不再中断生成。
-- `core/refine/cif_store` 探测 COD 根目录时不下探 `cif/` 子目录，导致 card 源生成在
-  `900-` 系列条目直接崩（13 组只出 4 组）；两种布局现在都能解析。
-- FPFM / PFSM 的 `compute_rwp` 加 `RWP_MIN_REL_INTENSITY = 1e-9` 下限护栏：
-  次正规强度点会让 `w = 1/ym` 溢出；算术不变，正常谱 237/237 逐位相同。
-- `tools/verify_binary.py` 解便携包改用标准库 `zipfile`，不再硬依赖本机 7-Zip。
+**Fixed**
+- The synthetic generator's `CARD_DB` was hard-coded to a pre-migration absolute path that no
+  longer existed; it now resolves relative to the repository, and the three card-lookup helpers
+  return early when the library is missing instead of aborting generation.
+- `core/refine/cif_store` never descended into the `cif/` subdirectory when probing the COD root,
+  so card-source generation crashed on `900-` series entries (only 4 of 13 groups produced); both
+  layouts now resolve.
+- `compute_rwp` in FPFM / PFSM gains a `RWP_MIN_REL_INTENSITY = 1e-9` floor: subnormal intensity
+  points overflowed `w = 1/ym`. Arithmetic is unchanged and 237/237 normal patterns stay
+  bit-identical.
+- `tools/verify_binary.py` unpacks the portable archive with the standard-library `zipfile`
+  instead of hard-depending on a local 7-Zip.
 
-**数据**
-- 恢复真实谱尺子（13 组，`docs/bench/real-20261112.json`）与统一基线
-  （`docs/bench/all-20261112.json`）；PDF-2（163,834 相）仅挂本机注册表，不入仓库。
+**Data**
+- Restored the real-pattern ruler (13 groups, `docs/bench/real-20261112.json`) and a unified
+  baseline (`docs/bench/all-20261112.json`); PDF-2 (163,834 phases) is mounted in the local
+  registry only and never enters the repository.
 
-**发布**
-- `XinMatch-Setup-3.7.0.exe` 243.4 MiB，SHA-256 `ea3b9225…a6565`；便携 zip 只构建不发布。
-- 5 轮二进制稳健性验收全过（哈希回读 / 便携解压 / 冻结 GUI 三钩子 / 静默安装 / 安装后检索）。
+**Release**
+- `XinMatch-Setup-3.7.0.exe` 243.4 MiB, SHA-256 `ea3b9225…a6565`; the portable zip is built but
+  not published.
+- All 5 rounds of binary robustness acceptance passed (hash read-back / portable extract / frozen
+  GUI three hooks / silent install / post-install search).
 
 ## [3.6.4] — 2026-11-11
 
-**新增**
-- `user_db` 接通 v3 检索链；`[report]` extra 装回后被搁置的 42 项测试恢复可跑。
+**Added**
+- `user_db` wired into the v3 search chain; restoring the `[report]` extra brought back 42 tests
+  that had been parked.
 
-**改动**
-- 启动到主窗口 **1.81 s → 0.82 s**（scipy / QtWebEngine 懒加载 + 图标扫描 C 级化）。
-- 启动画面改 800×600 且不带版本号；iss / `verify_binary` 同步 release 变体判定。
+**Changed**
+- Startup to main window **1.81 s → 0.82 s** (lazy scipy / QtWebEngine loading plus C-level icon
+  scanning).
+- Splash screen changed to 800×600 without a version number; iss / `verify_binary` synchronized on
+  release-variant detection.
 
-**修复**
-- RIR 定量对话框空单元格崩溃；谱图参考线行列表补类型注解。
+**Fixed**
+- Crash on empty cells in the RIR quantification dialog; missing type annotations on the pattern
+  reference-line row list.
 
 ## [3.6.3] — 2026-11-09
 
-**新增**
-- 元素限定四态（必有 P / 含有 H / 可能 M / 没有 E）+ **闭环开关**「限用勾选的元素」，
-  语义与姊妹项目 PolyXRD 逐条对齐；预筛层新增 `elements_any` 通道。
-- 面板「补轻元素」一键把 O/C/H/N/S 标为「含有」。
+**Added**
+- Element constraints in four states (must-have P / contains H / possible M / absent E) plus a
+  **closed-loop switch** "restrict to the selected elements", semantics aligned clause by clause
+  with the sister project PolyXRD; the pre-filter gains an `elements_any` channel.
+- A "fill light elements" button that marks O/C/H/N/S as "contains" in one click.
 
-**改动**
-- 物相鉴定默认改用 FPFM 全谱拟合（不寻峰），下拉框可一键切回峰列表 FoM。
-  FPFM 检索链不接受元素约束，该组合下工具栏常显「｜FPFM 下不生效」。
-- 旧存档与旧用法行为逐位不变（闭环默认关闭），基准数字不动。
+**Changed**
+- Phase identification now defaults to FPFM full-profile fitting (no peak search); the dropdown
+  switches back to peak-list FoM in one click. The FPFM chain does not accept element
+  constraints, and under that combination the toolbar permanently shows "not effective under
+  FPFM".
+- Old archives and old workflows behave bit-for-bit as before (closed loop off by default);
+  benchmark numbers do not move.
 
 ## [3.6.2] — 2026-11-09
 
-**新增**
-- 谱图下方**参考线分区**：一行一相、左标化学式、横坐标与主谱图联动对齐；
-  勾选框切「只看角度位置 / 同时看强度」。
-- 谱图上方一排**快捷图标**（复位 / 横向框选 / 纵向框选 / 区域放大 / 平移 / 步进缩放 / 十字线）。
+**Added**
+- A **reference-line lane** below the pattern: one row per phase, formula on the left, x-axis
+  aligned with the main plot; a checkbox toggles "angular positions only / with intensities".
+- A row of **quick icons** above the pattern (reset / horizontal box select / vertical box select
+  / region zoom / pan / step zoom / crosshair).
 
-**改动**
-- 顶部「X 轴 / Y 轴 / 适应数据范围」控制条隐藏但功能保留，改到**点击坐标轴**上（左键循环、右键菜单）。
+**Changed**
+- The top "X axis / Y axis / fit to data" bar is hidden but keeps its functions, which move to
+  **clicking the axis** (left-click cycles, right-click menu).
 
 ## [3.6.1] — 2026-11-08
 
-**修复**（纯修障版，接口与数据格式无变更）
-- 图例重复：pyqtgraph `PlotItem.addItem()` 已自动加图例，代码又手动加一次；
-  曲线一直只有 1 条，多出来的是图例行。顺带修「按名字删图例」误删同名兄弟曲线。
-- 精修向导卡死 + 白屏：GSAS-II 子进程在 GUI 线程同步执行；改走 `run_with_busy()` 后台线程，
-  「开始精修」移进第 4 页内部，消除按钮滑位误触。
-- 列表「晶系」把六方标成单斜：判据只看「非 90° 角个数」；补 `H` / `R` 判据。
+**Fixed** (pure defect-fix release, no interface or data-format change)
+- Duplicate legend: pyqtgraph's `PlotItem.addItem()` already adds a legend entry and the code
+  added another one; there was always only 1 curve and the extra row was the legend. Also fixed
+  "remove legend rows by name" deleting a same-named sibling curve.
+- Refinement wizard froze and went white: the GSAS-II subprocess ran synchronously on the GUI
+  thread; it now goes through `run_with_busy()` on a background thread, and "Start refinement"
+  moved inside page 4 to eliminate misfires from the button sliding into place.
+- The list's "crystal system" labelled hexagonal phases as monoclinic: the criterion only counted
+  non-90° angles; `H` / `R` criteria added.
 
 ## [3.6.0] — 2026-11-08
 
-**新增**
-- Profile Fitting 对话框（F5）：四种谱形 + Rwp + 拟合曲线叠加 + 写回峰列表。
-- RIR 定量分析对话框：Hill–Howard 绝热法，wt% 写回匹配列表。
-- 微结构分析：Scherrer 与 Williamson-Hall 两页（本版不做仪器宽化校正）。
-- 指标化向导（Treor90 / DicVol06）：7 个晶系可选，结果表带 `deduplicate` + 排序。
-- 数据导出聚合菜单：谱图 ASCII / 峰列表 CSV / 候选列表 CSV / 匹配列表 CSV / `.xinm` / CIF。
+**Added**
+- Profile Fitting dialog (F5): four profile shapes + Rwp + fitted-curve overlay + write-back to
+  the peak list.
+- RIR quantitative analysis dialog: Hill–Howard adiabatic method, wt% written back to the match
+  list.
+- Microstructure analysis: Scherrer and Williamson-Hall pages (no instrumental broadening
+  correction in this release).
+- Indexing wizard (Treor90 / DicVol06): 7 crystal systems selectable, result table with
+  `deduplicate` + ranking.
+- Aggregated data-export menu: pattern ASCII / peak-list CSV / candidate-list CSV / match-list
+  CSV / `.xinm` / CIF.
 
-**改动**
-- 菜单动作全部接通，此前 15 个模块里 11 个只写状态栏占位；仅 `user_db` 仍占位。
-- 候选列表行数上限 `candidate_list.max_display_rows`（默认 50，按族计）：
-  族覆盖 81/98 → **89/98**，计算成本为零；报告与表格同源。
-- 峰位精修改用 LM：预处理 **35.2 s → 0.35 s**，207 峰 CLI 端到端 **36 s → 2.3 s**。
-- 元素周期表重设计（尺寸由字体度量驱动，三态用颜色 + 线型 + 字重，红绿色盲友好）。
-- 样品元素一行录入：真实谱相召回 **20/43 → 30/43**。
+**Changed**
+- Every menu action is now wired — 11 of 15 modules previously only posted a status-bar
+  placeholder; only `user_db` remains a placeholder.
+- Candidate-list row cap `candidate_list.max_display_rows` (default 50, counted per family):
+  family coverage 81/98 → **89/98** at zero compute cost; reports and the table share one source.
+- Peak-position refinement switched to LM: preprocessing **35.2 s → 0.35 s**, 207-peak CLI
+  end-to-end **36 s → 2.3 s**.
+- Periodic table redesigned (sizing driven by font metrics; three states encoded by colour + line
+  style + font weight, red-green colour-blind friendly).
+- One-line sample-element entry: real-pattern phase recall **20/43 → 30/43**.
 
 ## [3.5.0] — 2026-11-06
 
-**新增**
-- 元素「必须不含」约束真正参与检索（预筛层用 `element_inv` 倒排剔除），
-  GUI / `search_match(restraints=…)` / `search_match_v3(elements_excluded=…)` 三入口同一条通路。
-- 版本一致性测试 5 项；构建脚本构建后自检 exe 的 `FileVersion`。
+**Added**
+- The element "must not contain" constraint really participates in search (the pre-filter removes
+  such phases via the `element_inv` inverted index); GUI / `search_match(restraints=…)` /
+  `search_match_v3(elements_excluded=…)` all take the same path.
+- Five version-consistency tests; the build script self-checks the exe's `FileVersion` after
+  building.
 
-**改动**
-- 版本号收成单一真相源：`pyproject.toml` 唯一，spec 从它推导，iss 只剩默认值由 `ISCC /DAppVersion=` 覆盖。
-- 拼错的元素符号在「必须含」方向清空结果，在「必须不含」方向不排除任何相。
+**Changed**
+- The version number collapsed into a single source of truth: `pyproject.toml` only, the spec
+  derives from it, and iss keeps just a default overridden by `ISCC /DAppVersion=`.
+- A misspelled element symbol empties the result in the "must contain" direction and excludes
+  nothing in the "must not contain" direction.
 
 ## [3.4.0] — 2026-11-05
 
-**新增**
-- **导出物相分析（.xinm）**：锚点谱图 + 已选相 CIF + 峰表 + 元数据打包成 zip，
-  供 XinRefinement「导入 XinMatch 物相分析」一键装载。
-- CIF 回取桥，按「环境变量 → 当前档案根 → 历史根」逐根探测。
+**Added**
+- **Export phase analysis (.xinm)**: the anchor pattern + selected phases' CIFs + peak table +
+  metadata packed into a zip that XinRefinement loads in one click via "Import XinMatch phase
+  analysis".
+- A CIF retrieval bridge probing roots in the order "environment variable → current archive root
+  → legacy root".
 
-**改动**
-- 某相 CIF 回取失败时降级为「仅参照」，不阻断导出。
-- 版权边界：不打包任何 ICDD/PDF-2 衍生数据文件，`source="pdf2"` 只写 id 与峰表元数据。
+**Changed**
+- When a phase's CIF cannot be retrieved it degrades to "reference only" and does not block the
+  export.
+- Copyright boundary: no ICDD/PDF-2 derived data file is packed; `source="pdf2"` writes only the
+  id and peak-table metadata.
 
 ## [3.3.0] — 2026-11-04
 
-**新增**
-- 少线相**强线锚定**标记 `AnchorPolicy`：最强参考线命中 ≥0.30×最强残差峰、
-  `P(2θ)`≥0.98、匹配对≥2、`P(ncorr)`≥0.50、参考反射数 ≤20 → 候选表标 `★`。
-- 可选重排 `search_residual(..., promote_anchored=True)`（默认关）。
+**Added**
+- Sparse-phase **strong-line anchoring** mark `AnchorPolicy`: strongest reference line hits
+  ≥0.30× the strongest residual peak, `P(2θ)`≥0.98, matched pairs ≥2, `P(ncorr)`≥0.50, reference
+  reflections ≤20 → the candidate table marks it `★`.
+- Optional re-ranking `search_residual(..., promote_anchored=True)` (off by default).
 
-**改动**
-- 标记只作提示不改排序：同一规则在真实谱上也会误标错相（基准报告 §11.5）。
-- 线数护栏：参考反射数 > 20 的候选永不标记，它正是霸榜机制本身。
+**Changed**
+- The mark is informational and does not change ranking: the same rule also mislabels a wrong
+  phase on real patterns (benchmark report §11.5).
+- Line-count guard: candidates with more than 20 reference reflections are never marked — they
+  are the dominating mechanism itself.
 
 ## [3.2.0] — 2026-11-04
 
-**新增**
-- 相位级身份 `same_phase(a, b)` 与候选折叠：元素集相同 + 晶胞 ±1% / 角 ±1.5° + 空间群一致；
-  缺晶胞时退回化学计量比较。候选表默认一族一行，「变体」列显示 `N 条`，可展开/合并。
-- 双口径基准（条目级 / 相位级）；合成谱支持 `--peak-source v3` 与检索库同源。
+**Added**
+- Phase-level identity `same_phase(a, b)` and candidate folding: same element set + cell within
+  ±1 % / angles within ±1.5° + identical space group; falls back to stoichiometry when the cell is
+  missing. The candidate table shows one row per family by default, the "Variants" column shows
+  `N entries`, and families can be expanded / merged.
+- Dual-criterion benchmark (entry level / phase level); synthetic patterns support
+  `--peak-source v3` to stay same-source with the search library.
 
-**改动**
-- 预筛名额双路（80% 原有排序 + 20% 按强度加权命中送次相进场），候选上限 800 → 1000。
-- 同库下相位级 Top-1 7/13 → **10/13**（「命中同相兄弟卡」不再算漏）。
-- 新 logo / 图标集与重做的启动画面。
+**Changed**
+- Dual pre-filter slots (80 % original ordering + 20 % by intensity-weighted hits so minor phases
+  can enter), candidate cap 800 → 1000.
+- Phase-level Top-1 in the same library 7/13 → **10/13** ("hitting a same-phase sibling card" is
+  no longer counted as a miss).
+- New logo / icon set and a recomposed splash screen.
 
 ## [3.1.0] — 2026-10-31
 
-**新增**
-- **序贯物相鉴定**：确认一相 → 扣除该相贡献 → 在剩余峰上跑同一个 FoM 引擎 → 确认下一相。
-- 三态峰状态：已解释（残差 ≤ 该峰自身 5%）/ 未解释 / 低强度不计（< 全谱最强峰 1%）。
-- 可回滚（撤销上一相 / 移出指定相 / 清空）；谱图区按相叠加参考线条供目视核对。
+**Added**
+- **Sequential phase identification**: confirm a phase → subtract its contribution → run the same
+  FoM engine on the remaining peaks → confirm the next phase.
+- Three-state peak status: explained (residual ≤ 5 % of that peak) / unexplained / low intensity
+  not counted (< 1 % of the strongest peak).
+- Rollback (undo the last phase / remove a specific phase / clear the list); the pattern area
+  overlays reference sticks per phase for visual checking.
 
 ## [3.0.0] — 2026-10-23
 
-**改动**（破坏性）
-- `.xinDB` 单一格式收口：v2 SQLite（`cod_inorganics.db`）、PolyXRD dump 与 PDF-2 读取器
-  **删除**而非弃用；只剩一个读取器、一条检索路径 `search_match_v3`。
-- 默认库换成 COD-Inorg 并打进便携包，开箱可用，无需另下载。
+**Changed** (breaking)
+- `.xinDB` single-format consolidation: the v2 SQLite (`cod_inorganics.db`), PolyXRD dump and
+  PDF-2 readers are **deleted** rather than deprecated; one reader, one search path
+  (`search_match_v3`).
+- Default library switched to COD-Inorg and bundled into the portable package, so it works out of
+  the box with no separate download.
 
-**新增**
-- 内部评估版在状态栏以红色加粗「内部评估版本」标识。
+**Added**
+- The internal evaluation build is marked "internal evaluation build" in bold red in the status
+  bar.
 
-## 早期版本
+## Earlier versions
 
-`v1.0.0`（2026-10-09）→ `v2.0.0`（2026-10-20）为项目成形期：T1–T14 内核与 GUI 骨架、
-多库挂载、GSAS-II 精修链、PDF-2 侧车索引、PolyXRD `.sqlite` 兼容与外部库挂载。
-当时未逐版写发布说明，历史见对应 git tag 与 `docs/STATUS.md` 归档章节。
+`v1.0.0` (2026-10-09) → `v2.0.0` (2026-10-20) was the project's formation period: the T1–T14
+kernel and GUI skeleton, multi-library mounting, the GSAS-II refinement chain, the PDF-2 sidecar
+index, and PolyXRD `.sqlite` compatibility with external library mounting. No per-version release
+notes were written then; the history is in the corresponding git tags and the archived chapters of
+`docs/STATUS.md`.
 
 ---
 
-## 详细发布说明
+## Detailed release notes
 
-| 版本 | 说明 | GitHub Release |
+| Version | Notes | GitHub Release |
 |---|---|---|
 | v3.7.0 | [docs/RELEASE-NOTES-v3.7.0.md](docs/RELEASE-NOTES-v3.7.0.md) | [v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0) |
-| v3.6.4 | —（仅 tag，无独立说明） | 未发布二进制 |
+| v3.6.4 | — (tag only, no separate notes) | no binary released |
 | v3.6.3 | [docs/RELEASE-NOTES-v3.6.3.md](docs/RELEASE-NOTES-v3.6.3.md) | — |
 | v3.6.2 | [docs/RELEASE-NOTES-v3.6.2.md](docs/RELEASE-NOTES-v3.6.2.md) | — |
 | v3.6.1 | [docs/RELEASE-NOTES-v3.6.1.md](docs/RELEASE-NOTES-v3.6.1.md) | — |
@@ -191,5 +250,6 @@ XinMatch 每个已发布版本的变更要点。只写**用户可感知**的变�
 | v3.1.0 | [docs/RELEASE-NOTES-v3.1.0.md](docs/RELEASE-NOTES-v3.1.0.md) | — |
 | v3.0.0 | [docs/RELEASE-NOTES-v3.0.0.md](docs/RELEASE-NOTES-v3.0.0.md) | — |
 
-> 「—」表示该版本的二进制与说明发布在上一个仓库（`PolyXRD/XinMatch`）或未单独发布资产；
-> 换仓库后只有 v3.7.0 有对应的 GitHub Release 记录。
+> "—" means the binary and notes for that version were published in the previous repository
+> (`PolyXRD/XinMatch`) or that no asset was published separately; after the move, only v3.7.0 has a
+> corresponding GitHub Release record.

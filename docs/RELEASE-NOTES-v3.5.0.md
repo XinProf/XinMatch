@@ -1,141 +1,161 @@
-## XinMatch v3.5.0 — 元素「必须不含」约束可用、版本号单一真相源
+## XinMatch v3.5.0 — "Must not contain" element constraint made effective; single source of truth for the version
 
-> 基线 `v3.4.0`（提交 `c39e3b0`）｜本次是**缺陷收口 + 工程治理**版本。
-> 参考库格式、FoM 权重、P 值定义、命令行接口全部不变；**检索默认行为逐项不变**
-> （合成基准 11/13·12/13·10/13·19/24 已复核）。
+> Baseline `v3.4.0` (commit `c39e3b0`). This is a **defect-closure + engineering-governance**
+> release. Reference-library format, FoM weights, P-value definitions and the command-line
+> interface are all unchanged; **default search behaviour is unchanged item by item**
+> (synthetic baseline 11/13 · 12/13 · 10/13 · 19/24 re-verified).
 
-### 一、要解决的问题
+### 1. Problem to solve
 
-三件事，前两件是「界面说有、实际没有」，第三件是「同一个数字写了四遍」。
+Three items: the first two are "the UI says it exists but it doesn't", the third is "one
+number written four times".
 
-1. **三态元素约束的红色分支从未生效。** 周期表能标红、摘要会显示「排除：Bi」，
-   但从 1.x 到 3.4，`ElementState.EXCLUDE` 在**全仓的引用数为 0**：检索入口
-   `main_window._do_search` 调 `search_match` 时不传 `restraints`，预筛也没有这条
-   通路。用户以为「样品里没有 Bi」已经生效，实际什么都没发生 —— 基准报告 §11.5
-   的 `3-2` `Bi-Y-O` 假卡（pos 0.984，比真 CaF₂ 的 0.928 还准）只能靠肉眼剔。
-2. **版本号四处各写一遍然后漂移。** `pyproject.toml` 写 3.4.1、
-   `__init__._FALLBACK_VERSION` 写 3.4.0（**冻结 exe 报的就是这个**）、
-   `xinmatch.spec` 写 3.4.0、`xinmatch_setup.iss` 里 10 处写 3.4.0。
-   后果不是「显示不好看」：exe 的 About 报 3.4.0、源码跑报 3.4.1、安装包名固定
-   `XinMatch-Setup-3.4.0.exe`，用户报 bug 时给的版本号对不上 tag。
-   每次发版都靠人工清单「11 处一起改」，`docs/ACCEPTANCE-*.md` 里逐条写着。
-3. **P1「预筛排序连续化」需要一个结论。** §14.5 判断「二值主峰判据信息量不足，
-   应改强度加权覆盖率」，方向一直没验证过。
+1. **The red branch of the three-state element constraint never took effect.** The periodic
+   table could mark an element red and the summary showed "exclude: Bi", yet from 1.x through
+   3.4 `ElementState.EXCLUDE` had **zero references across the whole repository**: the search
+   entry point `main_window._do_search` did not pass `restraints` to `search_match`, and the
+   pre-filter had no such channel. Users believed "no Bi in the sample" was in effect when
+   nothing happened — the `3-2` `Bi-Y-O` false card in benchmark report §11.5 (pos 0.984,
+   more accurate than the real CaF₂ at 0.928) could only be removed by eye.
+2. **The version number was written in four places and drifted.** `pyproject.toml` said 3.4.1,
+   `__init__._FALLBACK_VERSION` said 3.4.0 (**this is what a frozen exe reports**),
+   `xinmatch.spec` said 3.4.0, and `xinmatch_setup.iss` had 10 occurrences of 3.4.0. The
+   consequence is not cosmetic: the exe's About says 3.4.0, running from source says 3.4.1,
+   and the installer filename is fixed as `XinMatch-Setup-3.4.0.exe`, so version numbers in bug
+   reports do not match the tag. Every release relied on a manual checklist ("change all 11
+   places together") written out item by item in `docs/ACCEPTANCE-*.md`.
+3. **P1 "continuous pre-filter ranking" needed a verdict.** §14.5 judged that "the binary
+   main-peak criterion carries too little information; switch to intensity-weighted coverage",
+   and that direction had never been verified.
 
-### 二、核心能力
+### 2. Core capabilities
 
-| 能力 | 说明 |
+| Capability | Description |
 |---|---|
-| **元素「必须不含」约束** | 周期表红色元素真正参与检索：在预筛层用 `element_inv` 倒排剔除含该元素的相，与「必含」（绿色）取交集 |
-| 三个入口一致 | GUI（限制条件面板）、`search_match(restraints=...)`、`search_match_v3(elements_excluded=...)` 走同一条通路 |
-| 未知元素的相反语义 | 拼错的元素符号在「必须含」方向清空结果（约束不可能满足），在「必须不含」方向**什么都不排除**（不可能含有 ≠ 不可能满足） |
-| FPFM 模式明说 | 全谱拟合链路没有 restraints 形参，选中元素又切到 FPFM 时状态栏直接提示，不静默失效 |
-| **版本号单一真相源** | `pyproject.toml` 唯一；spec 从它推导，iss 只剩一处默认值并由构建脚本 `ISCC /DAppVersion=` 覆盖 |
-| 版本一致性测试 | 5 项检查（pyproject / `_FALLBACK_VERSION` / iss 默认值 / iss 无其他字面量 / spec 不得写死），任一处漂移即测试失败 |
-| 构建自检 | `tools/build_exe.ps1` 构建后读 exe 的 `FileVersion` 与目标版本比对；新增 `-Installer` 一条命令出安装包 |
+| **Element "must not contain" constraint** | Red elements in the periodic table now really participate in search: the pre-filter removes phases containing them via the `element_inv` inverted index, intersected with "must contain" (green) |
+| Three entry points agree | GUI (Restraints panel), `search_match(restraints=...)` and `search_match_v3(elements_excluded=...)` share one path |
+| Opposite semantics for unknown elements | A misspelled symbol empties the result in the "must contain" direction (the constraint cannot be satisfied) but **excludes nothing** in the "must not contain" direction (cannot possibly contain ≠ cannot possibly satisfy) |
+| FPFM mode stated explicitly | The full-profile chain has no `restraints` parameter; with elements selected and FPFM active the status bar says so instead of failing silently |
+| **Single source of truth for the version** | `pyproject.toml` only; the spec derives from it, and iss keeps one default overridden by the build script's `ISCC /DAppVersion=` |
+| Version consistency tests | 5 checks (pyproject / `_FALLBACK_VERSION` / iss default / no other literals in iss / spec must not hard-code); any drift fails the test |
+| Build self-check | `tools/build_exe.ps1` reads the exe's `FileVersion` after building and compares it with the target; new `-Installer` produces the installer in one command |
 
-### 三、关键设计决定（以及为什么）
+### 3. Key design decisions (and why)
 
-1. **排除走 `element_inv` 倒排，不走 `entries.elem_mask`**
-   mask 是单个 64 位有符号整数，建库时按 **63 位截断**（`_MAX_STORABLE_MASK`）。
-   W、Pb、Bi、U、Ta、Au、Pt、Gd 等 27 % 的相落在 bit 63 之外，用 mask 筛会静默
-   漏判。`element_index()` 早就是这个原因改走倒排，排除方向沿用同一条路。
+1. **Exclusion goes through the `element_inv` inverted index, not `entries.elem_mask`**
+   The mask is a single signed 64-bit integer **truncated to 63 bits at build time**
+   (`_MAX_STORABLE_MASK`). Phases containing W, Pb, Bi, U, Ta, Au, Pt, Gd and friends — 27 % of
+   the library — fall outside bit 63, so filtering by mask silently misses them.
+   `element_index()` already switched to the inverted index for this reason; exclusion follows
+   the same route.
 
-2. **未知元素在排除方向返回全 `True`**
-   与「必须含」刻意相反。「必须含 La」而库里没有 La → 结果必须为空（约束不可能
-   满足）；「必须不含 Zz」而库里没有 Zz → 不该排除任何相。把两者写成同一种处理，
-   会让一个拼写错误变成「检索无结果」这种最难排查的现象。
+2. **Unknown elements return all-`True` in the exclusion direction**
+   Deliberately the opposite of "must contain". "Must contain La" with no La in the library →
+   the result must be empty (the constraint cannot be satisfied); "must not contain Zz" with no
+   Zz in the library → nothing should be excluded. Treating both the same way turns a typo into
+   "search returns nothing", the hardest failure to diagnose.
 
-3. **GUI 在读面板状态的位置上，必须是 GUI 线程**
-   `_do_search` 跑在工作线程，在 worker 里读 `PeriodicTablePanel.states()` 属于跨线程
-   访问 QWidget，Windows 上会随机崩。所以 `_current_restraints()` 在
-   `_run_search_match`（GUI 线程）里先取好，再把不可变的 `Restraints` 带进线程。
+3. **The GUI must read panel state on the GUI thread**
+   `_do_search` runs on a worker thread, and calling `PeriodicTablePanel.states()` from the
+   worker is cross-thread QWidget access that crashes randomly on Windows. So
+   `_current_restraints()` takes a snapshot inside `_run_search_match` (GUI thread) and passes
+   the immutable `Restraints` into the thread.
 
-4. **预筛排序做成开关，不改默认**
-   实测把后两键换位（命中数提前）后：真实谱 Top-1 10/12→**11/12**、卡级相召回
-   19/43→**23/43**（族级 25/43），但合成谱 Top-1 11/13→8/13、序贯 10/13→5/13。
-   根因是尺子不同源：合成谱用库内同一批参考强度反演，强度形判据天然占优。
-   「Top-1/Top-5 不退化」是硬验收口径，两种口径互有胜负属于产品裁定，所以落成
-   `XinDBReader(prescreen_order="intensity"|"hits")`，**默认仍是 `"intensity"`**。
-   详见基准报告 §16。
+4. **Pre-filter ordering made a switch, default unchanged**
+   Measured with the last two keys swapped (hit count promoted): real patterns Top-1 10/12 →
+   **11/12**, card-level phase recall 19/43 → **23/43** (family-level 25/43), but synthetic
+   Top-1 11/13 → 8/13 and sequential 10/13 → 5/13. The root cause is that the rulers are not
+   same-source: the synthetic patterns are inverted from the same in-library reference
+   intensities, so intensity-shape criteria win by construction. "Top-1/Top-5 must not
+   regress" is a hard acceptance rule, and two rulers disagreeing is a product decision, so it
+   became `XinDBReader(prescreen_order="intensity"|"hits")` with **`"intensity"` still the
+   default**. See benchmark report §16.
 
-5. **顺手证伪了一条旧建议**
-   §14.5 建议改「强度加权覆盖率」这类连续量。实测池内召回（800 席 / 67 真相位）：
-   `2·main_hit+命中率` 50/67、`+0.3·whits` 49/67、去掉主峰门控 41/67，
-   全都低于「二值门控 + 命中数」的 51/67。**门控是载荷，不是缺陷**：
-   它回答的「我的最强线是不是样品的强峰」在多相谱里恰恰是最强的单一判别特征。
+5. **Falsified an old recommendation along the way**
+   §14.5 recommended continuous quantities such as "intensity-weighted coverage". Measured
+   in-pool recall (800 slots / 67 truth phases): `2·main_hit+hit-rate` 50/67, `+0.3·whits`
+   49/67, dropping the main-peak gate 41/67 — all below "binary gate + hit count" at 51/67.
+   **The gate is payload, not a defect**: "is my strongest line a strong peak of the sample?"
+   is precisely the single strongest discriminating feature in multi-phase patterns.
 
-6. **版本号不再靠清单，靠机制**
-   spec 从 `pyproject.toml` 推导（原有 guard 比对 `_FALLBACK_VERSION` 继续生效），
-   iss 只保留 `#ifndef AppVersion` 一处默认值、其余全部 `{#AppVersion}`，
-   构建脚本用 `/DAppVersion=` 注入；再用 `tests/test_version_consistency.py` 把
-   「三处必须逐字相同」变成测试。这样下次 bump 只需要改 2 个文件（pyproject +
-   `_FALLBACK_VERSION`），而不是照清单改 11 处。
+6. **The version no longer relies on a checklist but on mechanism**
+   The spec derives from `pyproject.toml` (the existing guard comparing `_FALLBACK_VERSION`
+   still applies), iss keeps a single `#ifndef AppVersion` default with everything else using
+   `{#AppVersion}`, the build script injects `/DAppVersion=`, and
+   `tests/test_version_consistency.py` turns "the three places must match verbatim" into a
+   test. The next bump therefore touches 2 files (pyproject + `_FALLBACK_VERSION`) instead of
+   11 checklist entries.
 
-### 四、随版本一起发出的数据侧修正
+### 4. Data-side corrections shipped with this release
 
-这些改了库内容、不改代码行为，已在 3.4.1 的库文件里生效，3.5.0 一并说明：
+These changed library content, not code behaviour, and were already live in the 3.4.1 library
+files; recorded here with 3.5.0:
 
-| 项 | 内容 | 验证 |
+| Item | Content | Verification |
 |---|---|---|
-| COD-Inorg 417 条空式卡 | 对称展开位点 → `formula_from_sites` 派生化学式，原地补丁只改元数据 | 四步等价性证明：全量重解析 diff / 护栏写入 / `validate_xindb` + 逐 chunk 哈希 + 抽样重建 / 写后 diff 归零 |
-| COD-Full 440 条空式卡 | 同上（含 4 张垃圾式），空式归零 | 130 chunk 哈希全等、48/48 抽样重建逐字节一致、双基准 JSON 逐字段全等 |
-| PDF-2 57 条截断卡 | `X7` 续行不再被覆盖（`formula_lines` + 收窄的 `display_formula`），57 张 `)2` / `]n` 尾巴修好 | E2 无元素 WARN 93→36（剩 36 是源数据固有，**不编造**）；40 chunk 哈希全等 |
+| 417 empty-formula cards in COD-Inorg | Symmetry-expanded sites → formula derived with `formula_from_sites`; in-place patch touching metadata only | Four-step equivalence proof: full re-parse diff / guarded write / `validate_xindb` + per-chunk hashes + sampled rebuild / post-write diff zero |
+| 440 empty-formula cards in COD-Full | Same (including 4 junk formulas); empty formulas down to zero | 130 chunk hashes all equal, 48/48 sampled rebuilds byte-identical, both benchmark JSONs identical field by field |
+| 57 truncated cards in PDF-2 | `X7` continuation lines no longer overwritten (`formula_lines` + narrowed `display_formula`); 57 mangled `)2` / `]n` tails fixed | E2 no-element WARN 93 → 36 (the remaining 36 are inherent to the source data — **nothing invented**); 40 chunk hashes all equal |
 
-3.4.1 的 `same_phase` 修复（空白式卡不再「万能匹配」）也在本版本内：它让真实谱的
-组成级召回数字**下降**且更接近事实 —— 旧数字是被假匹配抬高的，属于口径修正而非能力退化。
+The 3.4.1 `same_phase` fix (empty-formula cards no longer match everything) is also inside this
+release: it makes the real-pattern composition-level recall numbers **go down** and become more
+truthful — the old numbers were inflated by false matches, so this is a correction of the
+metric, not a loss of capability.
 
-### 五、验证
+### 5. Verification
 
-| 项 | 结果 |
+| Item | Result |
 |---|---|
-| `pytest`（全量） | 见 §六 实测，0 失败 |
+| `pytest` (full) | see §6, 0 failures |
 | `ruff` | All checks passed |
-| `mypy`（改动模块） | Success: no issues found |
-| 合成基准（默认口径） | 相位级 Top-1 11/13、Top-5 12/13、序贯 10/13、相召回 19/24 —— 与 3.4.x 逐项相同 |
-| 元素约束（真实 13 组，理想 XRF 设定） | Top-1 10/12 → 12/12；逐相名次 21 升 / 17 平 / 4 降 / 1 挤出 |
-| 版本一致性 | 5 项测试全过；XinMatch 与 XinRefinement 两侧都补了同样的闸 |
-| 二进制 · 版本 | 三个产物 `--version` 均报 `3.5.0`；exe 的 `FileVersion` 资源 = 3.5.0 |
-| 二进制 · 内置库 | `libraries --json` 列出 `xindb_cod_inorg`、`available:true`、`entries:78035` |
-| 二进制 · 检索 | 冻结 exe 跑真实样本 `3-1.txt`（207 峰 / 78k 相库）36 s 出榜，榜首 zincite(ZnO) 正确 |
-| 二进制 · 新功能 | `--restraints '{"elements":{"Zn":"red"}}'` 后 ZnO 全部消失 —— 约束在冻结产物上真的生效 |
-| 二进制 · GUI | release / internal / 安装版三种形态 offscreen 启动均存活 12 s 无崩溃（stderr 只剩 offscreen 平台的字体与 `titleBarShown` 警告） |
-| 安装包 | `/VERYSILENT` 退出码 0，落地 3562 文件、`variant.txt=release`、内置库就位；卸载退出码 0 |
-| 便携 zip | `7z t` 全量 CRC 通过（3560 文件 / 822,198,605 → 353,751,503 B），条目无 `-shm`/`-wal` 运行态文件 |
+| `mypy` (changed modules) | Success: no issues found |
+| Synthetic benchmark (default config) | phase-level Top-1 11/13, Top-5 12/13, sequential 10/13, phase recall 19/24 — identical to 3.4.x item by item |
+| Element constraint (13 real groups, ideal XRF setting) | Top-1 10/12 → 12/12; per-phase rank 21 up / 17 flat / 4 down / 1 pushed out |
+| Version consistency | all 5 tests pass; both XinMatch and XinRefinement gained the same gate |
+| Binary · version | all three artefacts report `3.5.0` from `--version`; the exe's `FileVersion` resource = 3.5.0 |
+| Binary · bundled library | `libraries --json` lists `xindb_cod_inorg`, `available:true`, `entries:78035` |
+| Binary · search | frozen exe on the real sample `3-1.txt` (207 peaks / 78k-phase library) returns a ranking in 36 s, top hit zincite (ZnO) correct |
+| Binary · new feature | after `--restraints '{"elements":{"Zn":"red"}}'` all ZnO entries disappear — the constraint really works in the frozen build |
+| Binary · GUI | release / internal / installed forms all survive 12 s of offscreen startup without crashing (stderr holds only offscreen-platform font and `titleBarShown` warnings) |
+| Installer | `/VERYSILENT` exit code 0, 3562 files installed, `variant.txt=release`, bundled library in place; uninstall exit code 0 |
+| Portable zip | `7z t` full CRC passes (3560 files / 822,198,605 → 353,751,503 B), no `-shm`/`-wal` runtime files among the entries |
 
-发布产物（`dist/`）：
+Release artefacts (`dist/`):
 
-| 文件 | 体积 | SHA-256 |
+| File | Size | SHA-256 |
 |---|---|---|
-| `XinMatch-Setup-3.5.0.exe` | 254,107,247 B（242.3 MiB） | `e81ab39f97ec9322db8bf68de18831bb02ce14b3f77e6b8eb23d460d159f9ba7` |
-| `XinMatch-Internal-3.5.0.zip` | 353,751,503 B（337.4 MiB） | `41ac3005ea17af5f4af2538ea285a5bbc69932ae9c456985cd5e63cce295b40b` |
+| `XinMatch-Setup-3.5.0.exe` | 254,107,247 B (242.3 MiB) | `e81ab39f97ec9322db8bf68de18831bb02ce14b3f77e6b8eb23d460d159f9ba7` |
+| `XinMatch-Internal-3.5.0.zip` | 353,751,503 B (337.4 MiB) | `41ac3005ea17af5f4af2538ea285a5bbc69932ae9c456985cd5e63cce295b40b` |
 
-> 便携 zip 内以 `XinMatch.exe` / `_internal/` / `data/` 为根（无外层目录），与 3.3/3.4 一致；
-> 打包时显式排除 `*.xinDB-shm` / `*.xinDB-wal` —— 那是运行期 SQLite 的临时件，
-> 一旦随包发出，用户首次打开会先看到「库正在被占用」这类无意义告警。
+> Inside the portable zip, `XinMatch.exe` / `_internal/` / `data/` sit at the root (no wrapper
+> directory), consistent with 3.3/3.4. Packaging explicitly excludes `*.xinDB-shm` /
+> `*.xinDB-wal` — those are SQLite runtime temporaries, and shipping them makes the first
+> launch show meaningless "library in use" warnings.
 
-### 六、升级注意
+### 6. Upgrade notes
 
-* **默认行为不变**：不使用「限制条件」面板的用户，检索结果与 3.4.x 逐位相同。
-* 若要让红色元素生效，请在「限制条件」标签页勾选元素并把状态点到红色，再运行
-  Search-Match（仅峰列表 FoM 模式；FPFM 会提示不参与）。
-* 安装包文件名变成 `XinMatch-Setup-3.5.0.exe`；旧版 `data\*.xinDB` 参考库可直接沿用。
-* 想试新排序口径：`XinDBReader(path, prescreen_order="hits")` 或写脚本对比，
-  注意它对合成谱与真实谱的影响方向相反（报告 §16.3）。
+* **Default behaviour unchanged**: users who never touch the Restraints panel get
+  bit-identical search results to 3.4.x.
+* To make red elements effective, tick elements on the Restraints tab, set their state to red,
+  then run Search-Match (peak-list FoM mode only; FPFM says it is not involved).
+* The installer filename becomes `XinMatch-Setup-3.5.0.exe`; existing `data\*.xinDB` reference
+  libraries carry over directly.
+* To try the new ranking: `XinDBReader(path, prescreen_order="hits")`, or write a script to
+  compare — note that it moves synthetic and real patterns in opposite directions (report §16.3).
 
-### 七、复现
+### 7. Reproduction
 
 ```bash
-# 合成 / 真实基准（默认口径）
+# synthetic / real benchmarks (default config)
 python -m tools.bench_pattern_set  --patterns D:\Project\XRD\test_xrd\synthetic_v3 \
     --library <COD-Inorg.xinDB> --out .scratch/bench_syn.json
 python -m tools.bench_real_samples --patterns D:\Project\XRD\test_xrd\txt \
     --library <COD-Inorg.xinDB> --out .scratch/bench_real.json
 
-# 排序口径 2×2（临时改写源码，跑完自动还原）
+# ranking 2×2 (temporarily rewrites source, restores it afterwards)
 python .scratch/_probe_ab_prescreen.py --which syn
 python .scratch/_probe_ab_prescreen.py --which real
 
-# 元素「必须不含」在真实谱上的名次变化
+# rank changes from the "must not contain" constraint on real patterns
 python .scratch/_probe_exclude_bench.py
 ```

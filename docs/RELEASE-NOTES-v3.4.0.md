@@ -1,121 +1,137 @@
-## XinMatch v3.4.0 — 导出物相分析状态（.xinm）：与 XinRefinement 1.1.0 打通
+## XinMatch v3.4.0 — Export phase-analysis state (.xinm): interworking with XinRefinement 1.1.0
 
-> 基线 `v3.3.0`｜本次为**互通版本**：新增一个导出入口、一份文件格式契约、一条 CIF 回取链。
-> 参考库格式、FoM 权重、排序口径、P 值定义、命令行全部不变。
+> Baseline `v3.3.0`. This is an **interworking** release: one new export entry, one file-format
+> contract and one CIF retrieval chain. Reference-library format, FoM weights, ranking
+> criterion, P-value definitions and the command line are all unchanged.
 
-### 一、要解决的问题
+### 1. Problem to solve
 
-检索做完，结论只活在 XinMatch 里。想去 XinRefinement 做全谱拟合，得手工做三件事：
-重新导入谱图、逐个把已鉴定相的 CIF 找回来、记住波长。
+Once a search is finished, the conclusion lives only inside XinMatch. To run a full-profile
+refinement in XinRefinement you had to do three things by hand: re-import the pattern, look up
+the CIF of every identified phase, and remember the wavelength.
 
-第二件事最要命。COD 归档是 52 万个文件按 id 分层散开的
-（`COD/9/00/82/9008220.cif`），库里只存 `96-900-8220` 这个 ref_id，不存路径也不存内容。
-用户要么凭经验翻目录，要么去网站上一条条下——两种做法都会挂错相，而挂错相的精修
-**照样收敛**，只是 Rwp 白高、定量白做。
+The second one is the killer. The COD archive is 520 thousand files spread across an id-based
+directory hierarchy (`COD/9/00/82/9008220.cif`), while the library stores only the ref_id
+`96-900-8220` — no path, no content. Users either dig through directories from experience or
+download entry by entry from the website; both ways can attach the wrong phase, and a
+refinement with the wrong phase **still converges** — it just reports an inflated Rwp and
+produces a meaningless quantification.
 
-### 二、核心能力
+### 2. Core capabilities
 
-| 能力 | 说明 |
+| Capability | Description |
 |---|---|
-| **导出物相分析（.xinm）** | 文件菜单新入口；一次打包锚点谱图 + 已选物相的 CIF + 峰表 + 元数据，供 XinRefinement「导入 XinMatch 物相分析」一键装载 |
-| 容器格式 | zip：`manifest.json` + `pattern/pattern.csv` + `cifs/*.cif`；`format:"xinm"` / `version:1`，字段只加不减 |
-| 谱图规范化 | 两列 CSV（`two_theta,intensity`），`%.10g`——float64 往返相对误差 ≤1e-9，10 万点约 2 MB |
-| CIF 回取桥 | `96-900-8220` → COD id `9008220` → `{id[0]}/{id[1:3]}/{id[3:5]}/{id:07d}.cif`；按「环境变量 → 当前档案根 → 历史根」逐根探测 |
-| 降级不阻断 | 某相 CIF 回取失败 → 该相 `structural=false` + `reason` 文案，导出照常完成；精修侧列为「仅参照」，可手动补 CIF |
-| 版权边界 | **不打包任何 ICDD/PDF2 衍生数据文件**；`source="pdf2"` 只写 id 与峰表元数据（与 DB Manager「请确认已获得正版授权」同一原则） |
-| 候选摘要 | 前 20 个未选候选只带 name / entry_id / source，不嵌 CIF（控制体积），供精修侧提示「还可补相」 |
+| **Export phase analysis (.xinm)** | New File-menu entry; packs the anchor pattern + the selected phases' CIFs + the peak table + metadata in one go, for XinRefinement's "Import XinMatch phase analysis" to load in one click |
+| Container format | zip: `manifest.json` + `pattern/pattern.csv` + `cifs/*.cif`; `format:"xinm"` / `version:1`, fields are only added, never removed |
+| Pattern normalization | Two-column CSV (`two_theta,intensity`) with `%.10g` — float64 round-trips within 1e-9 relative error, ~2 MB for 100k points |
+| CIF retrieval bridge | `96-900-8220` → COD id `9008220` → `{id[0]}/{id[1:3]}/{id[3:5]}/{id:07d}.cif`; probed root by root in the order "environment variable → current archive root → legacy root" |
+| Degrade without blocking | If one phase's CIF cannot be retrieved, that phase gets `structural=false` plus a `reason` string and the export still completes; the refinement side lists it as "reference only", with CIF attachable manually |
+| Copyright boundary | **No ICDD/PDF-2 derived data file is ever packed**; `source="pdf2"` writes only the id and peak-table metadata (the same principle as DB Manager's "please confirm you hold a genuine licence") |
+| Candidate summary | The first 20 unselected candidates carry only name / entry_id / source, with no embedded CIF (to control size), so the refinement side can suggest "more phases could be added" |
 
-### 三、关键设计决定（以及为什么）
+### 3. Key design decisions (and why)
 
-1. **zip 容器而不是单个 JSON**
-   10 万点谱图 float 列表 JSON 化约 4 MB+ 且解析慢；CSV 约 2 MB、可流式读写。
-   CIF 是文本，直接塞 zip 里按成员名取，比 base64 进 JSON 省 33% 且不污染 manifest。
+1. **A zip container rather than a single JSON**
+   A 100k-point pattern as a float list in JSON is 4 MB+ and slow to parse; CSV is about 2 MB
+   and streams. CIFs are text, so storing them as zip members keyed by name saves 33 % versus
+   base64 in JSON and keeps the manifest clean.
 
-2. **不新造 `xinm_cif_bridge.py`，复用 `core/refine/cif_store.py`**
-   计划里原本单列一个桥接模块。实做时发现 `cif_store` 早有完整链路（结构查看在用）：
-   ref_id → COD id → 归档路径。再造一层属于重复实现，也容易两处布局口径漂移。
-   本次只给它补了**多根探测**（见第 5 条）。
+2. **No new `xinm_cif_bridge.py`; reuse `core/refine/cif_store.py`**
+   The plan listed a separate bridge module. In practice `cif_store` already had the complete
+   chain (used by the structure viewer): ref_id → COD id → archive path. Another layer would
+   duplicate it and risk two layout conventions drifting apart. All it needed this round was
+   **multi-root probing** (see item 5).
 
-3. **`%.10g` 而不是 `%.6g`**
-   计划草稿写的是 `%.6g`。实测 `%.6g` 对 float64 无法零往返（相对误差约 1e-7），
-   而谱图往返要参与基线扣除与残差计算，宁可多 4 位有效数字。`%.10g` 下 10 万点
-   仍 < 3 MB，往返逐位一致。
+3. **`%.10g`, not `%.6g`**
+   The draft plan said `%.6g`. Measured: `%.6g` cannot round-trip float64 (relative error around
+   1e-7), and pattern round-trips feed baseline subtraction and residual computation, so four
+   extra significant digits are worth it. At `%.10g`, 100k points still take < 3 MB and
+   round-trip bit-exactly.
 
-4. **只判「能不能拿到 CIF」，不判「该不该给」**
-   导出侧不做结构合理性检查（有没有原子坐标、占位是否和为 1）——那是精修侧导入时的活。
-   导出只回答一个问题：这个 entry 的 CIF 在不在本地档案里。拿得到就打，拿不到就标记。
+4. **Judge only "can the CIF be obtained", not "should it be given"**
+   The export side performs no structural sanity checks (atom coordinates present, occupancies
+   summing to 1) — that belongs to import on the refinement side. Export answers exactly one
+   question: is this entry's CIF present in the local archive? If yes, pack it; if no, flag it.
 
-5. **档案根多探测，而不是写死一个路径**
-   `DEFAULT_COD_ROOT` 原来硬编码 `PolyXRD\cod\cif`，机器迁移后该目录已不存在
-   （档案现居 `sync-COD\COD`）。写死会让「CIF 全部回取失败」表现得像「数据库坏了」。
-   现在按 `XINMATCH_COD_ROOT` → 当前根 → 历史根 顺序取第一个存在的目录，逐根尝试。
+5. **Probe multiple archive roots instead of hard-coding one path**
+   `DEFAULT_COD_ROOT` was hard-coded to `PolyXRD\cod\cif`, which no longer exists after the
+   machine migration (the archive now lives at `sync-COD\COD`). Hard-coding made "every CIF
+   retrieval failed" look like "the database is broken". Now the first existing directory in
+   the order `XINMATCH_COD_ROOT` → current root → legacy root is used, trying each in turn.
 
-6. **扫描范围与步长在导出侧规范化**
-   谱图 meta 里常常没有 `tmin/tmax`，`step` 又带着 `0.019999999999999574` 这种浮点尾巴。
-   导出一律回填真实首末 2θ（6 位小数）并 `round(step, 6)`——下游会把它写进画布与报告头，
-   契约里写的字段就该有干净的值，而不是 `null` 和浮点噪声。
+6. **Scan range and step normalized on the export side**
+   Pattern metadata often lacks `tmin/tmax`, and `step` carries floating-point tails like
+   `0.019999999999999574`. Export always backfills the real first/last 2θ (6 decimals) and
+   applies `round(step, 6)` — downstream writes these into the canvas and the report header, and
+   a field named in the contract should hold a clean value rather than `null` and float noise.
 
-### 四、界面
+### 4. UI
 
-* 菜单：`文件(F) → 导出物相分析（.xinm）…`（位于导出报告之后、分隔线之上）。
-* 前置校验：无谱图 → 「尚未载入实验衍射谱」；无已选候选 → 「请先运行 Search-Match 并选择相」。
-* 完成提示：`已导出 N 相（M 个含结构 CIF），谱图 P 点 → analysis.xinm`。
-* CIF 回取失败不弹错、不中断——计数会小于相数，落盘状态在 manifest 里可查。
+* Menu: `File → Export Phase Analysis (.xinm)…` (after Export Report, above the separator).
+* Pre-checks: no pattern → "no experimental diffraction pattern loaded yet"; no selected
+  candidate → "run Search-Match and select phases first".
+* Completion message: `Exported N phases (M with structural CIF), pattern P points → analysis.xinm`.
+* A failed CIF retrieval raises no error and interrupts nothing — the count is simply smaller
+  than the phase count, and the per-phase status is recorded in the manifest.
 
-### 五、兼容性
+### 5. Compatibility
 
-| 项 | 状态 |
+| Item | Status |
 |---|---|
-| 参考库格式（`.xinDB` schema v3） | 不变，v3.3.0 的库直接可用 |
-| FoM 权重 / 排序 / P 值定义 | 不变，检索结果与 v3.3.0 逐项相同 |
-| 命令行 / 配置文件 | 不变，无新增子命令 |
-| 注册机制 / 双变体 | 不变（release 含注册、internal 红字标识） |
-| 新增产物 | `.xinm`，独立文件，不影响既有工程与报告 |
+| Reference-library format (`.xinDB` schema v3) | unchanged; v3.3.0 libraries work directly |
+| FoM weights / ranking / P-value definitions | unchanged; search results identical to v3.3.0 item by item |
+| Command line / config file | unchanged, no new subcommands |
+| Registration mechanism / dual variants | unchanged (release registers, internal shows the red badge) |
+| New artefact | `.xinm`, a standalone file that does not affect existing projects or reports |
 
-### 六、验收
+### 6. Verification
 
-* 单测：`tests/io/test_xinm.py` 6 项——manifest 字段、CSV 往返、无候选摘要、
-  无法解析 id 的降级、无谱图报错、**真实档案锚点**（`96-900-8220` 锐钛矿命中）。
-* 全量：**1494 项，1489 通过 / 5 跳过 / 0 失败**。
-* 真实样品联通（`test_xrd/txt/5-1.txt` 方解石 + COD `96-210-0189`）：
-  导出 5751 点 / 1 CIF / 23.3 KB → XinRefinement 侧 `read_xinm` 读回 5751 点、
-  1 个含结构相、CIF 3,580 B、`app.version=3.4.0`。
-* 跨仓库：XinRefinement 侧 `tests/test_xinm_import.py` 直接调用本仓库导出器做 round-trip；
-  S1 端到端「导出 → 导入 → 精修」Rwp **3.409617019598457**，与手动导入同谱图/CIF
-  的结果逐位一致，且保存 `.xinr` 后删除源谱图与 `.xinm` 仍能复现。
+* Unit tests: `tests/io/test_xinm.py`, 6 items — manifest fields, CSV round-trip, no-candidate
+  summary, unparsable-id degradation, no-pattern error, and **a real-archive anchor**
+  (`96-900-8220` anatase hit).
+* Full suite: **1494 items, 1489 passed / 5 skipped / 0 failed**.
+* Real-sample interworking (`test_xrd/txt/5-1.txt` calcite with COD `96-210-0189`): export
+  5751 points / 1 CIF / 23.3 KB → XinRefinement's `read_xinm` reads back 5751 points, 1 phase
+  with structure, CIF 3,580 B, `app.version=3.4.0`.
+* Cross-repository: XinRefinement's `tests/test_xinm_import.py` calls this repository's
+  exporter directly for a round-trip; the S1 end-to-end "export → import → refine" gives Rwp
+  **3.409617019598457**, bit-identical to importing the same pattern/CIF manually, and still
+  reproducible after saving `.xinr` and deleting the source pattern and `.xinm`.
 
-### 七、发布产物
+### 7. Release artefacts
 
-| 附件 | 字节 | SHA-256 |
+| Attachment | Bytes | SHA-256 |
 |---|---:|---|
 | `XinMatch-Setup-3.4.0.exe` | 254,139,154 | `4962defa7d0e4cf702db200c0b3366243b7ea09f95fafe4d7a39fab7ef0c7f19` |
 | `XinMatch-Internal-3.4.0.zip` | 368,486,794 | `fb82ce897bf4227aa79420fce3359772001809ee274be64f356ace9aa7ff3a08` |
-| `SHA256SUMS.txt` | — | 上面两个哈希的清单 |
+| `SHA256SUMS.txt` | — | manifest of the two hashes above |
 
-两个二进制都内置 `COD-Inorg-20261020.xinDB`（113 MiB / 78,035 相），解压或安装即可检索；
-更大的扩展库仍从
-[`XinMatch-DataBase`](https://github.com/PolyXRD/XinMatch-DataBase) 挂载。
-导入 `.xinm` 的对端版本是 **XinRefinement 1.1.0**，两版需配套发布。
+Both binaries bundle `COD-Inorg-20261020.xinDB` (113 MiB / 78,035 phases), so search works
+right after unzipping or installing; larger extended libraries are still mounted from
+[`XinMatch-DataBase`](https://github.com/PolyXRD/XinMatch-DataBase).
+The counterpart that imports `.xinm` is **XinRefinement 1.1.0**; the two versions must be
+released as a pair.
 
-### 八、二进制稳健性验收（5 轮，全部通过）
+### 8. Binary robustness acceptance (5 rounds, all passed)
 
-对**实际发布的产物**跑 `tools/verify_binary.py`，原始结果
-`.scratch/binary_verify_340.json`（`all_pass=true`）：
+`tools/verify_binary.py` was run against the **actually shipped artefacts**; raw results in
+`.scratch/binary_verify_340.json` (`all_pass=true`):
 
-| # | 检查 | 实测结果 |
+| # | Check | Measured result |
 |---|---|---|
-| 1 | SHA-256 一致性 | 算哈希 → 写 `SHA256SUMS.txt` → 解析回读并重新哈希比对，一致 ✅ |
-| 2 | 便携模式启动 | 解包 exit 0 → `variant.txt=internal`、内置 `COD-Inorg-20261020.xinDB` 118,640,640 B / 78,035 相、随包 `logo_256.png` 与源码逐字节一致；`libraries --json` 与 `import --help` 均 exit 0 ✅ |
-| 3 | 冻结 GUI 冒烟 | `REG` → `variant=internal, registration_enabled=false, 内部评估版本`；`LIBS` → 10 条库记录；`ABOUT` → 渲染出 About 对话框 PNG ✅ |
-| 4 | 静默安装 | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER` → exit 0，落地 `XinMatch.exe` + `data\COD-Inorg-20261020.xinDB`，`variant.txt=release` ✅ |
-| 5 | 安装后启动 | 安装目录冻结 CLI `libraries --json` exit 0；真实谱端到端检索 `5-1.txt` → 118 峰 / 5 候选 / 榜首 `96-210-0189`（方解石，与 v3.3.0 一致）；release GUI 钩子 `variant=release, registration_enabled=true, 未注册` ✅ |
+| 1 | SHA-256 consistency | hash → write `SHA256SUMS.txt` → parse back and re-hash to compare: matches ✅ |
+| 2 | Portable startup | extract exit 0 → `variant.txt=internal`, bundled `COD-Inorg-20261020.xinDB` 118,640,640 B / 78,035 phases, bundled `logo_256.png` byte-identical to source; `libraries --json` and `import --help` both exit 0 ✅ |
+| 3 | Frozen GUI smoke | `REG` → `variant=internal, registration_enabled=false, internal evaluation build`; `LIBS` → 10 library records; `ABOUT` → About dialog rendered to PNG ✅ |
+| 4 | Silent install | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER` → exit 0, `XinMatch.exe` + `data\COD-Inorg-20261020.xinDB` installed, `variant.txt=release` ✅ |
+| 5 | Post-install startup | frozen CLI in the install dir `libraries --json` exit 0; real-pattern end-to-end `5-1.txt` → 118 peaks / 5 candidates / top `96-210-0189` (calcite, same as v3.3.0); release GUI hook `variant=release, registration_enabled=true, unregistered` ✅ |
 
-本轮顺带修掉一个**版本号显示缺陷**（v3.3.0 起就存在，不在联合计划范围内但会污染
-`.xinm` 的 `app.version`）：冻结包里没有 `pyproject.toml`，而开发机的
-`site-packages` 残留 `xinmatch-1.7.1.dist-info`，`importlib.metadata` 会把它当真版本，
-于是 About 对话框与 `.xinm` manifest 都写成 1.7.1。现在冻结态直接返回
-`__init__._FALLBACK_VERSION`，并由 `xinmatch.spec` 在构建时断言它等于 `APP_VERSION`
-（不同步就构建失败）；同时 CLI 新增 `--version` / `-V`（此前 `--version` 会打开 GUI）。
+This round also fixed a **version-display defect** (present since v3.3.0, outside the joint
+plan but polluting `.xinm`'s `app.version`): a frozen bundle has no `pyproject.toml`, while the
+development machine's `site-packages` retains `xinmatch-1.7.1.dist-info`, so
+`importlib.metadata` took that as the real version and both the About dialog and the `.xinm`
+manifest said 1.7.1. Frozen builds now return `__init__._FALLBACK_VERSION` directly, and
+`xinmatch.spec` asserts at build time that it equals `APP_VERSION` (build fails otherwise);
+the CLI also gained `--version` / `-V` (previously `--version` opened the GUI).
 
-人工双击验收仍建议由使用者做一次（自动化只覆盖离屏路径）。
-
+A manual double-click acceptance by the user is still recommended (automation covers only the
+offscreen path).

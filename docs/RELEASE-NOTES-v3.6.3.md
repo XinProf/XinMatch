@@ -1,75 +1,82 @@
-## XinMatch v3.6.3 — 元素限定四态 + 闭环（口径对齐 PolyXRD）
+## XinMatch v3.6.3 — Element constraints in four states + closed loop (semantics aligned with PolyXRD)
 
-> 基线 `v3.6.2`（源码 `41279d4`）｜本版动两条：**元素约束**链路与
-> **默认检索模式**。
-> `ElementState` 扩到四态、新增闭环开关、预筛多一条「至少含一个」通路；
-> 物相鉴定默认从「峰列表 FoM（寻峰）」改为「**FPFM 全谱拟合（不寻峰）**」。
+> Baseline `v3.6.2` (source `41279d4`). This release touches two things: the **element
+> constraint** path and the **default search mode**. `ElementState` grows to four states,
+> a closed-loop switch is added, and the pre-filter gains an "at least one of" channel;
+> phase identification now defaults to **FPFM full-profile fitting (no peak search)**
+> instead of "peak-list FoM (peak search)".
 >
-> **旧用法逐位不变**：`closed_world` 默认 `False`、新增的 `HAS` / `MAYBE`
-> 不被旧存档使用，所以「只标必有/没有」的行为与 v3.6.2 完全一致；
-> 基准数字（真实谱相召回 30/43 等）不动 —— 快速录入生成的补集约束
-> （113 个 `EXCLUDE`）与闭环写法换算出的 `elements_excluded` 是同一个集合。
+> **Legacy behaviour is bit-for-bit unchanged**: `closed_world` defaults to `False`, and the
+> new `HAS` / `MAYBE` states are never written by old archives, so "only mark must-have /
+> absent" behaves exactly as in v3.6.2. Benchmark numbers (real-pattern phase recall 30/43
+> and friends) do not move — the complement constraint produced by quick entry (113
+> `EXCLUDE` entries) and the `elements_excluded` set derived from the closed-loop form are
+> the same set.
 >
-> v3.6.1 / v3.6.2 的安装包均**未人工验收、未打 tag、未发布**；本版尚未构建二进制。
+> The v3.6.1 / v3.6.2 installers were **never manually accepted, tagged or published**; no
+> binary has been built for this release yet.
 
-### 一、要解决的问题
+### 1. Problem to solve
 
-用户原话：
+User's words:
 
-> 元素周期表的元素限定逻辑参考 `D:\Project\XRD\PolyXRD` 实现
+> Element constraint logic in the periodic table — implement it with reference to `D:\Project\XRD\PolyXRD`
 
-XinMatch v3.6.2 之前只有三态，两个真实短板：
+Before v3.6.2 XinMatch had only three states, with two real gaps:
 
-1. **没有「至少含一个」**。用户想表达「样品是 MgO 或 CaO 或 CaCO3 这一族」，
-   只能把 Mg、Ca、C、O **全标成「必有」** —— 而那是 AND 语义，结果只剩
-   CaMg(CO3)2，恰好把最常见的单组分相挡在门外。
-2. **没有闭环**。「只允许样品里检出的这几个元素」只能写成「其余 113 个元素
-   全部标为没有」（v1.4 的「其余元素排除」快捷录入），逐点 118 个按钮不现实，
-   而且打开周期表弹窗会看到 113 个红框，反而看不出自己选了什么。
+1. **No "at least one of"**. To express "the sample is MgO or CaO or CaCO3 — that family",
+   users had to mark Mg, Ca, C and O **all as "must contain"** — which is AND semantics,
+   leaving only CaMg(CO3)2 and shutting out the most common single-component phases.
+2. **No closed loop**. "Allow only the few elements detected in the sample" could only be
+   written as "mark the other 113 elements as absent" (the v1.4 "exclude the rest" quick
+   entry); clicking 118 buttons one by one is unrealistic, and opening the periodic-table
+   dialog then shows 113 red frames, which hides what you actually selected.
 
-PolyXRD 的四态 + `closed_world` 正好补这两块
-（`src/polyxrd/utils/formula_parser.py::elements_match_filter` +
-`src/polyxrd/views/widgets/element_periodic_table.py`）。
+PolyXRD's four states + `closed_world` fill exactly these two gaps
+(`src/polyxrd/utils/formula_parser.py::elements_match_filter` +
+`src/polyxrd/views/widgets/element_periodic_table.py`).
 
-### 二、语义（与 PolyXRD 逐条对齐）
+### 2. Semantics (aligned with PolyXRD, clause by clause)
 
-记 S = 物相元素集，P / H / M / E = 必有 / 含有 / 可能 / 没有：
+Let S = the phase's element set, and P / H / M / E = must-have / contains / possible / absent:
 
-| 类别 | 判定式 | 含义 | 预筛落地 |
+| Class | Predicate | Meaning | Pre-filter implementation |
 |---|---|---|---|
-| 必有 P | `P ⊆ S` | 每个都必须出现（AND） | `elements_allowed` |
-| 含有 H | `S ∩ H ≠ ∅` | 至少含其中一个（OR） | `elements_any`（**新增**） |
-| 可能 M | 无强制条件 | 只放宽闭环的允许池 | 只参与池计算 |
-| 没有 E | `S ∩ E = ∅` | 含任一即淘汰 | `elements_excluded` |
+| Must-have P | `P ⊆ S` | every one must be present (AND) | `elements_allowed` |
+| Contains H | `S ∩ H ≠ ∅` | at least one of them (OR) | `elements_any` (**new**) |
+| Possible M | no hard condition | only widens the closed-loop allowed pool | contributes to the pool only |
+| Absent E | `S ∩ E = ∅` | any of them eliminates the phase | `elements_excluded` |
 
-两条附加规则，都容易漏：
+Two additional rules, both easy to miss:
 
-* **必有已满足时不再要求「含有」**。否则纯金属这类单元素相永远进不了候选。
-* **闭环**：`P∪H∪M` 非空时，未指定元素一律当作「没有」，等价于
-  `S ⊆ P∪H∪M`。三者全空 = 全库检索；只勾「没有」= 开放世界（只排除这些元素）。
+* **Once the must-have set is satisfied, "contains" is no longer required.** Otherwise
+  single-element phases such as pure metals could never enter the candidate list.
+* **Closed loop**: when `P∪H∪M` is non-empty, every unassigned element is treated as
+  "absent", i.e. `S ⊆ P∪H∪M`. All three empty = search the whole library; only "absent"
+  marked = open world (exclude just those elements).
 
-### 三、做了什么
+### 3. What was done
 
-#### ① `core` —— 模型与判据（`xinmatch/core/model/restraints.py`）
+#### ① `core` — model and predicate (`xinmatch/core/model/restraints.py`)
 
-`ElementState` 由三值扩到五值，**旧值不变**（`red` / `yellow` / `green`），
-新增 `HAS = "has"` 与 `MAYBE = "maybe"`，所以旧 `.xinm` 存档、YAML、
-`Restraints.from_dict` 全部照常加载。
+`ElementState` grows from three values to five, **old values unchanged** (`red` / `yellow` /
+`green`), adding `HAS = "has"` and `MAYBE = "maybe"`, so old `.xinm` archives, YAML and
+`Restraints.from_dict` all load as before.
 
 ```python
 class ElementState(str, Enum):
-    EXCLUDE  = "red"      # 没有
-    OPTIONAL = "yellow"   # 不限制（闭环开启时视同「没有」）
-    REQUIRED = "green"    # 必有（AND）
-    HAS      = "has"      # 含有（OR，至少含一个）
-    MAYBE    = "maybe"    # 可能（只放宽闭环允许池）
+    EXCLUDE  = "red"      # absent
+    OPTIONAL = "yellow"   # unrestricted (treated as absent once the closed loop is on)
+    REQUIRED = "green"    # must-have (AND)
+    HAS      = "has"      # contains (OR, at least one)
+    MAYBE    = "maybe"    # possible (only widens the closed-loop allowed pool)
 ```
 
-`Restraints` 新增 `closed_world: bool = False`（进 `to_dict` / `from_dict`，
-旧存档缺这个键 → 默认 `False`）；
-`passes_elements(entry_elements, *, closed_world=False)` 重写为四态判据。
+`Restraints` gains `closed_world: bool = False` (serialized in `to_dict` / `from_dict`;
+old archives lacking the key default to `False`); `passes_elements(entry_elements, *,
+closed_world=False)` is rewritten as a four-state predicate.
 
-#### ② `core` —— 唯一的换算点 `element_constraint_sets()`
+#### ② `core` — the single conversion point `element_constraint_sets()`
 
 ```python
 required, any_of, excluded = element_constraint_sets(restraints)
@@ -77,157 +84,179 @@ required, any_of, excluded = element_constraint_sets(restraints)
 #             elements_excluded=excluded)
 ```
 
-闭环不新开通路：它把「118 元素 − 允许池」直接补进 `excluded`
-（`S ⊆ 池` ⟺ `S ∩ 池外 = ∅`），复用既有的 `element_inv` 倒排过滤。
-预筛、SQL 直查（`query_filter.search_by_elements`）、基准脚本
-（`tools/bench_iucr._pools`）**三处都调这一个函数**，口径不可能漂移。
+The closed loop opens no new channel: it folds "118 elements − allowed pool" directly into
+`excluded` (`S ⊆ pool` ⟺ `S ∩ outside-pool = ∅`), reusing the existing `element_inv`
+inverted index. Pre-filtering, direct SQL (`query_filter.search_by_elements`) and the
+benchmark scripts (`tools/bench_iucr._pools`) **all three call this one function**, so the
+semantics cannot drift.
 
-#### ③ `core` —— 预筛新增 `elements_any`
+#### ③ `core` — pre-filter gains `elements_any`
 
-`XinDBReader.element_union_filter()`：含有 *elements* 中**至少一个**的物相。
-与 `element_filter`（必须全含）是一对对偶。`prescreen(..., elements_any=…)`
-把它与另外两条通路取交集。
+`XinDBReader.element_union_filter()`: phases containing **at least one** of *elements* — the
+dual of `element_filter` (must contain all). `prescreen(..., elements_any=…)` intersects it
+with the other two channels.
 
-#### ④ GUI —— 四态周期表（`xinmatch/ui/periodic_table.py`）
+#### ④ GUI — four-state periodic table (`xinmatch/ui/periodic_table.py`)
 
-* 点击顺序改成 PolyXRD 的「不限制 → 含有 → 可能 → 没有 → **必有**」——
-  「必有」置于**末位**：它过滤最狠，误点一次只是回到起点，而不是把候选清空。
-* 四态**不只靠颜色**：线型 + 线宽 + 字重三重编码（红绿色盲友好，缩图与黑白打印也能分）
+* Click order follows PolyXRD: "unrestricted → contains → possible → absent → **must-have**"
+  — must-have is **last** because it filters hardest; a misclick just returns to the start
+  instead of emptying the candidate list.
+* The four states **do not rely on colour alone**: line style + line width + font weight
+  give three-way encoding (red-green colour-blind friendly, still separable when shrunk or
+  printed in black and white).
 
-  | 状态 | 背景 | 边框 |
+  | State | Background | Border |
   |---|---|---|
-  | 不限制 | `#f7f8f9` | 1 px 实线 灰 |
-  | 含有 | `#e8f5e9` | 2 px 实线 绿 + 加粗 |
-  | 可能 | `#fff8e1` | 2 px **点线** 琥珀 |
-  | 没有 | `#fbdede` | 2 px **虚线** 红 + 加粗 |
-  | 必有 | `#d8f0de` | **3 px** 实线 深绿 + 加粗 |
+  | Unrestricted | `#f7f8f9` | 1 px solid grey |
+  | Contains | `#e8f5e9` | 2 px solid green + bold |
+  | Possible | `#fff8e1` | 2 px **dotted** amber |
+  | Absent | `#fbdede` | 2 px **dashed** red + bold |
+  | Must-have | `#d8f0de` | **3 px** solid dark green + bold |
 
-* 图例只列四种生效状态（`LEGEND_ORDER`），常显在网格上方。
-* 新增 `grouped()`（按状态分组，摘要行与测试共用）、
-  `apply_light_elements()`（一键把 O/C/H/N/S 标为「含有」，
-  **只填未标的格子**，用户已明确标过的一律不动）。
+* The legend lists only the four effective states (`LEGEND_ORDER`) and sits permanently
+  above the grid.
+* New `grouped()` (group by state — shared by the summary row and the tests) and
+  `apply_light_elements()` (one click marks O/C/H/N/S as "contains", **filling only
+  unassigned cells**; anything the user explicitly set is left alone).
 
-#### ⑤ GUI —— 面板新增两项
+#### ⑤ GUI — two new controls on the panel
 
-| 控件 | 行为 |
+| Control | Behaviour |
 |---|---|
-| 复选框「限定在所选元素内」 | 闭环开关。旁边常显一行提示：`闭环已开启：允许池 N 个元素，其余 118−N 个一律视为没有`；只开闭环而不标任何元素时提示「等价于全库检索」，避免用户以为自己在过滤 |
-| 按钮「补轻元素」 | O / C / H / N / S → 「含有」。EDX/EDS 常测不出轻元素，而氧化物 / 碳酸盐 / 氢氧化物在水合、风化样品里极常见，漏填会把整类相排除 |
+| Checkbox "Restrict to selected elements" | The closed-loop switch. A permanent line next to it reads `Closed loop on: N elements allowed, the other 118−N treated as absent`; with the loop on but no element marked, it says "equivalent to searching the whole library" so users do not think they are filtering |
+| Button "Fill light elements" | O / C / H / N / S → "contains". EDX/EDS routinely misses light elements, while oxides / carbonates / hydroxides are very common in hydrated and weathered samples — omitting them excludes the whole class |
 
-摘要行改为四态分组着色（`必有 / 含有 / 可能 / 没有`，颜色与按钮同源），
-超过 12 个元素截断为前 12 个加省略号。
+The summary row now colours by the four-state grouping (must-have / contains / possible /
+absent, same colour source as the buttons) and truncates beyond 12 elements with an ellipsis.
 
-#### ⑥ 文案统一
+#### ⑥ Terminology unified
 
-`必含 → 必有`、`排除 → 没有`（与 PolyXRD 一致，也与「含有 / 可能」构成同一套词）。
-涉及周期表 tooltip、摘要行、弹窗提示、主窗口功能提示、`main_window` 的
-「限制条件」说明。
+`必含 → 必有` ("must contain" → "must-have"), `排除 → 没有` ("exclude" → "absent") — consistent
+with PolyXRD and with "contains / possible" as one vocabulary. Applied to periodic-table
+tooltips, the summary row, dialog hints, main-window feature hints and the `main_window`
+"restraints" description.
 
-#### ⑦ 物相鉴定默认改用 FPFM 全谱拟合（用户要求）
+#### ⑦ Phase identification defaults to FPFM full-profile fitting (user request)
 
-`DEFAULT_SEARCH_MODE = SEARCH_MODE_FPFM_FULL`。下拉框**选项顺序不变**
-（「峰列表 FoM」仍是第 0 项），默认项靠 `findData(DEFAULT_SEARCH_MODE)` 选中，
-不靠「第 0 项恰好是默认」这种隐式约定；用户随时能一键切回寻峰模式。
+`DEFAULT_SEARCH_MODE = SEARCH_MODE_FPFM_FULL`. The dropdown **option order is unchanged**
+("peak-list FoM" stays item 0); the default is selected via `findData(DEFAULT_SEARCH_MODE)`,
+not via the implicit assumption "item 0 happens to be the default". Users can switch back to
+peak search in one click at any time.
 
-这里有一处**必须让用户看见的交互**：FPFM 检索链（`core/search/fpfm.py`）没有
-`restraints` 形参，元素四态 / 闭环到不了预筛 —— 也就是「样品元素」设了也不生效。
-默认改成 FPFM 后，这个组合会变成常态，所以工具栏的「样品元素」按钮在
-**有约束 + FPFM** 时追加常显后缀 `｜FPFM 下不生效`（不弹模态框，
-遵循「常显状态 + 非阻塞提示」）；切回峰列表 FoM 后缀自动消失。
-检索时原本那条 8 秒状态栏提示保留。
+There is one **interaction that must be visible**: the FPFM search chain
+(`core/search/fpfm.py`) has no `restraints` parameter, so the four element states / closed
+loop never reach the pre-filter — setting "sample elements" has no effect there. Once FPFM
+becomes the default, that combination becomes routine, so the toolbar "Sample elements"
+button gains a permanent suffix `｜not effective under FPFM` when **constraints + FPFM** are
+both active (no modal dialog — following "persistent state + non-blocking hint"); the suffix
+disappears when switching back to peak-list FoM. The existing 8-second status-bar notice
+during search is kept.
 
-> ⚠️ 因此：**要用元素限定做化学先验，请先把工具栏下拉框切回「峰列表 FoM（寻峰）」**。
-> 这是 FPFM 检索链的结构限制，不是界面 bug；本版没有改动 FPFM 内核。
+> ⚠️ Therefore: **to use element constraints as a chemical prior, switch the toolbar
+> dropdown back to "peak-list FoM (peak search)" first**. This is a structural limitation of
+> the FPFM chain, not a UI bug; this release does not touch the FPFM kernel.
 
-### 四、踩到的坑
+### 4. Traps hit
 
-1. **`min-width` 作用于内容矩形，而边框宽度逐态不同**。
-   旧代码三态统一 2 px 边框，`min_w = cell_w − 2·2` 恰好成立；
-   改成 1/2/3 px 后，同一个 `min_w` 会让「不限制」的 `minimumSize()`
-   比 `setFixedSize()` 小 4 px —— 布局一旦重算尺寸就把它压小、符号被裁。
-   修法：按**本态宽度**扣减（`min_w = cell_w − 2·border`），
-   这才是 QSS min-* 的真实语义。
+1. **`min-width` applies to the content rectangle, while border width differs per state.**
+   The old code used a uniform 2 px border, so `min_w = cell_w − 2·2` happened to hold;
+   with 1/2/3 px borders the same `min_w` makes the "unrestricted" cell's `minimumSize()`
+   4 px smaller than its `setFixedSize()` — as soon as the layout recomputes, the cell
+   shrinks and the symbol is clipped. Fix: subtract **this state's** border width
+   (`min_w = cell_w − 2·border`), which is what QSS min-* actually means.
 
-2. **「必有已满足则丢弃含有」必须落在换算点**，不能只写在
-   `passes_elements`。预筛会把 `elements_allowed` 与 `elements_any`
-   取交集；只在单条判据里放行，端到端仍然被 AND 一次，用户看到的现象是
-   「我明明写了必有 O，只含 O 的相却不见了」。
-   回归用例：`test_must_have_suppresses_the_any_of_filter`。
+2. **"Must-have satisfied ⇒ drop contains" must live at the conversion point**, not only in
+   `passes_elements`. The pre-filter intersects `elements_allowed` with `elements_any`;
+   relaxing it in a single predicate still gets ANDed end-to-end, and the user sees "I marked
+   O as must-have, yet the phase containing only O disappeared". Regression test:
+   `test_must_have_suppresses_the_any_of_filter`.
 
-3. **`elements_any` 的未知元素必须「跳过」而不是「清空」**，
-   与 `elements_allowed` 相反：后者遇到库里没有的元素要返回全 `False`
-   （不可能满足），前者它只是**没有发言权**（不可能担保）。
-   把这个方向搞反，一个拼错的符号会静默清空结果。
+3. **Unknown elements in `elements_any` must be "skipped", not "clear"** — the opposite of
+   `elements_allowed`, which must return all-`False` for an element absent from the library
+   (it cannot be satisfied). In `elements_any` an unknown symbol simply **has no vote**
+   (it cannot be guaranteed). Invert this and a single typo silently empties the result.
 
-4. **`Restraints.elements` 是字典，重叠优先级规则不可达**。
-   PolyXRD 的扁平列表 API 需要「必有 > 含有 > 可能 > 没有」去重；
-   这里一个元素只有一个状态（`set_element` 后写覆盖先写），
-   照抄去重只会留下没有测试覆盖的死分支。改成在 docstring 里说明这条差异。
+4. **`Restraints.elements` is a dict, so the overlap-priority rule is unreachable.**
+   PolyXRD's flat-list API needs "must-have > contains > possible > absent" deduplication;
+   here an element has exactly one state (`set_element` overwrites), so copying the
+   deduplication would only add a dead branch with no test coverage. Documented the
+   difference in the docstring instead.
 
-5. **补集写法与闭环写法等价，但不是处处逐位相同**。
-   唯一差异是**元素集为空**的退化物相：闭环形式还要求「至少命中一个允许池
-   元素」，补集形式不要求。真实库里不存在零元素物相，所以检索上等价
-   （PolyXRD 的 `test_empty_elements_phase_excluded_when_closed` 站在闭环一侧）。
-   保留补集写法给 CLI `--sample-elements` 共用，两条路径由
-   `test_closed_world_equals_the_complement_restraint` 钉住。
+5. **The complement form and the closed-loop form are equivalent, but not bit-identical
+   everywhere.** The only difference is a degenerate phase with an **empty element set**: the
+   closed-loop form additionally requires at least one allowed-pool hit, the complement form
+   does not. No zero-element phase exists in real libraries, so the two are equivalent for
+   search purposes (PolyXRD's `test_empty_elements_phase_excluded_when_closed` sides with the
+   closed-loop form). The complement form is kept because the CLI `--sample-elements` shares
+   it; both paths are pinned by `test_closed_world_equals_the_complement_restraint`.
 
-6. **旧的 `lastfailed` 缓存会误导**。`.pytest_cache/v/cache/lastfailed`
-   里残留着旧目录结构下的条目（`tests/ui/test_smpf_kalpha2.py` 等文件已不存在），
-   `--lf` 只会选中确实还存在的那些。判绿仍按进度行字符统计 + `--collect-only`
-   对账，不要看这个文件。
+6. **A stale `lastfailed` cache misleads.** `.pytest_cache/v/cache/lastfailed` still holds
+   entries from the old directory layout (`tests/ui/test_smpf_kalpha2.py` and friends no
+   longer exist), so `--lf` only selects the ones that still do. Judge green by counting
+   progress-line characters plus a `--collect-only` reconciliation, never by that file.
 
-### 五、验证
+### 5. Verification
 
-| 项 | 结果 |
+| Item | Result |
 |---|---|
 | `ruff check .` | All checks passed! |
 | `mypy xinmatch/core` | Success: no issues found in 99 source files |
 | `tests/test_version_consistency.py` | 5 passed |
-| 全量回归 | **1867 = 1862 passed / 4 skipped / 1 xfailed / 0 F / 0 E**（基线 1809 + 元素四态 55 + 默认模式 3），`--collect-only` 求和 **1867** 精确对账 |
+| Full regression | **1867 = 1862 passed / 4 skipped / 1 xfailed / 0 F / 0 E** (baseline 1809 + 55 four-state + 3 default-mode), `--collect-only` sums to **1867**, reconciled exactly |
 
-`exit code` 仍可能为 1：pytest 退出时清理 `pytest-of-Administrator` 临时目录
-（>50 个文件）会被沙箱钩子拒删并打印 `[safe-delete]…` JSON —— 那是钩子输出，
-不是测试失败；判绿看进度行字符统计。**注意**：该钩子会在 `[100%]` 之后
-截断 pytest 的汇总段，`-q` 的 `=== FAILURES ===` 与最后一行统计可能不落盘，
-所以失败必须靠进度行里的 `F` / `E` 计数定位（再单文件复跑）。
+`exit code` can still be 1: when pytest cleans up the `pytest-of-Administrator` temp
+directory (>50 files) on exit, the sandbox hook refuses the delete and prints a
+`[safe-delete]…` JSON line — that is hook output, not a test failure; judge green by counting
+progress-line characters. **Note**: that hook truncates pytest's summary section after
+`[100%]`, so with `-q` the `=== FAILURES ===` block and the final statistics line may never
+reach disk — failures must be located by counting `F` / `E` in the progress line (then
+re-run the single file).
 
-新增用例 58 项：
+58 new test cases:
 
-| 文件 | 数量 | 内容 |
+| File | Count | Content |
 |---|---|---|
-| `tests/model/test_element_filter_four_state.py` | 25 | PolyXRD 的 11 条语义断言 + 换算点 + 序列化兼容 + 与补集写法等价 |
-| `tests/db/test_prescreen_element_any.py` | 17 | `element_union_filter` 语义、未知元素方向、预筛交集、`HAS`/`MAYBE`/闭环端到端 |
-| `tests/ui/test_periodic_table.py` | +10 | 五态循环、tooltip 全循环、四态视觉可分、图例、`grouped`、补轻元素、闭环开关与提示 |
-| `tests/ui/test_element_restraints.py` | +3 | 闭环开关传进 `Restraints`、快速录入不误开闭环 |
-| `tests/ui/test_search_mode.py` | +3 | FPFM 为默认且下拉框选中项一致、多窗口一致、可一键切回 FoM、有约束时 FPFM 常显提示（切回即消失） |
+| `tests/model/test_element_filter_four_state.py` | 25 | PolyXRD's 11 semantic assertions + the conversion point + serialization compatibility + equivalence with the complement form |
+| `tests/db/test_prescreen_element_any.py` | 17 | `element_union_filter` semantics, unknown-element direction, pre-filter intersection, `HAS`/`MAYBE`/closed-loop end to end |
+| `tests/ui/test_periodic_table.py` | +10 | five-state cycle, tooltip over the whole cycle, four-state visual separability, legend, `grouped`, fill light elements, closed-loop switch and hints |
+| `tests/ui/test_element_restraints.py` | +3 | closed-loop switch reaches `Restraints`, quick entry does not accidentally enable the loop |
+| `tests/ui/test_search_mode.py` | +3 | FPFM is the default and the dropdown selection agrees, consistent across windows, one-click switch back to FoM, persistent hint under FPFM with constraints (and it disappears on switching back) |
 
-### 六、关键设计决定
+### 6. Key design decisions
 
-* **不新建「元素约束引擎」**。预筛原本就有 `elements_allowed` /
-  `elements_excluded` 两条通路，四态只需要补 `elements_any` 一条；
-  闭环用补集复用 `elements_excluded`。核心改动是「多一条 OR 通路 + 一个换算点」，
-  不是重写检索链。
-* **`OPTIONAL` 与 `MAYBE` 是两个状态**，不是同义词。开放世界里两者都不产生
-  硬条件（都只给 +0.1 的弱加分）；一旦打开闭环，`MAYBE` 进允许池、
-  `OPTIONAL` 被当作「没有」。这正是 PolyXRD `NONE` / `MAYBE` 的区别，
-  也是「只允许检出元素」能用一个开关表达的原因。
-* **闭环默认关闭**。默认开会让所有老用户的「标一个必有」变成「只允许这一个元素」，
-  直接把候选清空。默认关闭 + 面板常显提示，才是可接受的迁移路径。
-* **默认检索模式改用 FPFM 是界面默认值变更，不是检索内核变更**。
-  两条检索链一行未动；把「默认」表达成显式常量 + `findData()` 选中，
-  而不是偷偷调选项顺序，这样按 index 切换的既有测试与用户既有操作习惯
-  都不会被打破。
-* **FPFM 不消费元素约束这件事必须常显**。默认切到 FPFM 后，
-  「设了样品元素却不生效」会从边缘情况变成常态；用工具栏按钮后缀提示，
-  而不是弹模态框或只留一条 8 秒状态栏消息。
+* **No new "element constraint engine".** The pre-filter already had `elements_allowed` /
+  `elements_excluded`; the four states only need one more channel, `elements_any`, and the
+  closed loop reuses `elements_excluded` via the complement. The core change is "one more OR
+  channel + one conversion point", not a rewritten search chain.
+* **`OPTIONAL` and `MAYBE` are two states, not synonyms.** In the open world neither imposes
+  a hard condition (both contribute only a weak +0.1 bonus); once the closed loop is on,
+  `MAYBE` joins the allowed pool while `OPTIONAL` is treated as "absent". That is exactly
+  PolyXRD's `NONE` / `MAYBE` distinction, and the reason "allow only detected elements" can
+  be expressed with a single switch.
+* **The closed loop is off by default.** On by default would turn every existing user's
+  "mark one must-have" into "allow only that one element", emptying the candidate list. Off by
+  default plus a permanent panel hint is the acceptable migration path.
+* **Changing the default search mode to FPFM is a UI-default change, not a kernel change.**
+  Neither search chain is touched; the default is expressed as an explicit constant selected
+  via `findData()` instead of quietly reordering options, so existing tests that switch by
+  index and users' existing habits both keep working.
+* **"FPFM does not consume element constraints" must be permanently visible.** With FPFM as
+  the default, "I set sample elements and nothing happened" goes from edge case to routine;
+  a toolbar-button suffix is used rather than a modal dialog or a single 8-second status-bar
+  message.
+* **The closed-loop switch does not live in a dialog.** It decides the search scope, not the
+  state of any element; it sits on the panel at the same level as "enable element filtering".
 
-* **闭环开关不放在弹窗里**。它决定的是检索范围，而非某个元素的状态；
-  与「启用元素过滤」同级，常显在面板上。
+### 7. Upgrade notes
 
-### 七、升级注意
-
-* 旧 `.xinm` 存档 / YAML 里的 `{"red","yellow","green"}` 全部照常读入；
-  新建档会多写一个 `closed_world` 键（旧版本读到会忽略，不影响打开）。
-* 界面上原来叫「必含 / 排除」的地方现在叫「必有 / 没有」，**语义未变**。
-* **Open 之后直接点 Search-Match 现在走 FPFM 全谱拟合**（不寻峰、不覆盖峰列表）。若你的工作流依赖峰列表或元素限定，请先把工具栏下拉框切回「峰列表 FoM（寻峰）」——工具栏「样品元素」按钮会在有约束时提醒 `｜FPFM 下不生效`。
-* 想复现 v3.6.2 的行为：不写 `HAS` / `MAYBE`、不开闭环即可，逐位一致。
+* Old `.xinm` archives / YAML containing `{"red","yellow","green"}` load as before; new
+  archives write one extra `closed_world` key (older versions ignore it, so opening still
+  works).
+* What the UI used to call "must contain / exclude" is now "must-have / absent" —
+  **semantics unchanged**.
+* **After Open, clicking Search-Match now runs FPFM full-profile fitting** (no peak search,
+  peak list untouched). If your workflow depends on the peak list or on element constraints,
+  switch the toolbar dropdown back to "peak-list FoM (peak search)" first — the "Sample
+  elements" button will show `｜not effective under FPFM` while constraints are set.
+* To reproduce v3.6.2 behaviour: write no `HAS` / `MAYBE` and leave the closed loop off —
+  bit-for-bit identical.

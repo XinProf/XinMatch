@@ -1,50 +1,59 @@
-## XinMatch v3.0.0 — `.xinDB` 单一格式收口 · COD-Inorg 内置默认库 · 内部版红字标识
+## XinMatch v3.0.0 — `.xinDB` single-format consolidation · COD-Inorg bundled default library · internal-build red badge
 
-> 基线 `v2.0.0`｜全量回归 **1570 passed / 4 skipped / 1 xfail**（`pytest tests`，12m14s，EXIT=0）
+> Baseline `v2.0.0`. Full regression **1570 passed / 4 skipped / 1 xfail** (`pytest tests`, 12m14s, EXIT=0).
 
-### 一、默认库换成 COD-Inorg（`*.xinDB`），并**打进便携包**
+### 1. Default library switched to COD-Inorg (`*.xinDB`) and **bundled into the portable package**
 
-| 项 | v2.0.0 | v3.0.0 |
+| Item | v2.0.0 | v3.0.0 |
 |---|---|---|
-| 默认库 | `data/cod_inorganics.db`（v2 SQLite，712 MB） | `COD-Inorg-20261020.xinDB`（v3 列存，113 MB） |
-| 便携包能否直接检索 | 不能（须另下 512 MB 库包再挂载） | **能**（`<exe>/data/` 已内置） |
-| 库来源解析 | 硬编码 | `XINMATCH_XINDB_DIR` → `<exe>/data` → `<exe>/_internal/data` → `../XinMatch-DataBase/data`（源码态） |
+| Default library | `data/cod_inorganics.db` (v2 SQLite, 712 MB) | `COD-Inorg-20261020.xinDB` (v3 columnar, 113 MB) |
+| Can the portable package search directly? | No (must download a separate 512 MB library and mount it) | **Yes** (already bundled at `<exe>/data/`) |
+| Library source resolution | hard-coded | `XINMATCH_XINDB_DIR` → `<exe>/data` → `<exe>/_internal/data` → `../XinMatch-DataBase/data` (source-tree state) |
 
-* 库注册表 `core/db/multi_db.py` 全量重写为 v3-only：`KIND_XINDB` + 四个内置 id
-  （`xindb_cod_inorg` 默认 / `xindb_cod_full` / `xindb_pcod_inorg` / `xindb_tcod_inorg`），
-  按 `<Prefix>-<YYYYMMDD>.xinDB` 取**最新快照**；`open_library()` / `open_search_database()`
-  返回只读 `XinDBReader`。
-* `xinmatch.spec` 新增 `_find_bundled_xindb()` 把默认库收进 `data/`；
-  `tools/build_exe.ps1` 把库从 PyInstaller 6 的 `_internal/data` 移到 `<exe>/data`（用户可直接替换）。
+* The library registry `core/db/multi_db.py` was rewritten as v3-only: `KIND_XINDB` plus four
+  built-in ids (`xindb_cod_inorg` default / `xindb_cod_full` / `xindb_pcod_inorg` /
+  `xindb_tcod_inorg`), picking the **latest snapshot** by `<Prefix>-<YYYYMMDD>.xinDB`;
+  `open_library()` / `open_search_database()` return a read-only `XinDBReader`.
+* `xinmatch.spec` gains `_find_bundled_xindb()` to collect the default library into `data/`;
+  `tools/build_exe.ps1` moves the library from PyInstaller 6's `_internal/data` to `<exe>/data`
+  so users can replace it directly.
 
-### 二、旧格式运行期代码**删除**（不是弃用）
+### 2. Old-format runtime code **deleted** (not deprecated)
 
-* 删除 `core/db/polyxrd.py`（PolyXRD `phases` dump 转换层）与 `core/db/pdf2_index.py`（PDF-2 转换层）。
-* `ui/dialogs/library_dialog.py` **720 → 约 300 行**：只做 列表 / 挂载 / 卸载 / 刷新，
-  构建线程与建索引线程全部移除；`PDF-2 源目录` 配置项删除。
-* CLI `libraries` 只剩 `--add` / `--remove`（`--build` / `--force` / `--no-build` 移除）。
-* `core/batch.py`、顶层 API `identify_phase` / `full_analysis` 从裸 `sqlite3.connect` 改走
-  `open_search_database()` —— 否则会落到已删除的 v2 行表路径。
-* 删除 10 个 v2 专用测试文件；新增 `tests/xindb_support.py`（`write_xindb` 造真实 `.xinDB`）。
+* Removed `core/db/polyxrd.py` (the PolyXRD `phases` dump conversion layer) and
+  `core/db/pdf2_index.py` (the PDF-2 conversion layer).
+* `ui/dialogs/library_dialog.py` went **720 → about 300 lines**: it only lists / mounts /
+  unmounts / refreshes; the build thread and index-building thread are gone, and the
+  "PDF-2 source directory" setting is removed.
+* CLI `libraries` keeps only `--add` / `--remove` (`--build` / `--force` / `--no-build` removed).
+* `core/batch.py` and the top-level API `identify_phase` / `full_analysis` now go through
+  `open_search_database()` instead of a bare `sqlite3.connect` — otherwise they would fall into
+  the deleted v2 row-table path.
+* Ten v2-only test files removed; new `tests/xindb_support.py` (`write_xindb` builds a real
+  `.xinDB`).
 
-### 三、内部评估版：状态栏**红色加粗**「内部评估版本」
+### 3. Internal evaluation build: **bold red** "internal evaluation build" in the status bar
 
-* `_build_statusbar()` 用控件级 stylesheet：`color: #d32f2f; font-weight: bold; padding: 0 6px;`，
-  `objectName = internalBuildLabel`，`addPermanentWidget(label, 1)` 贴状态栏最右端。
-* 为什么挂控件而不是全局 QSS：状态栏随主题重刷，控件级规则优先级更高，换主题不掉色。
+* `_build_statusbar()` uses a widget-level stylesheet: `color: #d32f2f; font-weight: bold;
+  padding: 0 6px;`, `objectName = internalBuildLabel`, `addPermanentWidget(label, 1)` pinned to
+  the far right of the status bar.
+* Why a widget-level style instead of the global QSS: the status bar is repainted on theme
+  change, and widget-level rules take precedence, so the colour does not drop out.
 
-### 四、附件说明
+### 4. Attachments
 
-| 附件 | 内容 |
+| Attachment | Content |
 |---|---|
-| `XinMatch-Setup-3.0.0.exe` | 正式版安装包（**含注册机制**，状态栏显示 `已注册：<单位>` / `未注册`），**内置 COD-Inorg 库** |
-| `XinMatch-Internal-3.0.0.zip` | 便携包 = **内部评估版**（免安装、无注册机制，状态栏**红字**「内部评估版本」），**内置 COD-Inorg 库** |
-| `XinMatch-Databases-COD-Inorg-3.0.0.zip` | COD 无机物库独立包（`*.xinDB`，给已有程序换库/补库） |
-| `SHA256SUMS.txt` | 以上附件的 SHA-256 |
+| `XinMatch-Setup-3.0.0.exe` | Release installer (**with registration**, status bar shows `Registered: <organization>` / `Unregistered`), **bundles the COD-Inorg library** |
+| `XinMatch-Internal-3.0.0.zip` | Portable package = **internal evaluation build** (no install, no registration, status bar shows the **red** "internal evaluation build"), **bundles the COD-Inorg library** |
+| `XinMatch-Databases-COD-Inorg-3.0.0.zip` | Standalone COD inorganic library package (`*.xinDB`, for replacing or topping up an existing installation) |
+| `SHA256SUMS.txt` | SHA-256 of the attachments above |
 
-### 五、升级提示
+### 5. Upgrade notes
 
-* 从 v2.0.0 升级：**旧的 `.db` / `.sqlite` 参考库不再可用**（挂载会被明确拒绝并提示格式已移除）。
-  请改用 `COD-Inorg-*.xinDB`（本版已内置；PCOD / TCOD 在
-  [XinMatch-DataBase](https://github.com/PolyXRD/XinMatch-DataBase) 的 Releases 分发）。
-* 其它 `*.xinDB` 库仍可从任意文件夹挂载：`设置 → 参考数据库…` 或 `xinmatch libraries --add <path>`。
+* Upgrading from v2.0.0: **old `.db` / `.sqlite` reference libraries no longer work** (mounting
+  is rejected explicitly with a note that the format was removed). Use `COD-Inorg-*.xinDB`
+  instead (bundled in this release; PCOD / TCOD are distributed in
+  [XinMatch-DataBase](https://github.com/PolyXRD/XinMatch-DataBase) Releases).
+* Other `*.xinDB` libraries remain mountable from any folder: `Settings → Reference Database…` or
+  `xinmatch libraries --add <path>`.
