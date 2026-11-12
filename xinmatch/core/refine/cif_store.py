@@ -48,7 +48,8 @@ __all__ = [
 #: Local COD CIF archive root (read-only; 522 K files).  Overridable via the
 #: ``XINMATCH_COD_ROOT`` environment variable or a function argument.
 #: 历史位置为 ``PolyXRD\\cod\\cif``（见 _FALLBACK_ROOTS）；机器迁移后档案现居
-#: ``sync-COD\\COD``，探测时按"环境变量 → 默认 → 回退"取第一个存在的目录。
+#: ``sync-COD\\COD``，且实际 CIF 落在其 ``cif\\`` 子目录（``COD\\cif\\1\\00\\00\\...``）。
+#: 探测顺序：``<root>/cif`` → ``<root>``，两种布局都能命中。
 DEFAULT_COD_ROOT = Path(r"D:\Project\XRD\sync-COD\COD")
 
 #: 旧档案位置（只读回退）。
@@ -63,9 +64,9 @@ def _cod_root(root: str | Path | None) -> Path:
     env = __import__("os").environ.get("XINMATCH_COD_ROOT")
     if env:
         return Path(env)
-    if DEFAULT_COD_ROOT.is_dir():
-        return DEFAULT_COD_ROOT
-    for cand in _FALLBACK_ROOTS:
+    for cand in (DEFAULT_COD_ROOT, *_FALLBACK_ROOTS):
+        if (cand / "cif").is_dir():
+            return cand / "cif"
         if cand.is_dir():
             return cand
     return DEFAULT_COD_ROOT
@@ -78,7 +79,11 @@ def _known_roots(root: str | Path | None) -> list[Path]:
     env = __import__("os").environ.get("XINMATCH_COD_ROOT")
     if env:
         return [Path(env)]
-    out = [p for p in (DEFAULT_COD_ROOT, *_FALLBACK_ROOTS) if p.is_dir()]
+    out: list[Path] = []
+    for p in (DEFAULT_COD_ROOT, *_FALLBACK_ROOTS):
+        for cand in (p / "cif", p):
+            if cand.is_dir() and cand not in out:
+                out.append(cand)
     return out or [DEFAULT_COD_ROOT]
 
 

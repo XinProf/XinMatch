@@ -1,0 +1,169 @@
+{
+  "created": "2026-11-12T20:48:14",
+  "library": "D:\\XinMatch-DataBase\\data\\COD-Inorg-20261020.xinDB",
+  "config": {
+    "top_n": 20,
+    "rounds": {
+      "synthetic": 3,
+      "real": 3,
+      "iucr": 8
+    },
+    "prescreen_order": "intensity",
+    "family_slots": null
+  },
+  "rulers": {
+    "synthetic": {
+      "patterns": "D:\\test_XRD\\synthetic_v3",
+      "json": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\bench3-5k57ibmu\\synthetic.json",
+      "returncode": 0,
+      "tail": [
+        "synth_12     47  96-500-0120      Y  Y  96-500-0120 > 96-101-1116 > 96-202-3387 1/2       88.0%",
+        "synth_13     66  96-210-1234      Y  Y  96-210-1234 > 96-433-3828 > 96-153-3153 1/1       79.2%",
+        "",
+        "条目级（严格 id）：Top-1 7/13　Top-5 12/13　序贯完整回收 3/13　相召回 10/24",
+        "相位级（同相异卡算命中）：Top-1 11/13　Top-5 12/13　序贯完整回收 9/13　相召回 19/24",
+        "json -> C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\bench3-5k57ibmu\\synthetic.json"
+      ],
+      "metrics": {
+        "entry.top1": {
+          "hit": 7,
+          "total": 13
+        },
+        "entry.top5": {
+          "hit": 12,
+          "total": 13
+        },
+        "entry.recall": {
+          "hit": 10,
+          "total": 24
+        },
+        "entry.seq": {
+          "hit": 3,
+          "total": 13
+        },
+        "phase.top1": {
+          "hit": 11,
+          "total": 13
+        },
+        "phase.top5": {
+          "hit": 12,
+          "total": 13
+        },
+        "phase.recall": {
+          "hit": 19,
+          "total": 24
+        },
+        "phase.seq": {
+          "hit": 9,
+          "total": 13
+        }
+      }
+    },
+    "real": {
+      "patterns": "D:\\test_XRD\\temp\\smz xrd analysis",
+      "json": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\bench3-5k57ibmu\\real.json",
+      "returncode": 0,
+      "tail": [
+        "7-2       199  Quartz                  Y  Y  Y...... 1/7    Y....Y. 2/7    1/7",
+        "",
+        "[细口径] 整谱 Top-1 12/13　Top-5 13/13　Top-5 覆盖全部真相相 2/13",
+        "[细口径] 相召回（Top-20 卡）21/50　（Top-20 族，折叠后）22/50　序贯完整回收 4/13",
+        "细口径定义：矿物名级口径（细）：有矿物名的卡按名判定（多晶型不再合并），无名的卡回落到组成比；真值相含同一组成的两种多晶型时，无名卡不计入任一侧；NCM811 判「必含 Li/Ni/O、其余元素只允许 Co/Mn 掺杂」的层状家族，Biotite/Hornblende 仅按矿物名判定。分母 50 个相（组成级 43 个 + 此前被排除的 7 个），两个口径不可混算。",
+        "json -> C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\bench3-5k57ibmu\\real.json"
+      ],
+      "metrics": {
+        "coarse.top1": {
+          "hit": 10,
+          "total": 12
+        },
+        "coarse.top5": {
+          "hit": 12,
+          "total": 12
+        },
+        "coarse.recall": {
+          "hit": 20,
+          "total": 43
+        },
+        "coarse.seq": {
+          "hit": 4,
+          "total": 12
+        },
+        "fine.top1": {
+          "hit": 12,
+          "total": 13
+        },
+        "fine.top5": {
+          "hit": 13,
+          "total": 13
+        },
+        "fine.recall": {
+          "hit": 21,
+          "total": 50
+        },
+        "fine.seq": {
+          "hit": 4,
+          "total": 13
+        },
+        "fine.family": {
+          "hit": 22,
+          "total": 50
+        }
+      }
+    },
+    "iucr": {
+      "patterns": "D:\\test_XRD\\IUCr\\txt",
+      "json": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\bench3-5k57ibmu\\iucr.json",
+      "returncode": 0,
+      "tail": [
+        "  STARCH    　[当前库内同组成卡 0 张]　淀粉是半结晶聚合物，COD 不收录；同组成 C6H10O5 的 13 张是糖酐等小分子",
+        "  NIZATIDI  　[当前库内同组成卡 0 张]　COD-Full 里化学式 C12H21N5O2S2 为 0 张 → 真值在库内不可达",
+        "  PHARM1GR  　说明文件只给出药物组 5 个候选相，未指明本谱含哪些、含量多少 → 真值不完整",
+        "  PHARM2GR  　说明文件只给出药物组 5 个候选相，未指明本谱含哪些、含量多少 → 真值不完整",
+        "  GRANODIO  　天然花岗闪长岩，说明文件明写「True values not known」→ 无真值可评",
+        "json -> C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\bench3-5k57ibmu\\iucr.json"
+      ],
+      "metrics": {
+        "plain.top1": {
+          "hit": 17,
+          "total": 19
+        },
+        "plain.top5": {
+          "hit": 18,
+          "total": 19
+        },
+        "plain.card": {
+          "hit": 26,
+          "total": 48
+        },
+        "plain.family": {
+          "hit": 27,
+          "total": 48
+        },
+        "plain.seq": {
+          "hit": 37,
+          "total": 48
+        },
+        "elements.top1": {
+          "hit": 18,
+          "total": 19
+        },
+        "elements.top5": {
+          "hit": 18,
+          "total": 19
+        },
+        "elements.card": {
+          "hit": 39,
+          "total": 48
+        },
+        "elements.family": {
+          "hit": 45,
+          "total": 48
+        },
+        "elements.seq": {
+          "hit": 45,
+          "total": 48
+        }
+      }
+    }
+  }
+}

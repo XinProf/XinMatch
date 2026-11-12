@@ -2683,5 +2683,14 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
   `verify_binary.py` 硬依赖本机 7-Zip 导致轮 2/3 `FileNotFoundError` → 改标准库 `zipfile`
   （commit `e9ff672`）。
 
-**下一步**：三把尺子已齐，后续 A/B 必须三把齐跑并拆涨跌两侧；v3.7.0 已发布，
-下一轮可从「合成谱序贯 9/13 vs 历史 10/13 的同源对照」或新功能开始。
+### 后续：同源对照与三把齐跑入口（2026-11-12）
+
+| 项 | 结果 |
+|---|---|
+| 合成谱同源对照 | 同物料 / 同 seed / 同配置，v3 源 vs card 源：8 项指标 **涨 6 / 平 2 / 跌 0**（明细见基准报告 §40.1） |
+| 序贯差 1 归因更正 | card 源与 v3 源序贯均 `9/13` → **不是生成源**（也非轮数）；历史 `10/13` 仍未复现，疑似库版本（71k→78k）差异，未判定退化 |
+| CIF 路径修复 | `cif_store._cod_root` 未下探 `<root>/cif`，card 源 `900-` 系列回退 CIF 时崩；改为优先 `<root>/cif` 后 13 组完整生成 |
+| 三把齐跑入口 | 新增 `tools/bench_three_rulers.py`（26 项统一指标 + `--baseline` 涨跌单列 + `--fail-on-down` 回归门），6 项单测；基线产物 `docs/bench/all-20261112.json` |
+
+**下一步**：任何影响排序 / FoM 的改动，先留三把尺子基线、改后对比；涨跌同时出现按零和交换处理，
+不算改善。合成谱序贯剩余差异可用旧库（71k 版）做同配置回放，这是唯一未排除变量。
