@@ -2662,4 +2662,26 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 | 合成谱基准 | 条目级 T1 7/13、T5 12/13、序贯 3/13、相召回 10/24；相位级 T1 **11/13**、T5 **12/13**、序贯 9/13、相召回 **19/24**；产物 `docs/bench/synth-20261112.json` |
 | 与历史基线 | 合成谱用 v3 源重建，与历史源**逐样本不可比**；相位级 T1/T5/相召回数值与 v3.2.0 记录相同，序贯 9/13 低 1，`--rounds 5` 不变 → 生成源差异，非退化 |
 
-**下一步**：三把尺子已齐，后续 A/B 必须三把齐跑并拆涨跌两侧；本轮未构建二进制、未打 tag、未发 Release。
+**二进制与 Release（2026-11-12 19:50 发布）**：
+
+| 附件 | 字节 | SHA-256 |
+|---|---:|---|
+| `XinMatch-Setup-3.7.0.exe` | 255,257,841 | `ea3b9225bb0f5b2de0e5b9ebafdb6455b0e8705e8ffa8f84b1d76f48aeea6565` |
+
+- Release：[`v3.7.0`](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0)（**Latest**，
+  published 2026-11-12T11:50:18Z）；tag `v3.7.0` → `e9ff672`；
+  GitHub 服务端 digest 与本地 SHA-256 一致。
+- 便携包 `XinMatch-Portable-3.7.0.zip`（371,700,155 B，
+  `6d09f6707037834be40235af5c66a9b44b422aa0b1f6541e2f84fde5735c0b1b`）
+  按约定**只构建、不随 Release 发布**。
+- 5 轮自动验收全过（`tools/verify_binary.py`，报告 `.scratch/binary_verify_370.json`）：
+  哈希回读一致；便携包 3,682 项 / 冻结 CLI 识别 **78,035 相** / `variant=release` /
+  随包 logo 逐字节一致；冻结 GUI 三钩子 + 3 次冷启动 exit 0；静默安装成功；
+  安装后真实谱 5-1（118 峰）→ 5 候选、榜首 `96-210-0189`。
+  安装包已由用户双击人工验收（红线第 6 条）。
+- 构建过程中修的两处环境问题：后台构建在 ISCC 阶段被提前终止（前台重跑成功，产物完整）；
+  `verify_binary.py` 硬依赖本机 7-Zip 导致轮 2/3 `FileNotFoundError` → 改标准库 `zipfile`
+  （commit `e9ff672`）。
+
+**下一步**：三把尺子已齐，后续 A/B 必须三把齐跑并拆涨跌两侧；v3.7.0 已发布，
+下一轮可从「合成谱序贯 9/13 vs 历史 10/13 的同源对照」或新功能开始。
