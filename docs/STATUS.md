@@ -2590,7 +2590,7 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 > | 1. CLI userdb | 未做 | ✅ 已落地 `userdb list/add/remove/rebuild` + 4 条隔离测试，与 GUI 共用 `core/db/user_db` |
 > | 2. v2 遗留链 | 待裁定 | ✅ 只读引用扫描完成，**裁定不删**（7 个模块里 5 个仍被生产代码 import） |
 > | 3. FPFM 0 强度点 | 发现未改 | ✅ 已落地相对强度下限护栏；A/B 正常谱 237/237 逐位相同（涨 0 / 跌 0）、边界谱涨 4 / 跌 0 |
-> | 4. 数据补齐（本轮追加） | IUCr 已补 / PDF2 已入库 | ✅ PDF2 已挂到本机注册表（163,834 相，未入 Git）；真实谱 13 组在 `D:\test_XRD\temp\smz xrd analysis` 找回并完成基准回归，**三把尺子已有两把可用**（合成仍缺） |
+> | 4. 数据补齐（本轮追加） | IUCr 已补 / PDF2 已入库 | ✅ PDF2 已挂到本机注册表（163,834 相，未入 Git）；真实谱 13 组在 `D:\test_XRD\temp\smz xrd analysis` 找回并完成基准回归，**三把尺子已有两把可用**（合成仍缺；2026-11-12 16:25 已重建，见文末 v3.7.0 章节） |
 >
 > **口径更正（重要）**：原第 3 项写「必须按三把尺子做 A/B」——但 `compute_rwp`
 > 只在 FPFM 模式使用，三把尺子的 bench 脚本全是 peaks 模式，**检不出该修复**；
@@ -2632,7 +2632,7 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
   原「必须等三把尺子」的前提消解。A/B：正常谱 237/237 逐位相同（涨 0 / 跌 0），
   边界谱 4/4 恢复（涨 4 / 跌 0）。IUCr peaks 基准回归与历史基线一致；
   真实谱 13 组已在 `D:\test_XRD\temp\smz xrd analysis` 找回并完成回归
-  （**三把尺子已有两把可用**，合成尺子仍缺）。两把尺子均为 peaks 口径，
+  （**三把尺子已有两把可用**，合成尺子仍缺；合成谱已于 16:25 重建，见 v3.7.0 章节）。两把尺子均为 peaks 口径，
   对本修复零影响属预期；详见基准报告 §38.4。
 
 ### 4.（已决，2026-11-11 状态复位）发布形态
@@ -2643,3 +2643,23 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 `origin/master`（`e107a97`）、`v3.6.4` tag 已打。
 **仍未挂 GitHub Release**；EXE 发布前必须人工双击验收（红线未变）。
 另：splash 已改 800×600 且不再烤版本号（version-agnostic）。
+
+---
+
+## v3.7.0：三把尺子补齐（合成谱恢复，2026-11-12）
+
+**版本**：`pyproject.toml` / `xinmatch/__init__.py` / `tools/xinmatch_setup.iss` 三处升至 **3.7.0**，
+`xinmatch.spec` 仍从 pyproject 推导、无字面量；`tests/test_version_consistency.py` 5 项通过，
+运行期 `xinmatch.__version__ == 3.7.0`。
+
+**范围**：只恢复合成谱尺子 + 修生成器路径，**不改检索算法、不改库格式**。
+
+| 项 | 结果 |
+|---|---|
+| 合成谱 13 组 | `D:\test_XRD\synthetic_v3`（`--peak-source v3`，seed 42），`load_pattern` 13/13，4000 点/组，λ=1.5406，附 `manifest.md` 真值 |
+| 生成器路径缺陷 | `CARD_DB` 原硬编码 `D:\Project\XRD\XinMatch\data\cod_inorganics.db`（迁移后不存在）→ 改仓库相对 `data/cod_inorganics.db`，三个取卡函数加缺库早退 |
+| 本机 v2 卡片库 | 主文件缺失，仅剩 `cod_inorganics.bak-20261011-095744.db`（513 MB / 6,266,200 峰）；用**硬链接**恢复主文件名，零拷贝，`data/` 已被 Git 忽略 |
+| 合成谱基准 | 条目级 T1 7/13、T5 12/13、序贯 3/13、相召回 10/24；相位级 T1 **11/13**、T5 **12/13**、序贯 9/13、相召回 **19/24**；产物 `docs/bench/synth-20261112.json` |
+| 与历史基线 | 合成谱用 v3 源重建，与历史源**逐样本不可比**；相位级 T1/T5/相召回数值与 v3.2.0 记录相同，序贯 9/13 低 1，`--rounds 5` 不变 → 生成源差异，非退化 |
+
+**下一步**：三把尺子已齐，后续 A/B 必须三把齐跑并拆涨跌两侧；本轮未构建二进制、未打 tag、未发 Release。

@@ -1,0 +1,432 @@
+{
+  "patterns": "D:\\test_XRD\\synthetic_v3",
+  "library": "D:\\XinMatch-DataBase\\data\\COD-Inorg-20261020.xinDB",
+  "config": {
+    "prescreen_order": "intensity",
+    "family_slots": null,
+    "oracle_elements": false
+  },
+  "n_samples": 13,
+  "top1": 7,
+  "top5": 12,
+  "full_recovery": 3,
+  "entry_level": {
+    "top1": 7,
+    "top5": 12,
+    "full_recovery": 3,
+    "phase_recall": 10
+  },
+  "phase_level": {
+    "top1": 11,
+    "top5": 12,
+    "full_recovery": 9,
+    "phase_recall": 19
+  },
+  "phase_recall": [
+    19,
+    24
+  ],
+  "rows": [
+    {
+      "sample": "synth_01",
+      "n_peaks": 45,
+      "truth": [
+        "96-230-0448",
+        "96-230-0112",
+        "96-230-0449"
+      ],
+      "top1": "96-230-0448",
+      "top5": [
+        "96-230-0448",
+        "96-900-8081",
+        "96-900-7498",
+        "96-100-0059",
+        "96-900-7496"
+      ],
+      "hit_top1": true,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-230-0448",
+        "96-230-0112",
+        "96-153-6166"
+      ],
+      "sequential_hit": 2,
+      "sequential_hit_phase": 2,
+      "sequential_truth": 3,
+      "coverage": 0.9454,
+      "all_recovered": false,
+      "all_recovered_phase": false
+    },
+    {
+      "sample": "synth_02",
+      "n_peaks": 53,
+      "truth": [
+        "96-500-0035",
+        "96-210-0992"
+      ],
+      "top1": "96-900-7687",
+      "top5": [
+        "96-900-7687",
+        "96-210-0992",
+        "96-900-0095",
+        "96-901-6022",
+        "96-901-5390"
+      ],
+      "hit_top1": false,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-900-7687",
+        "96-900-5017",
+        "96-154-0082"
+      ],
+      "sequential_hit": 0,
+      "sequential_hit_phase": 2,
+      "sequential_truth": 2,
+      "coverage": 0.9103,
+      "all_recovered": false,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_03",
+      "n_peaks": 54,
+      "truth": [
+        "96-500-0223",
+        "96-231-0486"
+      ],
+      "top1": "96-231-0486",
+      "top5": [
+        "96-231-0486",
+        "96-500-0223",
+        "96-900-8214",
+        "96-771-1467",
+        "96-412-4518"
+      ],
+      "hit_top1": true,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-231-0486",
+        "96-500-0223",
+        "96-770-1071"
+      ],
+      "sequential_hit": 2,
+      "sequential_hit_phase": 2,
+      "sequential_truth": 2,
+      "coverage": 0.9306,
+      "all_recovered": true,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_04",
+      "n_peaks": 49,
+      "truth": [
+        "96-210-1167",
+        "96-500-0035"
+      ],
+      "top1": "96-210-1168",
+      "top5": [
+        "96-210-1168",
+        "96-210-1169",
+        "96-210-1167",
+        "96-901-5964",
+        "96-210-8027"
+      ],
+      "hit_top1": false,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-210-1168",
+        "96-101-1172",
+        "96-156-3210"
+      ],
+      "sequential_hit": 0,
+      "sequential_hit_phase": 1,
+      "sequential_truth": 2,
+      "coverage": 0.9218,
+      "all_recovered": false,
+      "all_recovered_phase": false
+    },
+    {
+      "sample": "synth_05",
+      "n_peaks": 41,
+      "truth": [
+        "96-900-8961",
+        "96-230-0112"
+      ],
+      "top1": "96-101-1148",
+      "top5": [
+        "96-101-1148",
+        "96-110-0028",
+        "96-900-8961",
+        "96-900-4180",
+        "96-900-4178"
+      ],
+      "hit_top1": false,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-101-1148",
+        "96-900-4180",
+        "96-110-0028"
+      ],
+      "sequential_hit": 0,
+      "sequential_hit_phase": 2,
+      "sequential_truth": 2,
+      "coverage": 0.95,
+      "all_recovered": false,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_06",
+      "n_peaks": 37,
+      "truth": [
+        "96-210-0858"
+      ],
+      "top1": "96-210-0859",
+      "top5": [
+        "96-210-0859",
+        "96-210-0858",
+        "96-210-0860",
+        "96-210-0861",
+        "96-150-7756"
+      ],
+      "hit_top1": false,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-210-0859",
+        "96-210-0860",
+        "96-152-2123"
+      ],
+      "sequential_hit": 0,
+      "sequential_hit_phase": 1,
+      "sequential_truth": 1,
+      "coverage": 0.9728,
+      "all_recovered": false,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_07",
+      "n_peaks": 48,
+      "truth": [
+        "96-900-0629",
+        "96-900-3112"
+      ],
+      "top1": "96-900-5298",
+      "top5": [
+        "96-900-5298",
+        "96-201-2328",
+        "96-705-6919",
+        "96-900-8673",
+        "96-725-0225"
+      ],
+      "hit_top1": false,
+      "hit_top5": false,
+      "hit_top1_phase": false,
+      "hit_top5_phase": false,
+      "sequential_found": [
+        "96-900-5298",
+        "96-705-6919",
+        "96-430-5948"
+      ],
+      "sequential_hit": 0,
+      "sequential_hit_phase": 0,
+      "sequential_truth": 2,
+      "coverage": 0.6802,
+      "all_recovered": false,
+      "all_recovered_phase": false
+    },
+    {
+      "sample": "synth_08",
+      "n_peaks": 45,
+      "truth": [
+        "96-230-0449",
+        "96-230-0448"
+      ],
+      "top1": "96-230-0448",
+      "top5": [
+        "96-230-0448",
+        "96-230-0375",
+        "96-900-9678",
+        "96-100-0059",
+        "96-100-0032"
+      ],
+      "hit_top1": true,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-230-0448",
+        "96-900-7060",
+        "96-221-6157"
+      ],
+      "sequential_hit": 1,
+      "sequential_hit_phase": 2,
+      "sequential_truth": 2,
+      "coverage": 0.9113,
+      "all_recovered": false,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_09",
+      "n_peaks": 65,
+      "truth": [
+        "96-900-0046"
+      ],
+      "top1": "96-900-0046",
+      "top5": [
+        "96-900-0046",
+        "96-433-8882",
+        "96-900-8569",
+        "96-153-9941",
+        "96-431-7197"
+      ],
+      "hit_top1": true,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-900-0046",
+        "96-771-6056",
+        "96-152-9136"
+      ],
+      "sequential_hit": 1,
+      "sequential_hit_phase": 1,
+      "sequential_truth": 1,
+      "coverage": 0.804,
+      "all_recovered": true,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_10",
+      "n_peaks": 43,
+      "truth": [
+        "96-500-0217",
+        "96-210-1535"
+      ],
+      "top1": "96-900-6921",
+      "top5": [
+        "96-900-6921",
+        "96-210-1535",
+        "96-901-6801",
+        "96-900-6920",
+        "96-900-7644"
+      ],
+      "hit_top1": false,
+      "hit_top5": true,
+      "hit_top1_phase": false,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-900-6921",
+        "96-500-0217",
+        "96-152-9815"
+      ],
+      "sequential_hit": 1,
+      "sequential_hit_phase": 1,
+      "sequential_truth": 2,
+      "coverage": 0.8535,
+      "all_recovered": false,
+      "all_recovered_phase": false
+    },
+    {
+      "sample": "synth_11",
+      "n_peaks": 53,
+      "truth": [
+        "96-500-0040",
+        "96-210-0992"
+      ],
+      "top1": "96-500-0040",
+      "top5": [
+        "96-500-0040",
+        "96-901-7810",
+        "96-901-7811",
+        "96-901-7207",
+        "96-901-7297"
+      ],
+      "hit_top1": true,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-500-0040",
+        "96-901-5390",
+        "96-154-8742"
+      ],
+      "sequential_hit": 1,
+      "sequential_hit_phase": 2,
+      "sequential_truth": 2,
+      "coverage": 0.9445,
+      "all_recovered": false,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_12",
+      "n_peaks": 47,
+      "truth": [
+        "96-500-0225",
+        "96-500-0120"
+      ],
+      "top1": "96-500-0120",
+      "top5": [
+        "96-500-0120",
+        "96-155-7462",
+        "96-900-2096",
+        "96-900-2095",
+        "96-901-7031"
+      ],
+      "hit_top1": true,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-500-0120",
+        "96-101-1116",
+        "96-202-3387"
+      ],
+      "sequential_hit": 1,
+      "sequential_hit_phase": 2,
+      "sequential_truth": 2,
+      "coverage": 0.8798,
+      "all_recovered": false,
+      "all_recovered_phase": true
+    },
+    {
+      "sample": "synth_13",
+      "n_peaks": 66,
+      "truth": [
+        "96-210-1234"
+      ],
+      "top1": "96-210-1234",
+      "top5": [
+        "96-210-1234",
+        "96-152-8644",
+        "96-153-3124",
+        "96-153-3126",
+        "96-153-3125"
+      ],
+      "hit_top1": true,
+      "hit_top5": true,
+      "hit_top1_phase": true,
+      "hit_top5_phase": true,
+      "sequential_found": [
+        "96-210-1234",
+        "96-433-3828",
+        "96-153-3153"
+      ],
+      "sequential_hit": 1,
+      "sequential_hit_phase": 1,
+      "sequential_truth": 1,
+      "coverage": 0.7917,
+      "all_recovered": true,
+      "all_recovered_phase": true
+    }
+  ]
+}

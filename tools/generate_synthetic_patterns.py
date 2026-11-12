@@ -39,7 +39,9 @@ COD_INDEX = Path(r"D:\Project\XRD\PolyXRD\cod_data\cod_index.sqlite")
 # XinMatch 检索库（cod_inorganics.db）的 peaks 表存 0-100 相对强度，与检索 FoM 同源。
 # 生成合成谱的峰强度一律取自该库（entry_id = 96-{cod_id 8 位}），保证"从库内卡片生成、
 # 能在库内找回"的净室闭环；库内无此编号时回退 CIF 结构因子计算。
-CARD_DB = Path(r"D:\Project\XRD\XinMatch\data\cod_inorganics.db")
+# 路径跟仓库走（2026-11 环境迁移后旧绝对路径 D:\Project\XRD\XinMatch\data 已不存在）；
+# 缺库时三个取卡函数返回 None（hkl/晶胞缺失 → 不加织构），生成流程不中断。
+CARD_DB = Path(__file__).resolve().parents[1] / "data" / "cod_inorganics.db"
 WAVELEN = 1.5406  # Cu K-alpha1
 TWO_THETA = np.arange(10.0, 90.0, 0.02)
 # Caglioti parameters (typical laboratory Cu source).
@@ -80,6 +82,8 @@ MD_R = 0.75
 
 def _card_peaks(cod_id: int) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int, int] | None]] | None:
     """从 XinMatch 检索库取卡片 d/I/hkl（强度 0-100 相对强度，与 FoM 同源）。"""
+    if not CARD_DB.is_file():
+        return None
     s = str(cod_id)
     eid = f"96-{s[:3]}-{s[3:]}" if len(s) == 7 else None
     if not eid:
@@ -169,6 +173,8 @@ def _card_peaks_v3(
 
 def _cell_for(cod_id: int) -> tuple[float, float, float, float, float, float] | None:
     """卡片晶胞 (a, b, c, α, β, γ)；无则 None（真 MD 需要倒格矢夹角）。"""
+    if not CARD_DB.is_file():
+        return None
     s = str(cod_id)
     eid = f"96-{s[:3]}-{s[3:]}" if len(s) == 7 else None
     if not eid:
@@ -197,6 +203,8 @@ def _card_peaks_by_formula(cod_id: int) -> tuple[np.ndarray, np.ndarray, list[tu
     保证与检索 FoM 同源（CIF 结构因子动态范围过大，直接使用会让
     次强峰淹没，FoM intensity 失真）。
     """
+    if not CARD_DB.is_file():
+        return None
     _, elements = _meta(cod_id)
     if not elements:
         return None
