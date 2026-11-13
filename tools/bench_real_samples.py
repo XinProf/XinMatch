@@ -344,6 +344,8 @@ def main() -> None:
                          "这是**上界**，不是可直接交付的自动结果")
     ap.add_argument("--raw-peaks", action="store_true",
                     help="不做自动预处理，直接在原始谱上寻峰（用于对照）")
+    ap.add_argument("--adaptive-pool", type=int, default=None,
+                    help="v3 自适应放大池：FoM 头部平坦时用该池复算（None=关闭）")
     ap.add_argument("--prescreen-order", choices=("intensity", "hits"),
                     default="intensity",
                     help="预筛第二排序键（默认 intensity = 发布口径；hits 为待裁定口径）。"
@@ -386,7 +388,8 @@ def main() -> None:
 
         # 一次多取一些卡，才能折叠后仍剩 top_n 个「相位」（相族）。
         deep_n = max(args.top_n * 4, 100)
-        whole = search_match(peaks, reader, pattern.wavelength, top_n=deep_n)
+        whole = search_match(peaks, reader, pattern.wavelength, top_n=deep_n,
+                             adaptive_pool=args.adaptive_pool)
         cards = whole[:args.top_n]
         fams = family_members(whole, args.top_n)
         top1 = whole[0] if whole else None
@@ -416,7 +419,8 @@ def main() -> None:
             seq = SequentialIdentifier(peaks, wavelength=pattern.wavelength)
             confirmed: list[Entry] = []
             for _ in range(args.rounds):
-                res = search_residual(seq, reader, top_n=args.top_n)
+                res = search_residual(seq, reader, top_n=args.top_n,
+                                      adaptive_pool=args.adaptive_pool)
                 if not res.candidates:
                     break
                 sel = seq.select(res.candidates[0])
@@ -453,7 +457,8 @@ def main() -> None:
             restraints = _oracle_restraints(items, fine_truths)
             if restraints is not None:
                 whole_e = search_match(peaks, reader, pattern.wavelength,
-                                       top_n=deep_n, restraints=restraints)
+                                       top_n=deep_n, restraints=restraints,
+                                       adaptive_pool=args.adaptive_pool)
                 cards_e = whole_e[:args.top_n]
                 fams_e = family_members(whole_e, args.top_n)
                 e_top = [any(_hit(c, [t]) for c in cards_e) for t in truths]
@@ -473,7 +478,8 @@ def main() -> None:
                     confirmed_e: list[Entry] = []
                     for _ in range(args.rounds):
                         res_e = search_residual(seq_e, reader, top_n=args.top_n,
-                                                restraints=restraints)
+                                                restraints=restraints,
+                                                adaptive_pool=args.adaptive_pool)
                         if not res_e.candidates:
                             break
                         seq_e.select(res_e.candidates[0])
@@ -591,6 +597,7 @@ def main() -> None:
                 "config": {
                     "prescreen_order": args.prescreen_order,
                     "family_slots": args.family_slots,
+                    "adaptive_pool": args.adaptive_pool,
                 },
                 "notes": NOTES,
                 "notes_fine": FINE_NOTES,

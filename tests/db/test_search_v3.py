@@ -9,6 +9,9 @@
    混入一条非法峰（2θ=0）也不得破坏召回。
 3. **分派** —— ``xinmatch.core.search.search_match`` 收到 ``XinDBReader``
    时必须走 v3 管线（而不是 v2 的 SQL peaks 行表）。
+4. **自适应放大池** —— ``flat_top_fom`` 只认"没有清晰领先者"的 FoM 头部；
+   ``adaptive_pool`` 触发时恰好复算一次大池，不触发 / 不开启时只跑一次；
+   非法值在 ``search_match`` 入口就被挡住。
 """
 
 from __future__ import annotations
@@ -21,11 +24,14 @@ import pytest
 from tests.xindb_support import write_xindb
 from xinmatch.core.db.reader_v3 import PrescreenResult, XinDBReader
 from xinmatch.core.db.search_v3 import (
+    ADAPTIVE_GAP,
     _exp_d_intensity_pairs,
+    flat_top_fom,
     search_match_v3,
 )
 from xinmatch.core.model import CellParams, Entry, Peak
 from xinmatch.core.search import search_match
+from xinmatch.core.search.fom import CandidateResult
 
 WL = 1.5406
 
@@ -192,3 +198,95 @@ def test_search_match_rejects_non_positive_candidate_limit(tiny_library) -> None
         for bad in (0, -1):
             with pytest.raises(ValueError, match="candidate_limit"):
                 search_match(peaks, reader, WL, top_n=5, candidate_limit=bad)
+
+
+# ---------------------------------------------------------------------------
+# 4. 自适应放大池
+# ---------------------------------------------------------------------------
+def _fom_candidates(n: int, gap: float) -> list[CandidateResult]:
+    """n 张候选卡，Top-1 − 最后一名的 FoM 落差恰为 ``gap``。"""
+    e = _entry("96-100-0001", [3.34], [1000.0], "O2 Si")
+    return [
+        CandidateResult(entry=e, fom=0.80 - gap * i / max(n - 1, 1))
+        for i in range(n)
+    ]
+
+
+def test_flat_top_fom_triggers_only_on_a_flat_head() -> None:
+    assert flat_top_fom(_fom_candidates(10, ADAPTIVE_GAP - 0.001)) is True
+    # 阈值是严格小于；正好等于不算平坦。
+    assert flat_top_fom(_fom_candidates(10, ADAPTIVE_GAP)) is False
+    assert flat_top_fom(_fom_candidates(10, ADAPTIVE_GAP + 0.001)) is False
+    # 不足 10 张卡：没有足够的头部信息，一律不触发。
+    assert flat_top_fom(_fom_candidates(9, 0.0)) is False
+    assert flat_top_fom([]) is False
+
+
+def test_adaptive_pool_reruns_only_when_head_is_flat(monkeypatch) -> None:
+    """触发时恰好两次预筛（小池 → 大池），不触发 / 不开启时只跑一次。"""
+    from xinmatch.core.db import search_v3 as sv3
+
+    peaks = _peaks_from_d([3.34, 4.26], [1000.0, 500.0])
+
+    monkeypatch.setattr(sv3, "flat_top_fom", lambda *_a, **_k: True)
+    triggered = _RecordingReader()
+    result = sv3.search_match_v3(
+        peaks, triggered, WL, candidate_limit=1000, adaptive_pool=20000
+    )
+    assert len(triggered.calls) == 2
+    assert [c[2]["rank_limit"] for c in triggered.calls] == [1000, 20000]
+    assert result.seconds >= 0.0
+
+    monkeypatch.setattr(sv3, "flat_top_fom", lambda *_a, **_k: False)
+    sharp = _RecordingReader()
+    sv3.search_match_v3(peaks, sharp, WL, candidate_limit=1000, adaptive_pool=20000)
+    assert len(sharp.calls) == 1
+    assert sharp.calls[0][2]["rank_limit"] == 1000
+
+    # 关闭 / 非法放大值：即使头部"平坦"也只跑一次（v3 层静默忽略）。
+    monkeypatch.setattr(sv3, "flat_top_fom", lambda *_a, **_k: True)
+    for pool in (None, 1000, 500):
+        reader = _RecordingReader()
+        sv3.search_match_v3(peaks, reader, WL, candidate_limit=1000,
+                            adaptive_pool=pool)
+        assert len(reader.calls) == 1
+        assert reader.calls[0][2]["rank_limit"] == 1000
+
+
+def test_search_match_plumbs_adaptive_pool_to_v3(tiny_library, monkeypatch) -> None:
+    """``search_match`` 把开关透传到 v3；不传时是 ``None``（逐位不变）。"""
+    from xinmatch.core.db import search_v3 as sv3
+
+    lib, source = tiny_library
+    peaks = _peaks_from_d(source.d_spacings.tolist(), source.intensities.tolist())
+    calls: list[dict] = []
+    real = sv3.search_match_v3
+
+    def _spy(*args: object, **kwargs: object):
+        calls.append(dict(kwargs))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(sv3, "search_match_v3", _spy)
+    with XinDBReader(lib) as reader:
+        search_match(peaks, reader, WL, top_n=5)
+        assert calls[0]["adaptive_pool"] is None
+
+        calls.clear()
+        search_match(peaks, reader, WL, top_n=5, adaptive_pool=20000)
+        assert calls[0]["adaptive_pool"] == 20000
+
+
+def test_search_match_rejects_adaptive_pool_not_larger_than_base(tiny_library) -> None:
+    lib, source = tiny_library
+    peaks = _peaks_from_d(source.d_spacings.tolist(), source.intensities.tolist())
+
+    with XinDBReader(lib) as reader:
+        for bad in (0, -1, 500, 1000):
+            with pytest.raises(ValueError, match="adaptive_pool"):
+                search_match(peaks, reader, WL, top_n=5, adaptive_pool=bad)
+        with pytest.raises(ValueError, match="adaptive_pool"):
+            search_match(peaks, reader, WL, top_n=5,
+                         candidate_limit=5000, adaptive_pool=5000)
+        # 大于显式 base 是合法的（小库只有 2 张卡，头部不平坦，不会复算）。
+        search_match(peaks, reader, WL, top_n=5,
+                     candidate_limit=5000, adaptive_pool=10000)

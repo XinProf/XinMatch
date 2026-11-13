@@ -147,6 +147,11 @@ def build_argv(
     elif name == "iucr":
         # bench_iucr 也支持 --top-n；rounds 已在上面按需传入。
         argv += ["--top-n", str(args.top_n)]
+    # getattr：单测会用手工 Namespace 拼参数，旧调用方也没有这个字段。
+    pool = getattr(args, "adaptive_pool", None)
+    if pool is not None:
+        # 四个尺子脚本都接受该开关；None 表示关闭，命令行不出现即逐位不变。
+        argv += ["--adaptive-pool", str(pool)]
     return argv
 
 
@@ -258,6 +263,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="覆盖三个尺子的轮数；默认沿用各自默认（IUCr 8，其余 3）")
     ap.add_argument("--prescreen-order", choices=("intensity", "hits"), default="intensity")
     ap.add_argument("--family-slots", type=int, default=None)
+    ap.add_argument("--adaptive-pool", type=int, default=None,
+                    help="v3 自适应放大池：FoM 头部平坦时用该池复算（None=关闭）")
     ap.add_argument("--fail-on-down", action="store_true",
                     help="对比结果出现下跌项时以非零码退出（作为回归门用）")
     args = ap.parse_args(argv)
@@ -295,6 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             "rounds": args.rounds if args.rounds is not None else DEFAULT_ROUNDS,
             "prescreen_order": args.prescreen_order,
             "family_slots": args.family_slots,
+            "adaptive_pool": args.adaptive_pool,
         },
         "rulers": rulers,
     }

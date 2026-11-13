@@ -232,6 +232,7 @@ def _search_match_v3(
     top_n: int = 20,
     recall_min_matches: int = 2,
     candidate_limit: int | None = None,
+    adaptive_pool: int | None = None,
 ) -> list[CandidateResult]:
     """v3 分支：委托给 :func:`search_v3.search_match_v3`。
 
@@ -245,7 +246,8 @@ def _search_match_v3(
     :data:`~xinmatch.core.db.search_v3.DEFAULT_CANDIDATE_LIMIT`，即 1000）。
     多相噪声谱上这个池会被"匹配计数高但无意义"的致密卡挤满、真值相整批进不了
     打分（实测见 :mod:`tools.bench_shijk`），此时调用方可显式放大；
-    默认 ``None`` 保持既有行为逐位不变。
+    默认 ``None`` 保持既有行为逐位不变。``adaptive_pool`` 则进一步把这个放大
+    变成"只在 FoM 头部平坦的难例上触发"，判定与二次检索都在 v3 层完成。
     """
     from xinmatch.core.db.search_v3 import DEFAULT_CANDIDATE_LIMIT, search_match_v3
 
@@ -275,6 +277,7 @@ def _search_match_v3(
         elements_allowed=allowed,
         elements_any=any_of,
         elements_excluded=excluded,
+        adaptive_pool=adaptive_pool,
     )
     return result.candidates
 
@@ -295,6 +298,7 @@ def search_match(
     recall_strongest_peak: bool = True,
     recall_strongest_k: int = 5,
     candidate_limit: int | None = None,
+    adaptive_pool: int | None = None,
 ) -> list[CandidateResult]:
     """Run a full peak-based search-match (Phase 6 / T6.4).
 
@@ -402,6 +406,15 @@ def search_match(
         1000 个名额会被它们挤满、真值相根本进不了打分（ShiJK 7 条 MAUD 谱实测：
         池 1000 时相位级 Top-20 9/33，池 20000 时 15/33，代价 0.5 s → 5.3 s）。
         放大它是**召回/时延的显式取舍**，不是无条件调优；v2（``.polyDB``）路径不受影响。
+    adaptive_pool:
+        **v3 专用、默认关闭**。透传给
+        :func:`~xinmatch.core.db.search_v3.search_match_v3`：先用默认池（1000）
+        算一遍，若 FoM 头部平坦（Top-1 − Top-10 <
+        :data:`~xinmatch.core.db.search_v3.ADAPTIVE_GAP`，即 0.04，说明没有清晰
+        领先者），就用这个更大的池复算一次并返回复算结果；否则返回第一次结果。
+        目的是把 5 s 级的"深挖"只花在难例上。``None`` = 关闭，行为逐位不变；
+        不大于当前池的值视为无效（抛 :class:`ValueError`）。触发率与时延的
+        实测见基准报告 §43。
 
     Returns
     -------
@@ -414,6 +427,14 @@ def search_match(
     if candidate_limit is not None and int(candidate_limit) <= 0:
         raise ValueError(f"candidate_limit must be positive, got {candidate_limit!r}")
     if _is_v3_reader(conn):
+        from xinmatch.core.db.search_v3 import DEFAULT_CANDIDATE_LIMIT
+
+        base_limit = DEFAULT_CANDIDATE_LIMIT if candidate_limit is None else int(candidate_limit)
+        if adaptive_pool is not None and int(adaptive_pool) <= base_limit:
+            raise ValueError(
+                f"adaptive_pool must exceed the base pool ({base_limit}), "
+                f"got {adaptive_pool!r}"
+            )
         return _search_match_v3(
             exp_peaks,
             conn,
@@ -422,7 +443,8 @@ def search_match(
             window_deg=window_deg,
             top_n=top_n,
             recall_min_matches=recall_min_matches,
-            candidate_limit=candidate_limit,
+            candidate_limit=base_limit,
+            adaptive_pool=adaptive_pool,
         )
 
     # Step 1 — candidate generation.

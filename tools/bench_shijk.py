@@ -50,7 +50,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from xinmatch.core.db.reader_v3 import XinDBReader
+from xinmatch.core.db.reader_v3 import _DEFAULT_PRESCREEN_ORDER, _ORDER_CHOICES, XinDBReader
 from xinmatch.core.io import load_pattern
 from xinmatch.core.model.entry import CellParams, Entry
 from xinmatch.core.preprocess.auto_pipeline import auto_process
@@ -210,7 +210,10 @@ def _first_rank(cands: list, truths: list[Truth], *, phase: bool) -> list[int | 
 
 
 def run(args: argparse.Namespace) -> dict:
-    reader = XinDBReader(str(args.library))
+    reader = XinDBReader(
+        str(args.library), prescreen_order=getattr(args, "prescreen_order", None)
+        or _DEFAULT_PRESCREEN_ORDER,
+    )
     samples = sorted(p for p in args.patterns.iterdir() if p.is_dir())
     if not samples:
         raise SystemExit(f"没有子目录：{args.patterns}")
@@ -259,6 +262,7 @@ def run(args: argparse.Namespace) -> dict:
             processed.wavelength,
             top_n=args.fetch,
             candidate_limit=args.candidate_limit,
+            adaptive_pool=args.adaptive_pool,
         )
         r_entry = _first_rank(cands, truths, phase=False)
         r_phase = _first_rank(cands, truths, phase=True)
@@ -276,7 +280,8 @@ def run(args: argparse.Namespace) -> dict:
             ident = SequentialIdentifier(peaks, wavelength=processed.wavelength)
             confirmed: list[Entry] = []
             for _ in range(args.rounds):
-                res = search_residual(ident, reader, top_n=args.top_n)
+                res = search_residual(ident, reader, top_n=args.top_n,
+                                      adaptive_pool=args.adaptive_pool)
                 if not res.candidates:
                     break
                 ident.select(res.candidates[0])
@@ -362,6 +367,8 @@ def run(args: argparse.Namespace) -> dict:
         "patterns": str(args.patterns),
         "library": str(args.library),
         "candidate_limit": args.candidate_limit,
+        "adaptive_pool": args.adaptive_pool,
+        "prescreen_order": args.prescreen_order,
         "fetch": args.fetch,
         "rounds": args.rounds,
         "metrics": metrics,
@@ -399,6 +406,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--library", type=Path, required=True, help=".xinDB 库绝对路径")
     ap.add_argument("--candidate-limit", type=int, default=None,
                     help="v3 预筛后打分池上限（None=引擎默认 1000）")
+    ap.add_argument("--adaptive-pool", type=int, default=None,
+                    help="v3 自适应放大池：FoM 头部平坦时用该池复算（None=关闭）")
+    ap.add_argument("--prescreen-order", choices=_ORDER_CHOICES,
+                    default=_DEFAULT_PRESCREEN_ORDER,
+                    help="v3 预筛第二排序键（intensity=强度加权 / hits=命中计数）")
     ap.add_argument("--fetch", type=int, default=200,
                     help="一次取回的候选卡数（决定可见名次深度，默认 200）")
     ap.add_argument("--top-n", type=int, default=20, help="序贯每轮取前 N，默认 20")

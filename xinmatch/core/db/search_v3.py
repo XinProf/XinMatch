@@ -65,6 +65,26 @@ PRESCREEN_TOP_K = 40
 #: Correlation window (degrees 2θ) used by the scorer — the project default.
 DEFAULT_WINDOW_DEG = 0.3
 
+#: 自适应放大池的触发阈值：Top-1 与 Top-10 的 FoM 差小于此值时，认为"没有
+#: 清晰领先者"（典型于噪声峰很多的多相谱），值得用更大的预筛池复算一次。
+#: 标定见 ``docs/基准报告-物相检索-v3.md`` §43：ShiJK 7 条落在 0.013–0.040，
+#: 其他三套谱里也有分布，所以它是"难例率 / 时延"取舍而非硬分类。
+ADAPTIVE_GAP = 0.04
+
+
+def flat_top_fom(
+    candidates: list[CandidateResult], gap: float = ADAPTIVE_GAP
+) -> bool:
+    """FoM 头部是否平坦到"没有清晰领先者"（自适应放大池的触发条件）。
+
+    候选不足 10 个时一律不触发：没有足够的头部信息判断分布形状，而且这种
+    谱本来就没有被池截断的风险。
+    """
+    return (
+        len(candidates) >= 10
+        and (candidates[0].fom - candidates[9].fom) < gap
+    )
+
 
 @dataclass
 class SearchV3Result:
@@ -175,6 +195,7 @@ def search_match_v3(
     elements_allowed: set[str] | None = None,
     elements_any: set[str] | None = None,
     elements_excluded: set[str] | None = None,
+    adaptive_pool: int | None = None,
 ) -> SearchV3Result:
     """Run a peak-based search-match against a v3 ``.xinDB`` library.
 
@@ -202,10 +223,42 @@ def search_match_v3(
         elements_excluded: Optional element pool restriction ("must not
             contain") — the chemistry sanity filter that keeps phases built
             from elements the sample does not show out of the pool.
+        adaptive_pool: **Default off.** When set to a pool larger than
+            ``candidate_limit``, run once with the small pool, and if the FoM
+            head is flat (:func:`flat_top_fom`, i.e. no clear winner) rerun
+            with ``adaptive_pool`` and return that result instead.  ``None``
+            keeps the single-pass behaviour bit-for-bit unchanged.  The
+            returned ``seconds`` covers **both** passes.
 
     Returns:
         A :class:`SearchV3Result`.
     """
+    # 自适应用两次独立的单次检索实现，主体打分路径一行不动：不传
+    # adaptive_pool 时本分支完全跳过，与改动前逐位一致。
+    if adaptive_pool is not None and int(adaptive_pool) > candidate_limit:
+        def _once(limit: int) -> SearchV3Result:
+            return search_match_v3(
+                exp_peaks,
+                reader,
+                wavelength,
+                candidate_limit=limit,
+                window_deg=window_deg,
+                min_match=min_match,
+                top_n=top_n,
+                tolerance=tolerance,
+                tolerance_rel=tolerance_rel,
+                elements_allowed=elements_allowed,
+                elements_any=elements_any,
+                elements_excluded=elements_excluded,
+            )
+
+        base = _once(candidate_limit)
+        if flat_top_fom(base.candidates):
+            wide = _once(int(adaptive_pool))
+            wide.seconds += base.seconds
+            return wide
+        return base
+
     t0 = time.perf_counter()
     if not exp_peaks:
         return SearchV3Result(
@@ -279,8 +332,10 @@ def search_match_v3(
 
 
 __all__ = [
+    "ADAPTIVE_GAP",
     "DEFAULT_CANDIDATE_LIMIT",
     "PRESCREEN_TOP_K",
     "SearchV3Result",
+    "flat_top_fom",
     "search_match_v3",
 ]

@@ -84,9 +84,10 @@ def test_compare_skips_metrics_missing_in_baseline() -> None:
     assert result["counts"]["flat"] == 1
 
 
-def _args(rounds: int | None) -> argparse.Namespace:
+def _args(rounds: int | None, adaptive_pool: int | None = None) -> argparse.Namespace:
     return argparse.Namespace(
-        rounds=rounds, top_n=20, prescreen_order="intensity", family_slots=None
+        rounds=rounds, top_n=20, prescreen_order="intensity", family_slots=None,
+        adaptive_pool=adaptive_pool,
     )
 
 
@@ -100,3 +101,14 @@ def test_build_argv_keeps_per_ruler_rounds_unless_overridden() -> None:
     argv_r5 = b3.build_argv("synthetic", args=_args(5), **base)
     assert argv_r5[argv_r5.index("--rounds") + 1] == "5"
     assert "--prescreen-order" in argv_r5
+
+
+def test_build_argv_forwards_adaptive_pool_only_when_set() -> None:
+    base = dict(patterns=Path("p"), library=Path("l"), out=Path("o"))
+
+    # 默认关闭：命令行不出现 —— 子脚本按既有默认跑，结果与历史基线可比。
+    assert "--adaptive-pool" not in b3.build_argv("iucr", args=_args(None), **base)
+
+    for ruler in ("synthetic", "real", "iucr"):
+        argv = b3.build_argv(ruler, args=_args(None, 20000), **base)
+        assert argv[argv.index("--adaptive-pool") + 1] == "20000"

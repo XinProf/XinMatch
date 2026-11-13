@@ -377,7 +377,8 @@ def _pools(
 
 
 def _search(peaks, reader, wavelength: float, *, deep_n: int,
-            pools: tuple[set[str] | None, set[str] | None, set[str] | None]):
+            pools: tuple[set[str] | None, set[str] | None, set[str] | None],
+            adaptive_pool: int | None = None):
     """One whole-pattern search, keeping the prescreen metadata.
 
     ``search_match`` throws ``n_prescreened`` / ``truncated`` away, but they are
@@ -390,6 +391,7 @@ def _search(peaks, reader, wavelength: float, *, deep_n: int,
         peaks, reader, wavelength, top_n=deep_n,
         elements_allowed=allowed, elements_any=any_of,
         elements_excluded=excluded,
+        adaptive_pool=adaptive_pool,
     )
 
 
@@ -452,6 +454,8 @@ def main() -> None:
                          "Brucite 多为 D 代，元素集不等），也会误判同组成的异名相。")
     ap.add_argument("--raw-peaks", action="store_true",
                     help="不做自动预处理，直接在原始谱上寻峰（用于对照）")
+    ap.add_argument("--adaptive-pool", type=int, default=None,
+                    help="v3 自适应放大池：FoM 头部平坦时用该池复算（None=关闭）")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
@@ -505,7 +509,8 @@ def main() -> None:
             if mode == "elements":
                 restraints = complement_restraints(_sample_elements(phases))
             whole = _search(peaks, reader, pattern.wavelength, deep_n=deep_n,
-                            pools=_pools(restraints))
+                            pools=_pools(restraints),
+                            adaptive_pool=args.adaptive_pool)
             coarse_truths = None
             if args.coarse:
                 coarse_truths = [truth_entry(p.label, p.formula) for p in phases]
@@ -517,7 +522,8 @@ def main() -> None:
                 confirmed: list[Entry] = []
                 for _ in range(args.rounds):
                     res = search_residual(seq, reader, top_n=args.top_n,
-                                          restraints=restraints)
+                                          restraints=restraints,
+                                          adaptive_pool=args.adaptive_pool)
                     if not res.candidates:
                         break
                     seq.select(res.candidates[0])
@@ -657,6 +663,7 @@ def main() -> None:
                     "family_slots": args.family_slots,
                     "raw_peaks": args.raw_peaks,
                     "modes": modes,
+                    "adaptive_pool": args.adaptive_pool,
                 },
                 "notes_fine": FINE_NOTES,
                 "notes_coarse": COARSE_NOTES,

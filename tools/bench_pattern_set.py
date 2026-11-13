@@ -125,6 +125,8 @@ def main() -> None:
     ap.add_argument("--oracle-elements", action="store_true",
                     help="额外跑一套「元素上界」口径：用真值相元素反推样品元素，把其余"
                          "元素全部标为必须不含。这是**上界**，不是交付指标")
+    ap.add_argument("--adaptive-pool", type=int, default=None,
+                    help="v3 自适应放大池：FoM 头部平坦时用该池复算（None=关闭）")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
@@ -150,7 +152,8 @@ def main() -> None:
         truth_ids = [cod_to_entry_id(c) for c, _wt in phases]
         truth_set = set(truth_ids)
 
-        whole = search_match(peaks, reader, pattern.wavelength, top_n=args.top_n)
+        whole = search_match(peaks, reader, pattern.wavelength, top_n=args.top_n,
+                             adaptive_pool=args.adaptive_pool)
         top1, top5 = _ids(whole, 1), _ids(whole, 5)
         hit1 = bool(set(top1) & truth_set)
         hit5 = bool(set(top5) & truth_set)
@@ -167,7 +170,8 @@ def main() -> None:
         found_entries: list[Entry] = []
         cover = 0.0
         for _ in range(args.rounds):
-            res = search_residual(seq, reader, top_n=args.top_n)
+            res = search_residual(seq, reader, top_n=args.top_n,
+                                  adaptive_pool=args.adaptive_pool)
             if not res.candidates:
                 break
             sel = seq.select(res.candidates[0])
@@ -208,14 +212,16 @@ def main() -> None:
             restraints = _oracle_restraints(truth_entries)
             if restraints is not None:
                 whole_e = search_match(peaks, reader, pattern.wavelength,
-                                       top_n=args.top_n, restraints=restraints)
+                                       top_n=args.top_n, restraints=restraints,
+                                       adaptive_pool=args.adaptive_pool)
                 e_hit1 = bool(whole_e) and _phase_hit(whole_e[0], truth_entries)
                 e_hit5 = any(_phase_hit(c, truth_entries) for c in whole_e[:5])
                 seq_e = SequentialIdentifier(peaks, wavelength=pattern.wavelength)
                 found_e: list[Entry] = []
                 for _ in range(args.rounds):
                     res_e = search_residual(seq_e, reader, top_n=args.top_n,
-                                            restraints=restraints)
+                                            restraints=restraints,
+                                            adaptive_pool=args.adaptive_pool)
                     if not res_e.candidates:
                         break
                     seq_e.select(res_e.candidates[0])
@@ -268,6 +274,7 @@ def main() -> None:
                         "prescreen_order": args.prescreen_order,
                         "family_slots": args.family_slots,
                         "oracle_elements": args.oracle_elements,
+                        "adaptive_pool": args.adaptive_pool,
                     },
                     "n_samples": n,
                     "top1": n_top1,
