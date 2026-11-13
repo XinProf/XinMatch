@@ -53,9 +53,17 @@ def test_fallback_list_matches_the_parser(entry):
 
 
 @pytest.mark.parametrize("command", ["libraries", "batch", "instrument",
-                                     "import", "search", "quantify"])
+                                     "import", "search", "quantify", "userdb"])
 def test_cli_subcommands_route_to_the_cli(entry, command):
     assert entry.wants_cli([command, "--help"]) is True
+
+
+def test_userdb_is_in_the_static_fallback(entry):
+    """``userdb`` was added to the parser in 5ea1c20 without updating the
+    dispatcher's static list; guard that specific regression as well as the
+    full-set equality check above.
+    """
+    assert "userdb" in entry.FALLBACK_CLI_COMMANDS
 
 
 @pytest.mark.parametrize("argv", [[], ["--not-a-command"], ["some_file.xy"]])

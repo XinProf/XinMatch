@@ -281,7 +281,8 @@ def run(args: argparse.Namespace) -> dict:
             confirmed: list[Entry] = []
             for _ in range(args.rounds):
                 res = search_residual(ident, reader, top_n=args.top_n,
-                                      adaptive_pool=args.adaptive_pool)
+                                      adaptive_pool=args.adaptive_pool,
+                                      candidate_limit=args.seq_candidate_limit)
                 if not res.candidates:
                     break
                 ident.select(res.candidates[0])
@@ -368,6 +369,7 @@ def run(args: argparse.Namespace) -> dict:
         "library": str(args.library),
         "candidate_limit": args.candidate_limit,
         "adaptive_pool": args.adaptive_pool,
+        "seq_candidate_limit": args.seq_candidate_limit,
         "prescreen_order": args.prescreen_order,
         "fetch": args.fetch,
         "rounds": args.rounds,
@@ -377,24 +379,46 @@ def run(args: argparse.Namespace) -> dict:
 
 
 def _compare(current: dict, baseline: dict) -> None:
+    """13 项全比：entry/phase 各 5 个 Top-K + seq + sample_top1 两项。
+
+    早期版本只比前 10 项，``seq`` 与 ``sample_top1`` 的下跌会悄悄漏过去
+    （§43 的序贯 16→14 当时就是手动从 JSON 读出来的）。涨跌两侧单列，
+    与 ``tools/bench_three_rulers.py`` 的 compare() 保持同一套约定。
+    """
     cur = current.get("metrics") or {}
     old = baseline.get("metrics") or {}
     if not cur or not old:
         print("基线里没有 metrics，跳过对比")
         return
-    print(f"\n{'metric':22} {'baseline':>12} {'current':>12} {'delta':>8}  dir")
+
+    rows: list[tuple[str, int, int]] = []
     for group in ("entry", "phase"):
         for k in (1, 3, 5, 10, 20):
             name = f"top{k}"
             a = (old.get(group) or {}).get(name)
             b = (cur.get(group) or {}).get(name)
-            if a is None or b is None:
-                continue
-            d = b - a
-            print(
-                f"{group + '.' + name:22} {a:>12d} {b:>12d} {d:>+8d}  "
-                f"{'涨' if d > 0 else '跌' if d < 0 else '平'}"
-            )
+            if a is not None and b is not None:
+                rows.append((f"{group}.{name}", int(a), int(b)))
+    a = (old.get("seq") or {}).get("hit")
+    b = (cur.get("seq") or {}).get("hit")
+    if a is not None and b is not None:
+        rows.append(("seq", int(a), int(b)))
+    for name in ("entry", "phase"):
+        a = (old.get("sample_top1") or {}).get(name)
+        b = (cur.get("sample_top1") or {}).get(name)
+        if a is not None and b is not None:
+            rows.append((f"sample_top1.{name}", int(a), int(b)))
+
+    print(f"\n{'metric':22} {'baseline':>12} {'current':>12} {'delta':>8}  dir")
+    counts = {"涨": 0, "跌": 0, "平": 0}
+    for label, a, b in rows:
+        d = b - a
+        direction = "涨" if d > 0 else "跌" if d < 0 else "平"
+        counts[direction] += 1
+        print(f"{label:22} {a:>12d} {b:>12d} {d:>+8d}  {direction}")
+    print(f"\n涨 {counts['涨']} 项 / 跌 {counts['跌']} 项 / 平 {counts['平']} 项")
+    if counts["跌"] and counts["涨"]:
+        print("注意：涨跌同时存在时属零和交换，按项目约定不算改善。")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -408,6 +432,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="v3 预筛后打分池上限（None=引擎默认 1000）")
     ap.add_argument("--adaptive-pool", type=int, default=None,
                     help="v3 自适应放大池：FoM 头部平坦时用该池复算（None=关闭）")
+    ap.add_argument("--seq-candidate-limit", type=int, default=None,
+                    help="序贯每轮的 v3 预筛池上限（None=引擎默认 1000，与历史基线一致）。"
+                         "默认**不**跟随 --candidate-limit：实测放大它会让序贯 16/33→14/33，"
+                         "见基准报告 §45")
     ap.add_argument("--prescreen-order", choices=_ORDER_CHOICES,
                     default=_DEFAULT_PRESCREEN_ORDER,
                     help="v3 预筛第二排序键（intensity=强度加权 / hits=命中计数）")

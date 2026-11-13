@@ -23,7 +23,10 @@ from __future__ import annotations
 import sys
 
 #: Only used if the CLI parser cannot be imported (kept in sync by
-#: ``tests/tools/test_pyi_entry.py``).
+#: ``tests/tools/test_pyi_entry.py``).  This is a **static** copy: adding a
+#: subcommand to ``xinmatch.cli.main:build_parser`` does not update it, so the
+#: frozen binary would silently open the GUI for that command.  Keep it in
+#: alphabetical order and let the regression test catch any drift.
 FALLBACK_CLI_COMMANDS = {
     "batch",
     "import",
@@ -34,6 +37,7 @@ FALLBACK_CLI_COMMANDS = {
     "report",
     "run",
     "search",
+    "userdb",
 }
 
 #: Flags that should reach the CLI parser instead of opening the GUI.

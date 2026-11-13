@@ -2737,3 +2737,41 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 
 **下一个候选**：§41 的第二号瓶颈——`p_npeaks` 的分母是实验峰总数，天然惩罚次相；
 属**打分函数层**，不在检索层。任何改动仍按"先留四把尺子基线 → 改后对比"执行。
+
+### `p_npeaks` 分母：打分函数层也无便宜（2026-11-14）
+
+| 项 | 结果 |
+|---|---|
+| 诊断法 | **离线重排**：FoM 只负责排序、候选集合由预筛决定；取回整个打分池（1000）后按 `compute_fom()` 只换 `npeaks` 分量重排，与生产改打分函数后的整谱 Top-N 等价（序贯另算） |
+| 根因坐实 | Top-20 内 ShiJK 真值卡 `p_npeaks` **0.261** vs 假卡 **0.289**，**6/6 样本真值更低**；但乘权重 0.2306 后贡献差仅约 0.006，不足以翻转排序 |
+| 四种估计量 | `p_lin`（强度加权覆盖）/ `p_sqrt` / `p_strong40` / `p_explain`（分母换卡片线数 = 解释率） |
+| 结果 | ShiJK 相位级 Top-20 **无一改善**（`p_lin` 9→7）；合成谱相位级 `p_lin` 涨 3–4 项但条目级 Top-3 跌 1；`p_strong40` 三套全平 |
+| 全池校验 | 全池 1000 重排与 Top-200 重排**逐位相同** → 真值相不是藏在 201–1000 名，§41 第一号瓶颈（进不了池）仍是主因 |
+| 裁定 | **不做生产 A/B**，生产代码零改动；「已裁定不做」清单追加「`p_npeaks` 换估计量」 |
+
+至此**检索层（排序 / 池 / 触发器）与打分层的单点调参都已判完**；剩下可量化的只剩
+组合（显式大池贯穿整谱 + 序贯）、展示预算、元素约束这类化学信息。详见基准报告 §44。
+
+### 打包分发修复：`userdb` 落入静态兜底（2026-11-14）
+
+| 项 | 结果 |
+|---|---|
+| 问题 | `5ea1c20` 给 CLI 加 `userdb` 子命令时没同步 `tools/pyi_entry.py` 的 `FALLBACK_CLI_COMMANDS`，`test_fallback_list_matches_the_parser` 自那以后一直红；冻结 EXE 在 parser 导入失败时会把 `userdb` 误判为启动 GUI |
+| 修复 | 静态集合补 `userdb` 并注明需按字母序与 parser 同步；`tests/tools/test_pyi_entry.py` 参数化路由加 `userdb`、新增专项回归 |
+| 验证 | `tests/tools` + `test_bench_three_rulers` + `tests/db/test_search_v3.py` 共 39 项全绿，ruff 通过 |
+
+### 放大池会伤害序贯（2026-11-14，§45）
+
+| 项 | 结果 |
+|---|---|
+| 口径漏洞 | `shijk-20261113-pool20000.json` 的 `seq` 仍是 16/33，因为 `--candidate-limit` 只给整谱 `search_match`，序贯每轮仍走默认池 1000；读成"大池对序贯无增益"是误读 |
+| 三口径 A/B | A 默认 **0 涨 / 0 跌 / 13 平**（19 s）；B 大池整谱 **0 / 0 / 13**（54 s，与历史基线逐位一致）；C 再加 `--seq-candidate-limit 20000` **0 涨 / 1 跌 / 12 平**，`seq 16→14`（213 s） |
+| 归因 | C 的序贯跌幅与 §43 自适应池逐字一致 → 收紧结论：**只要序贯用上大池就会跌，与触发方式无关**；大池放进更多致密假卡，残峰少、容易被"解释掉"占住 Top-1 |
+| 裁定 | `--candidate-limit` **不贯穿序贯**（否则历史基线不可复现）；改用独立旋钮 `--seq-candidate-limit`（默认 `None`）复现实验；整谱大池与序贯是**并列**两条路，不能叠加 |
+| 工具修正 | `tools/bench_shijk.py::_compare()` 从 10 项扩到 **13 项**（补 `seq` / `sample_top1.*`）并给涨跌汇总 —— §43 曾因漏比而靠手动读 JSON 才发现序贯下跌 |
+
+### 流程变更（2026-11-14，用户放权）
+
+**commit / push / 打 tag 可自行执行，commit message 一律英文；发布 GitHub Release 仍需用户同意。**
+push 前的 `git fetch` + `ls-remote` 快进核对、push 后的线上 HEAD / 文件树 / blob 复核全部保留；
+不可逆操作（force push / 历史重写 / 删库）仍须单独确认。PDF2-2004 与 EXE 人工验收红线不变。
