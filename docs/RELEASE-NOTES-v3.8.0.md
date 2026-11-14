@@ -124,15 +124,32 @@ chemical information is the only lever with a measured one-directional gain.
 
 | File | Size | SHA-256 |
 |---|---:|---|
-| `XinMatch-Setup-3.8.0.exe` | _pending binary build_ | _pending binary build_ |
+| `XinMatch-Setup-3.8.0.exe` | 255,173,587 B (243.4 MiB) | `80b13060c4fca434d577dd00793eda13f856024d05e7bbe8ad0bcf3d12a5d58a` |
 
-> The portable zip (`XinMatch-Portable-3.8.0.zip`) is built for the acceptance rounds but
-> **not published** with the Release, per project convention.
+> The portable zip (`XinMatch-Portable-3.8.0.zip`, 371,703,257 B / 354.5 MiB,
+> SHA-256 `e97dd289fe4a2307eba964eb0b87f551c7f88cbbeff2e8c3b18123ce2dd8825a`)
+> is **built but not published** with the Release, per project convention.
 
 ## Acceptance
 
-_Pending: five automated rounds via `tools/verify_binary.py`, followed by the mandatory
-manual double-click acceptance before the Release is promoted from draft._
+All 5 automated rounds passed (`tools/verify_binary.py`; report
+`.scratch/binary_verify_380.json`, a process artefact that is not committed):
+
+- **Round 1**: SHA-256 manifest read-back matches for both Setup and Portable.
+- **Round 2**: portable archive extracts cleanly; the frozen CLI recognises the bundled
+  library — **78,035 phases** (118,640,640 B) — with `variant=release`, and the bundled
+  logo is byte-identical to the source tree.
+- **Round 3**: frozen GUI three hooks (REG = release / `registration_enabled`, LIBS 7
+  entries, ABOUT PNG 9,117 B) plus 3 cold starts all exiting 0.
+- **Round 4**: `/VERYSILENT /CURRENTUSER` silent install succeeds with `variant=release`
+  and the bundled library installed alongside.
+- **Round 5**: search on a real pattern after installation (5-1, 118 peaks) returns 5
+  candidates, top hit `96-210-0189`.
+
+The build itself was run in the foreground through the whole PyInstaller + Inno Setup
+chain, so the installer is complete (243.4 MiB, not the truncated intermediate that a
+background build can leave behind). Per project red line #6, the installer must also pass
+a **manual double-click acceptance** before the Release is promoted from draft.
 
 ## Data sources (not in Git)
 
