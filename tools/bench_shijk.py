@@ -24,6 +24,12 @@ IUCr ``bench_iucr``）的真值靠矿物名或组成比，这里不一样：每�
   沉淀法气相 SiO2，**非晶相没有晶体卡、不入分母、不算漏检**，其宽弥散峰表现为
   残差未解释属正常。
 * 「序贯」是相级（6 轮残差检索命中的真相数 / 33 相）。
+* **``--oracle-elements`` 是上界口径，不是交付指标**：把整套检索切换到"样品元素
+  已知"，允许池 = 全部真值相 CIF 元素集的并集，其余元素一律标为「必须不含」
+  （与 IUCr 尺子的 ``complement_restraints`` 同源）。现实中元素来自 XRF/EDS 或
+  工艺配方，不能从答案反推，所以只能用它衡量"化学信息给足时引擎能做到什么"。
+  非晶相没有 CIF、其元素不进允许池，这只会让约束更严，不会误杀真值相。
+  与默认口径的对比用 ``--baseline``，两套结果不混算。
 
 为什么单独成尺
 --------------
@@ -39,6 +45,10 @@ IUCr ``bench_iucr``）的真值靠矿物名或组成比，这里不一样：每�
 
     # 只核真值（不动检索）
     python -m tools.bench_shijk --library <...> --verify-truth
+
+    # 化学信息上界（与默认口径 A/B，不混算）
+    python -m tools.bench_shijk --library <...> --oracle-elements \
+        --baseline docs/bench/shijk-20261113.json --out .scratch/shijk-oracle.json
 """
 
 from __future__ import annotations
@@ -52,7 +62,9 @@ from pathlib import Path
 
 from xinmatch.core.db.reader_v3 import _DEFAULT_PRESCREEN_ORDER, _ORDER_CHOICES, XinDBReader
 from xinmatch.core.io import load_pattern
+from xinmatch.core.model.element_symbols import complement_restraints
 from xinmatch.core.model.entry import CellParams, Entry
+from xinmatch.core.model.restraints import Restraints
 from xinmatch.core.preprocess.auto_pipeline import auto_process
 from xinmatch.core.search.phase_key import parse_composition
 from xinmatch.core.search.search_match import search_match
@@ -191,6 +203,30 @@ def verify_truths(reader: XinDBReader, truths: list[Truth]) -> tuple[int, list[s
     return len(truths) - len(problems), problems
 
 
+def sample_elements(truths: list[Truth]) -> list[str]:
+    """样品的"已知元素"= 全部真值相（CIF）元素集的并集。
+
+    **只供上界口径使用**：现实中这些信息来自 XRF / EDS 或工艺配方，不能从答案
+    反推。样品 2/3/6/7 的非晶相没有 CIF，其元素不进允许池 —— 这只会让约束
+    **更严**，不会把真值相误杀（真值相自己的元素必然在并集里）。
+    """
+    elems: set[str] = set()
+    for t in truths:
+        elems |= set(t.elements)
+    return sorted(elems)
+
+
+def oracle_restraints(truths: list[Truth]) -> Restraints | None:
+    """「只允许样品元素」→ 其余元素全部 EXCLUDE 的补集约束。
+
+    与 IUCr 尺子的 ``complement_restraints(_sample_elements(...))`` 同源；
+    ``element_constraint_sets`` 是唯一换算点，预筛层拿到的是
+    ``elements_excluded``（「必须不含」），不是 ``elements_allowed``（「必须全含」）。
+    """
+    detected = sample_elements(truths)
+    return complement_restraints(detected) if detected else None
+
+
 def _first_rank(cands: list, truths: list[Truth], *, phase: bool) -> list[int | None]:
     """每个真值相在候选列表里的最好名次（1 起；未出现为 ``None``）。"""
     out: list[int | None] = []
@@ -256,6 +292,8 @@ def run(args: argparse.Namespace) -> dict:
 
         pattern = load_pattern(txt)
         processed, peaks = auto_process(pattern)
+        oracle = getattr(args, "oracle_elements", False)
+        restraints = oracle_restraints(truths) if oracle else None
         cands = search_match(
             peaks,
             reader,
@@ -263,6 +301,7 @@ def run(args: argparse.Namespace) -> dict:
             top_n=args.fetch,
             candidate_limit=args.candidate_limit,
             adaptive_pool=args.adaptive_pool,
+            restraints=restraints,
         )
         r_entry = _first_rank(cands, truths, phase=False)
         r_phase = _first_rank(cands, truths, phase=True)
@@ -282,7 +321,8 @@ def run(args: argparse.Namespace) -> dict:
             for _ in range(args.rounds):
                 res = search_residual(ident, reader, top_n=args.top_n,
                                       adaptive_pool=args.adaptive_pool,
-                                      candidate_limit=args.seq_candidate_limit)
+                                      candidate_limit=args.seq_candidate_limit,
+                                      restraints=restraints)
                 if not res.candidates:
                     break
                 ident.select(res.candidates[0])
@@ -307,6 +347,8 @@ def run(args: argparse.Namespace) -> dict:
             f"Top-1 {cands[0].entry.entry_id if cands else '-'} "
             f"{'✓' if top1_entry else '✗'}"
         )
+        if oracle:
+            print(f"  样品元素（上界）{', '.join(sample_elements(truths))}")
         print(f"  条目级名次 {_fmt(r_entry)}")
         print(f"  相位级名次 {_fmt(r_phase)}")
         print(f"  序贯 {args.rounds} 轮：{seq_hit}/{n} → {', '.join(seq_ids) or '-'}")
@@ -316,6 +358,7 @@ def run(args: argparse.Namespace) -> dict:
                 "sample": sample.name,
                 "n_points": int(pattern.two_theta.size),
                 "n_peaks": len(peaks),
+                "sample_elements": sample_elements(truths) if oracle else None,
                 "truths": [
                     {
                         "entry_id": t.entry_id,
@@ -370,6 +413,7 @@ def run(args: argparse.Namespace) -> dict:
         "candidate_limit": args.candidate_limit,
         "adaptive_pool": args.adaptive_pool,
         "seq_candidate_limit": args.seq_candidate_limit,
+        "oracle_elements": getattr(args, "oracle_elements", False),
         "prescreen_order": args.prescreen_order,
         "fetch": args.fetch,
         "rounds": args.rounds,
@@ -436,6 +480,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="序贯每轮的 v3 预筛池上限（None=引擎默认 1000，与历史基线一致）。"
                          "默认**不**跟随 --candidate-limit：实测放大它会让序贯 16/33→14/33，"
                          "见基准报告 §45")
+    ap.add_argument("--oracle-elements", action="store_true",
+                    help="把整套检索切到「样品元素已知」**上界**口径：真值相 CIF 的"
+                         "元素并集作允许池、其余元素全部必须不含。与默认口径用"
+                         " --baseline 对比，两套不混算；元素现实来自 XRF/EDS，"
+                         "不能从答案反推，故不是可交付的自动结果")
     ap.add_argument("--prescreen-order", choices=_ORDER_CHOICES,
                     default=_DEFAULT_PRESCREEN_ORDER,
                     help="v3 预筛第二排序键（intensity=强度加权 / hits=命中计数）")
