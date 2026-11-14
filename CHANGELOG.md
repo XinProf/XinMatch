@@ -21,6 +21,53 @@ here; implementation detail, verification data and the traps hit along the way l
 
 (Nothing yet.)
 
+## [3.8.0] — 2026-11-14
+
+**Added**
+- **Fourth benchmark ruler** `tools/bench_shijk.py`: seven measured MAUD refinement patterns,
+  33 crystalline phases, 13 metrics covering entry-level / phase-level Top-K, six-round
+  sequential identification and sample-level Top-1. Ground-truth entry IDs are derived from
+  the exported CIF numbering (seven digits minus one) and verified 33/33 with
+  `--verify-truth`. Amorphous phases in four samples are excluded from the denominator.
+  Baselines: `docs/bench/shijk-20261113.json` and `shijk-20261113-pool20000.json`.
+- **Configurable v3 prescreen pool cap**: `search_match(..., candidate_limit=...)`. `None`
+  keeps the built-in 1000 and is bit-identical to previous releases. An explicit 20000 pool
+  lifts ShiJK phase-level Top-20 from 9/33 to 15/33 at roughly 10x per-search latency; the
+  GUI does not expose the knob.
+- **Default-off adaptive pool switch** `adaptive_pool`: re-runs with a wider pool only when the
+  FoM head is flat. A/B ruled it out as a default (7 up / 2 down / 18 flat on the three
+  rulers; ShiJK sequential 16/33 → 14/33; 5–10x latency), so it stays an opt-in switch.
+- **`--oracle-elements` upper bound**: complement element restraints built from ground-truth
+  CIF element sets. This is the first one-directional gain across all four rulers —
+  10 up / 0 down / 3 flat, phase-level Top-20 9 → 15, sequential 16 → 25, sample Top-1
+  6/7 → 7/7, with no extra runtime. It is an upper bound, not a shipped metric: input
+  sensitivity probes show that under-reporting light elements is worse than applying no
+  restraints at all.
+- Independent `--seq-candidate-limit` knob keeps the historical benchmark baselines
+  reproducible, and `_compare()` now reports all 13 metrics with up / down / flat totals.
+
+**Changed**
+- All four rulers accept `--adaptive-pool`; `tools/bench_three_rulers.py` forwards it and
+  records it in the summary config.
+- External documentation is now English by default: README, README-CN, this changelog and
+  all `docs/RELEASE-NOTES-*.md` files. Internal notes (`docs/STATUS.md`, the benchmark
+  report, work logs) stay in Chinese.
+
+**Fixed**
+- `userdb` was missing from the frozen CLI fallback dispatcher (`tools/pyi_entry.py`), so a
+  frozen build could route `XinMatch.exe userdb ...` to the GUI when parser import failed.
+  A dedicated regression test now pins the subcommand list.
+
+**Data**
+- Diagnostics documented and ruled out without production changes: prescreen `hits`
+  ordering (§42), adaptive pool (§43), four alternative `p_npeaks` estimators (§44),
+  wide pool in sequential search (§45). The element upper bound is §46.
+
+**Release**
+- Default search behaviour is unchanged: the default ruler run is 13/13 flat against the
+  historical baseline. `.xinDB`, `.xinm` and `config.yaml` formats are unchanged.
+- `XinMatch-Setup-3.8.0.exe`; the portable zip is built for acceptance but not published.
+
 ## [3.7.0] — 2026-11-12
 
 **Added**
@@ -237,6 +284,7 @@ notes were written then; the history is in the corresponding git tags and the ar
 
 | Version | Notes | GitHub Release |
 |---|---|---|
+| v3.8.0 | [docs/RELEASE-NOTES-v3.8.0.md](docs/RELEASE-NOTES-v3.8.0.md) | [v3.8.0](https://github.com/XinProf/XinMatch/releases/tag/v3.8.0) |
 | v3.7.0 | [docs/RELEASE-NOTES-v3.7.0.md](docs/RELEASE-NOTES-v3.7.0.md) | [v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0) |
 | v3.6.4 | — (tag only, no separate notes) | no binary released |
 | v3.6.3 | [docs/RELEASE-NOTES-v3.6.3.md](docs/RELEASE-NOTES-v3.6.3.md) | — |
@@ -251,5 +299,5 @@ notes were written then; the history is in the corresponding git tags and the ar
 | v3.0.0 | [docs/RELEASE-NOTES-v3.0.0.md](docs/RELEASE-NOTES-v3.0.0.md) | — |
 
 > "—" means the binary and notes for that version were published in the previous repository
-> (`PolyXRD/XinMatch`) or that no asset was published separately; after the move, only v3.7.0 has a
-> corresponding GitHub Release record.
+> (`PolyXRD/XinMatch`) or that no asset was published separately; after the move, v3.7.0 and
+> v3.8.0 have corresponding GitHub Release records.

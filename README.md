@@ -10,7 +10,7 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.7.0.** Core computation kernel + full GUI + dual-mode search-match
+> ✅ **v3.8.0.** Core computation kernel + full GUI + dual-mode search-match
 > (peak-list FoM / FPFM full-profile fitting, formerly SMPF) + **sequential multi-phase
 > identification** + true March-Dollase preferred-orientation modelling + GSAS-II
 > refinement pipeline + quantitative Rietveld (main-phase wt% < 3 on certified samples).
@@ -18,14 +18,15 @@ workflows, published algorithms and open reference data (COD).
 > library bundled as the built-in default — works out of the box, still mountable from
 > any folder.
 >
-> **This release (v3.7.0)** — toolchain fixes and benchmark infrastructure, with no change
-> to the search algorithm or file formats: the synthetic-pattern ruler is restored and
-> regenerated from the same library the search uses; `tools/bench_three_rulers.py` runs
-> all three rulers in one command with up / down / flat deltas; two path defects (generator
-> card database, COD `cif/` root probe) are fixed.
+> **This release (v3.8.0)** — search-match benchmarking and diagnostics, with **no change
+> to default search results**: a fourth ruler built on seven measured multi-phase patterns
+> (33 crystalline phases, 13 metrics), a configurable prescreen pool cap, a default-off
+> adaptive pool, and an element-restraint upper bound that is the first one-directional
+> improvement across all four rulers. The frozen CLI dispatcher now recognises `userdb`.
+> All external documentation is published in English.
 >
-> **[Download v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0)** ·
-> [Changelog](CHANGELOG.md) · [This release](docs/RELEASE-NOTES-v3.7.0.md) ·
+> **[Download v3.8.0](https://github.com/XinProf/XinMatch/releases/tag/v3.8.0)** ·
+> [Changelog](CHANGELOG.md) · [This release](docs/RELEASE-NOTES-v3.8.0.md) ·
 > [Status](docs/STATUS.md) · [Roadmap](docs/ROADMAP_v3.md)
 
 ## What XinMatch does
@@ -166,8 +167,9 @@ Since v1.7.0 two binaries are produced. **Since v3.0.0 both builds bundle the de
 | **Release build** (release) | `XinMatch-Setup-<v>.exe` (install location selectable at install time) | **Yes**: registration status checked on every launch | `Registered: <organization/department name>` / `Unregistered` |
 | **Internal evaluation build** (internal) | `XinMatch-Internal-<v>.zip` (no installation, for internal use) | **None** | **bold red** `internal evaluation version` |
 
-**Current release**: [v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0) — `XinMatch-Setup-3.7.0.exe`,
-243.4 MiB. Per-version sizes, hashes and notes live in [CHANGELOG.md](CHANGELOG.md) and `docs/RELEASE-NOTES-<version>.md`.
+**Current release**: [v3.8.0](https://github.com/XinProf/XinMatch/releases/tag/v3.8.0) — `XinMatch-Setup-3.8.0.exe`.
+Per-version sizes, hashes and acceptance results live in [CHANGELOG.md](CHANGELOG.md) and
+[docs/RELEASE-NOTES-v3.8.0.md](docs/RELEASE-NOTES-v3.8.0.md).
 
 The reference database is unchanged in this release; both binaries bundle `COD-Inorg-20261020.xinDB` (78,035 phases).
 `.xinm` export must be paired with **XinRefinement 1.1.0**.

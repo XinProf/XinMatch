@@ -8,18 +8,24 @@ Open-source **powder X-ray diffraction (XRPD) phase analysis** platform — a
 clean-room implementation guided by publicly documented XRD phase-analysis
 workflows, published algorithms and open reference data (COD).
 
-> ✅ **v3.7.0.** 计算内核 + 完整 GUI + 双模式检索（峰列表 FoM / FPFM 全谱拟合，原 SMPF）+
-> **序贯多相鉴定** + 真实 March-Dollase 择优取向建模 + GSAS-II 精修链 + Rietveld 定量
-> （认证样品主相 wt% 误差 < 3）。参考库统一为 **v3 列式 `.xinDB`** 单一格式，**COD-Inorg**
-> 作为内置默认库随包发布——开箱可用，也可从任意目录挂载。
+> ✅ **v3.8.0.** Core computation kernel + full GUI + dual-mode search-match
+> (peak-list FoM / FPFM full-profile fitting, formerly SMPF) + **sequential multi-phase
+> identification** + true March-Dollase preferred-orientation modelling + GSAS-II
+> refinement pipeline + quantitative Rietveld (main-phase wt% < 3 on certified samples).
+> Reference data is the single **v3 columnar `.xinDB`** layout with the **COD-Inorg**
+> library bundled as the built-in default — works out of the box, still mountable from
+> any folder.
 >
-> **本版（v3.7.0）**——工具链修复与基准设施，检索算法与文件格式均未改动：合成谱尺子恢复并
-> 改用与检索同源的库重新生成；`tools/bench_three_rulers.py` 一条命令跑齐三把尺子并给出
-> 涨 / 跌 / 平；修掉两处路径缺陷（生成器卡片库、COD `cif/` 根目录探测）。
+> **This release (v3.8.0)** — search-match benchmarking and diagnostics, with **no change
+> to default search results**: a fourth ruler built on seven measured multi-phase patterns
+> (33 crystalline phases, 13 metrics), a configurable prescreen pool cap, a default-off
+> adaptive pool, and an element-restraint upper bound that is the first one-directional
+> improvement across all four rulers. The frozen CLI dispatcher now recognises `userdb`.
+> All external documentation is published in English.
 >
-> **[下载 v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0)** ·
-> [变更记录](CHANGELOG.md) · [本版说明](docs/RELEASE-NOTES-v3.7.0.md) ·
-> [状态](docs/STATUS.md) · [路线图](docs/ROADMAP_v3.md)
+> **[Download v3.8.0](https://github.com/XinProf/XinMatch/releases/tag/v3.8.0)** ·
+> [Changelog](CHANGELOG.md) · [This release](docs/RELEASE-NOTES-v3.8.0.md) ·
+> [Status](docs/STATUS.md) · [Roadmap](docs/ROADMAP_v3.md)
 
 ## What XinMatch does
 
@@ -159,10 +165,12 @@ v1.7.0 起同时产出两个二进制。**v3.0.0 起两个版本都内置默认�
 | **正式版**（release） | `XinMatch-Setup-<v>.exe`（安装时可选择安装位置） | **有**：每次启动检查注册状态 | `已注册：<单位部门名称>` / `未注册` |
 | **内部评估版**（internal） | `XinMatch-Internal-<v>.zip`（免安装，自用） | **无** | **红色加粗** `内部评估版本` |
 
-**当前版本**：[v3.7.0](https://github.com/XinProf/XinMatch/releases/tag/v3.7.0) —— `XinMatch-Setup-3.7.0.exe`，
-243.4 MiB。各版本的体积、哈希与说明见 [CHANGELOG.md](CHANGELOG.md) 与 `docs/RELEASE-NOTES-<version>.md`。
+**Current release**: [v3.8.0](https://github.com/XinProf/XinMatch/releases/tag/v3.8.0) — `XinMatch-Setup-3.8.0.exe`.
+Per-version sizes, hashes and acceptance results live in [CHANGELOG.md](CHANGELOG.md) and
+[docs/RELEASE-NOTES-v3.8.0.md](docs/RELEASE-NOTES-v3.8.0.md).
 
-参考库本版未变更，两个二进制均内置 `COD-Inorg-20261020.xinDB`（重建版，78,035 相）。
+The reference library is unchanged in this release; both binaries bundle
+`COD-Inorg-20261020.xinDB` (78,035 phases).
 `.xinm` 导出需与 **XinRefinement 1.1.0** 配套使用。
 更大的外挂库（`PCOD` / `TCOD` / `Full` / Materials Project）在姊妹仓库
 [XinMatch-DataBase Releases](https://github.com/PolyXRD/XinMatch-DataBase/releases) 分发：
