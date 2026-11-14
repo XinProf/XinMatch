@@ -148,8 +148,8 @@ All 5 automated rounds passed (`tools/verify_binary.py`; report
 
 The build itself was run in the foreground through the whole PyInstaller + Inno Setup
 chain, so the installer is complete (243.4 MiB, not the truncated intermediate that a
-background build can leave behind). Per project red line #6, the installer must also pass
-a **manual double-click acceptance** before the Release is promoted from draft.
+background build can leave behind). The installer also passed the **manual double-click
+acceptance** required by project red line #6 before the Release was promoted from draft.
 
 ## Data sources (not in Git)
 

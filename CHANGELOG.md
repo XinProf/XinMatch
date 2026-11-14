@@ -69,7 +69,8 @@ here; implementation detail, verification data and the traps hit along the way l
 - `XinMatch-Setup-3.8.0.exe` 243.4 MiB, SHA-256 `80b13060…d12a5d58a`; the portable zip is
   built for acceptance but not published.
 - All 5 rounds of binary robustness acceptance passed (hash read-back / portable extract /
-  frozen GUI three hooks / silent install / post-install search).
+  frozen GUI three hooks / silent install / post-install search), followed by the mandatory
+  manual double-click acceptance before the Release was promoted from draft.
 
 ## [3.7.0] — 2026-11-12
 

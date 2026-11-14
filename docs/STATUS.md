@@ -2787,3 +2787,19 @@ set_crosshair_visible / crosshair_visible / x_display_of / left_axis_width / dat
 **commit / push / 打 tag 可自行执行，commit message 一律英文；发布 GitHub Release 仍需用户同意。**
 push 前的 `git fetch` + `ls-remote` 快进核对、push 后的线上 HEAD / 文件树 / blob 复核全部保留；
 不可逆操作（force push / 历史重写 / 删库）仍须单独确认。PDF2-2004 与 EXE 人工验收红线不变。
+
+## v3.8.0：第四把尺子与检索诊断发版（2026-11-14）
+
+| 项 | 结果 |
+|---|---|
+| 版本四处同步 | `pyproject.toml` / `xinmatch/__init__.py` / `tools/xinmatch_setup.iss` 升 **3.8.0**；`xinmatch.spec` 仍从 pyproject 推导、无字面量。版本一致性守卫 6 项全绿 |
+| 提交 / tag | `db3de14`（版本 + 三件套）→ `c101823`（哈希与验收回填）；tag **v3.8.0**（annotated）→ `c101823`，已推 |
+| 构建 | **前台一次跑完** `tools/build_exe.ps1 -Installer`（PyInstaller 6.22.3 + Inno Setup 6），没有出现后台构建在 ISCC 阶段被终止留下的 95 MB 半成品。产物 `dist/xinmatch-3.8.0/` 794 MB / 3665 文件、内置库 118,640,640 B |
+| 构建环境坑 | 基础解释器 `D:\Project\XRD\python310\python.exe` **没有 numpy / PyInstaller**，`build_exe.ps1` 默认会失败；必须设 `$env:XINMATCH_PYTHON = D:\XinMatch\.venv\Scripts\python.exe`（3.10.11 / numpy 2.2.6 / PyInstaller 6.22.3），并显式 `$env:XINMATCH_BUNDLE_XINDB` 指向 `COD-Inorg-20261020.xinDB` |
+| 安装包 | `XinMatch-Setup-3.8.0.exe` 255,173,587 B（243.4 MiB），SHA-256 `80b13060c4fca434d577dd00793eda13f856024d05e7bbe8ad0bcf3d12a5d58a`；便携 zip 371,703,257 B 只构建不发布 |
+| 五轮验收 | `tools/verify_binary.py --tag v3.8.0` **5/5 全过**：R1 哈希往返；R2 库 78,035 相 / variant=release / logo 一致；R3 REG+LIBS 7+ABOUT 9,117 B、3 次冷启动全 0；R4 静默安装 0；R5 安装后 5-1（118 峰）→ 5 候选、榜首 `96-210-0189`。报告 `.scratch/binary_verify_380.json` |
+| 人工验收 | 用户确认双击验收通过后才 `--draft=false --latest`，红线 #6 保留 |
+| Release | [`v3.8.0`](https://github.com/XinProf/XinMatch/releases/tag/v3.8.0) **Latest**，published 2026-11-14T01:40:19Z；标题「XinMatch v3.8.0」、正文取自英文 `docs/RELEASE-NOTES-v3.8.0.md`；唯一资产 Setup，线上 digest 与本地 SHA-256 逐字一致 |
+| 对外语言 | 用户再次明确「readme / changelog / commit message / release note 等远端信息以英文为主，本项目以后保持」。本次 README、README-CN 的发布信息块、CHANGELOG、RELEASE-NOTES、Release 正文、commit message 全英文；内部文档仍中文 |
+
+**本版内容**：第四把尺子 ShiJK（7 条实测谱 / 33 晶相 / 13 指标）、`candidate_limit` 可配池上限、默认关闭的 `adaptive_pool`、元素约束上界 `--oracle-elements`（10 涨 / 0 跌 / 3 平，四把尺子首个单向改善）、修 `userdb` 冻结分发兜底。默认检索逐位不变（13/13 全平），生产 GUI 零改动。详见基准报告 §41–§46。
